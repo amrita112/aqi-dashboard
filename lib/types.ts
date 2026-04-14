@@ -18,6 +18,7 @@ export interface Reading {
 
 /** The form data when a user submits a new reading (before it hits the database) */
 export interface ReadingInsert {
+  user_id: string;
   aqi_value: number;
   latitude: number;
   longitude: number;
