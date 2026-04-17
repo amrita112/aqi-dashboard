@@ -3,16 +3,25 @@
  *
  * "use client" because this page:
  * - Fetches data from Supabase when it loads
- * - Responds to user clicks on map markers
+ * - Responds to user clicks on map markers and empty map space
+ * - Tracks which location is selected and which sources are active
  * - Dynamically imports the map component (Leaflet doesn't work on the server)
+ *
+ * How the map ↔ timeline interaction works:
+ * 1. The map shows colored markers for all readings matching the active source filters
+ * 2. Clicking a marker loads timeline data for that station (within 5 km)
+ * 3. Clicking empty space loads averaged data from a 10 km radius around that point
+ * 4. Toggling source filters updates BOTH the map markers AND the timeline data
+ * 5. The map does NOT re-zoom when filters change or points are clicked
  */
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import dynamic from "next/dynamic";  // For loading components only in the browser
+import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { getReadings, getReadingsNearLocation } from "@/lib/queries";
 import { Reading, DataSource, ALL_SOURCES } from "@/lib/types";
+import { SelectedLocation } from "@/components/AqiMap";
 import AqiTimeSeries from "@/components/AqiTimeSeries";
 import AqiBadge from "@/components/AqiBadge";
 import SourceFilter from "@/components/SourceFilter";
@@ -24,10 +33,16 @@ import SourceFilter from "@/components/SourceFilter";
  */
 const AqiMap = dynamic(() => import("@/components/AqiMap"), { ssr: false });
 
+/** Search radius in meters for marker clicks (5 km) */
+const STATION_RADIUS = 5000;
+/** Search radius in meters for empty-space clicks (10 km) */
+const AREA_RADIUS = 10000;
+
 export default function DashboardPage() {
   const [readings, setReadings] = useState<Reading[]>([]);
-  const [selectedReadings, setSelectedReadings] = useState<Reading[]>([]);  // Readings near a clicked marker
-  const [activeSources, setActiveSources] = useState<DataSource[]>([...ALL_SOURCES]);  // All sources on by default
+  const [timelineReadings, setTimelineReadings] = useState<Reading[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(null);
+  const [activeSources, setActiveSources] = useState<DataSource[]>([...ALL_SOURCES]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,27 +50,27 @@ export default function DashboardPage() {
 
   /**
    * Toggle a source on or off. If it's currently active, remove it.
-   * If it's not active, add it. Then re-fetch data with the new filter.
+   * If it's not active, add it.
    */
   const handleToggleSource = useCallback((source: DataSource) => {
-    setActiveSources((prev) => {
-      if (prev.includes(source)) {
-        return prev.filter((s) => s !== source);  // Remove it
-      } else {
-        return [...prev, source];  // Add it
-      }
-    });
+    setActiveSources((prev) =>
+      prev.includes(source)
+        ? prev.filter((s) => s !== source)
+        : [...prev, source]
+    );
   }, []);
 
-  // Fetch readings whenever the active sources change
+  /**
+   * Fetch all readings for the map markers whenever active sources change.
+   */
   useEffect(() => {
     async function loadReadings() {
       setLoading(true);
       try {
         const data = await getReadings(supabase, 1000, activeSources);
         setReadings(data);
-      } catch (err: any) {
-        setError(err.message || "Failed to load readings");
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to load readings");
       } finally {
         setLoading(false);
       }
@@ -64,25 +79,86 @@ export default function DashboardPage() {
   }, [activeSources]);
 
   /**
-   * When a marker is clicked on the map, fetch all readings near that location
-   * and show them in the time series chart below.
+   * Fetches timeline data for a given lat/lng and radius, filtered by active sources.
+   * The PostGIS function returns all sources, so we filter client-side.
    */
-  const handleMarkerClick = async (reading: Reading) => {
-    try {
-      const nearby = await getReadingsNearLocation(
-        supabase,
-        reading.latitude,
-        reading.longitude,
-        5000  // 5 km radius
-      );
-      setSelectedReadings(nearby);
-    } catch {
-      // If the PostGIS function isn't available yet, just show the single reading
-      setSelectedReadings([reading]);
-    }
-  };
+  const loadTimelineData = useCallback(
+    async (lat: number, lng: number, radiusMeters: number) => {
+      try {
+        const nearby = await getReadingsNearLocation(supabase, lat, lng, radiusMeters);
+        /* Filter to only the currently active sources */
+        const filtered = nearby.filter((r) => activeSources.includes(r.source));
+        setTimelineReadings(filtered);
+      } catch {
+        /* If PostGIS isn't set up yet, show an empty state rather than crashing */
+        setTimelineReadings([]);
+      }
+    },
+    [activeSources, supabase]
+  );
 
-  if (loading) {
+  /**
+   * When active sources change and a location is already selected,
+   * re-fetch the timeline data so it stays in sync with the map.
+   */
+  useEffect(() => {
+    if (selectedLocation) {
+      loadTimelineData(
+        selectedLocation.lat,
+        selectedLocation.lng,
+        selectedLocation.radiusMeters
+      );
+    }
+  }, [activeSources]);
+
+  /**
+   * When a marker is clicked: select that station and load its nearby readings.
+   * Uses a smaller radius (5 km) since we're looking at a specific station.
+   */
+  const handleMarkerClick = useCallback(
+    (reading: Reading) => {
+      const loc: SelectedLocation = {
+        lat: reading.latitude,
+        lng: reading.longitude,
+        isStation: true,
+        radiusMeters: STATION_RADIUS,
+      };
+      setSelectedLocation(loc);
+      loadTimelineData(reading.latitude, reading.longitude, STATION_RADIUS);
+    },
+    [loadTimelineData]
+  );
+
+  /**
+   * When empty map space is clicked: select that arbitrary point and load
+   * averaged readings from a larger radius (10 km). This is for users who
+   * want to know the AQI near their home even if there's no station there.
+   */
+  const handleMapClick = useCallback(
+    (lat: number, lng: number) => {
+      const loc: SelectedLocation = {
+        lat,
+        lng,
+        isStation: false,
+        radiusMeters: AREA_RADIUS,
+      };
+      setSelectedLocation(loc);
+      loadTimelineData(lat, lng, AREA_RADIUS);
+    },
+    [loadTimelineData]
+  );
+
+  /**
+   * Build the timeline chart title based on the selected location.
+   * Shows lat/lng rounded to 2 decimal places so it's readable.
+   */
+  const timelineTitle = selectedLocation
+    ? selectedLocation.isStation
+      ? `Station readings near (${selectedLocation.lat.toFixed(2)}, ${selectedLocation.lng.toFixed(2)})`
+      : `Area readings around (${selectedLocation.lat.toFixed(2)}, ${selectedLocation.lng.toFixed(2)})`
+    : "AQI Over Time";
+
+  if (loading && readings.length === 0) {
     return (
       <div className="flex items-center justify-center h-96 text-gray-500">
         Loading dashboard...
@@ -116,7 +192,12 @@ export default function DashboardPage() {
       {/* Map section */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden" style={{ height: "450px" }}>
         {readings.length > 0 ? (
-          <AqiMap readings={readings} onMarkerClick={handleMarkerClick} />
+          <AqiMap
+            readings={readings}
+            selectedLocation={selectedLocation}
+            onMarkerClick={handleMarkerClick}
+            onMapClick={handleMapClick}
+          />
         ) : (
           <div className="flex items-center justify-center h-full text-gray-500">
             No readings yet. Be the first to submit one!
@@ -124,14 +205,14 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Hint text below the map */}
+      <p className="text-sm text-gray-400 -mt-4">
+        Click a station or anywhere on the map to see nearby AQI trends.
+      </p>
+
       {/* Time series chart section */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-semibold mb-4">
-          {selectedReadings.length > 0
-            ? "AQI Over Time (within 5 km of selected point)"
-            : "AQI Over Time"}
-        </h2>
-        <AqiTimeSeries readings={selectedReadings} />
+        <AqiTimeSeries readings={timelineReadings} title={timelineTitle} />
       </div>
 
       {/* Recent readings list */}
