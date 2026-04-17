@@ -92,6 +92,7 @@ export default function ReadingForm() {
         aqi_value: numericAqi,
         latitude,
         longitude,
+        source: 'user',                         // Tag this as a user-submitted reading
         recorded_at: new Date().toISOString(),  // Current time as the reading timestamp
       });
 

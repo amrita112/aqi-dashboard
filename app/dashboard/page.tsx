@@ -8,13 +8,14 @@
  */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";  // For loading components only in the browser
 import { createClient } from "@/lib/supabase/client";
 import { getReadings, getReadingsNearLocation } from "@/lib/queries";
-import { Reading } from "@/lib/types";
+import { Reading, DataSource, ALL_SOURCES } from "@/lib/types";
 import AqiTimeSeries from "@/components/AqiTimeSeries";
 import AqiBadge from "@/components/AqiBadge";
+import SourceFilter from "@/components/SourceFilter";
 
 /**
  * Leaflet (the map library) uses browser APIs like `window` that don't exist on the server.
@@ -26,16 +27,32 @@ const AqiMap = dynamic(() => import("@/components/AqiMap"), { ssr: false });
 export default function DashboardPage() {
   const [readings, setReadings] = useState<Reading[]>([]);
   const [selectedReadings, setSelectedReadings] = useState<Reading[]>([]);  // Readings near a clicked marker
+  const [activeSources, setActiveSources] = useState<DataSource[]>([...ALL_SOURCES]);  // All sources on by default
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const supabase = createClient();
 
-  // Fetch all readings when the page loads
+  /**
+   * Toggle a source on or off. If it's currently active, remove it.
+   * If it's not active, add it. Then re-fetch data with the new filter.
+   */
+  const handleToggleSource = useCallback((source: DataSource) => {
+    setActiveSources((prev) => {
+      if (prev.includes(source)) {
+        return prev.filter((s) => s !== source);  // Remove it
+      } else {
+        return [...prev, source];  // Add it
+      }
+    });
+  }, []);
+
+  // Fetch readings whenever the active sources change
   useEffect(() => {
     async function loadReadings() {
+      setLoading(true);
       try {
-        const data = await getReadings(supabase);
+        const data = await getReadings(supabase, 1000, activeSources);
         setReadings(data);
       } catch (err: any) {
         setError(err.message || "Failed to load readings");
@@ -44,7 +61,7 @@ export default function DashboardPage() {
       }
     }
     loadReadings();
-  }, []);
+  }, [activeSources]);
 
   /**
    * When a marker is clicked on the map, fetch all readings near that location
@@ -92,6 +109,9 @@ export default function DashboardPage() {
           {readings.length} reading{readings.length !== 1 ? "s" : ""} total
         </span>
       </div>
+
+      {/* Source filter — toggle which data sources are shown */}
+      <SourceFilter activeSources={activeSources} onToggle={handleToggleSource} />
 
       {/* Map section */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden" style={{ height: "450px" }}>

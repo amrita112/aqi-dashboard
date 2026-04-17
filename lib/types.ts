@@ -3,6 +3,23 @@
  * These define the shape of data throughout the app — like column headers in a spreadsheet.
  */
 
+/**
+ * The four data sources that readings can come from.
+ * Used for filtering on the dashboard.
+ */
+export type DataSource = 'user' | 'openaq' | 'simulated' | 'government';
+
+/** All possible data sources, in display order */
+export const ALL_SOURCES: DataSource[] = ['user', 'openaq', 'government', 'simulated'];
+
+/** Human-readable labels for each data source */
+export const SOURCE_LABELS: Record<DataSource, string> = {
+  user: 'User Entries',
+  openaq: 'OpenAQ',
+  government: 'Government',
+  simulated: 'Simulated',
+};
+
 /** A single AQI reading submitted by a user */
 export interface Reading {
   id: string;                  // Unique identifier for this reading (auto-generated)
@@ -12,6 +29,7 @@ export interface Reading {
   longitude: number;           // GPS longitude (e.g., 77.2090 for Delhi)
   image_url: string | null;    // Future: URL to a photo of the monitor
   device_type: string | null;  // Future: model/brand of the AQI monitor
+  source: DataSource;          // Where this reading came from (user, openaq, government, simulated)
   recorded_at: string;         // When the reading was taken (ISO timestamp)
   created_at: string;          // When the row was saved to the database
 }
@@ -23,6 +41,7 @@ export interface ReadingInsert {
   latitude: number;
   longitude: number;
   recorded_at: string;
+  source?: DataSource;         // Optional — defaults to 'user' in the database
 }
 
 /** A user's profile information */

@@ -11,21 +11,31 @@
  */
 
 import { SupabaseClient } from "@supabase/supabase-js";
-import { Reading, ReadingInsert } from "./types";
+import { Reading, ReadingInsert, DataSource } from "./types";
 
 /**
  * Fetch all readings, newest first.
- * Optionally limit the number of results (default: 1000).
+ * Optionally filter by data sources (e.g., only show OpenAQ and user data).
+ * If no sources are specified, all readings are returned.
  */
 export async function getReadings(
   supabase: SupabaseClient,
-  limit: number = 1000
+  limit: number = 1000,
+  sources?: DataSource[]
 ): Promise<Reading[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("readings")
     .select("*")
     .order("recorded_at", { ascending: false })
     .limit(limit);
+
+  // If specific sources are requested, filter to only those.
+  // "in" means "where source is one of these values" — like Python's `in` operator.
+  if (sources && sources.length > 0) {
+    query = query.in("source", sources);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
   return data as Reading[];
