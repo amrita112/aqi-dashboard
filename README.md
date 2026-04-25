@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AQI Dashboard
+
+A crowdsourced Air Quality Index (AQI) dashboard for India. Users with home air quality monitors can submit readings tagged with their GPS location, and anyone can browse air quality data on an interactive map.
+
+## Tech Stack
+
+- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS
+- **Database:** Supabase (Postgres + PostGIS)
+- **Charts:** Recharts
+- **Maps:** Leaflet + OpenStreetMap
 
 ## Getting Started
 
-First, run the development server:
+### 1. Set up Supabase
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Create a free project at [supabase.com](https://supabase.com). Then run the SQL files in `database-setup/` using the Supabase SQL Editor (Dashboard > SQL Editor). Run them in numbered order:
+
+| File | What it does | Required? |
+|------|-------------|-----------|
+| `01-schema.sql` | Creates tables, triggers, indexes, and security policies | Yes |
+| `02-add-source-column.sql` | Adds a `source` column to track where readings came from | Yes |
+| `03-seed-data.sql` | Inserts simulated test readings for Indian cities | Optional |
+| `04-openaq-seed.sql` | Inserts real air quality data from OpenAQ | Optional |
+
+Files 1 and 2 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
+
+### 2. Configure environment variables
+
+Copy `.env.local.example` to `.env.local` (or create `.env.local`) and fill in your Supabase credentials:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+You can find these in your Supabase dashboard under Settings > API.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Install and run
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+npm run dev
+```
 
-## Learn More
+Open [http://localhost:3000](http://localhost:3000) to see the dashboard.
 
-To learn more about Next.js, take a look at the following resources:
+## Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+app/           Next.js routes and pages
+components/    Reusable UI components
+lib/           Supabase client, utilities, types
+database-setup/ SQL files to set up the database (run in order)
+scripts/       Data import scripts (e.g., fetch_openaq.py)
+```
