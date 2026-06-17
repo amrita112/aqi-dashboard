@@ -93,6 +93,7 @@ function makeReading(overrides: Partial<Reading> = {}): Reading {
   return {
     id: "r1",
     user_id: "u1",
+    monitor_id: null,
     aqi_value: 75,
     latitude: 28.6,
     longitude: 77.2,

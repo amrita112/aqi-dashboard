@@ -44,6 +44,7 @@ function makeFakeSupabase(rows: Reading[]) {
 const sampleReading: Reading = {
   id: "r1",
   user_id: "u1",
+  monitor_id: null,
   aqi_value: 120,
   latitude: 28.6,
   longitude: 77.2,
