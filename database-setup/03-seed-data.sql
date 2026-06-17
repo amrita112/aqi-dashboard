@@ -13,7 +13,7 @@
 INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, instance_id, aud, role)
 VALUES (
   '00000000-0000-0000-0000-000000000001',
-  'testdata@aqi-dashboard.dev',
+  'admin@aqi-dashboard.dev',
   '$2a$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012',
   now(),
   now(),
@@ -26,7 +26,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Step 2: The trigger should auto-create a profile, but let's ensure it exists
 INSERT INTO profiles (id, display_name)
-VALUES ('00000000-0000-0000-0000-000000000001', 'simulated', 'Test Data Bot')
+VALUES ('00000000-0000-0000-0000-000000000001', 'AQI Dashboard Admin')
 ON CONFLICT (id) DO NOTHING;
 
 -- Step 3: Insert AQI readings across major Indian cities
