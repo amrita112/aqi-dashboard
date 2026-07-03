@@ -23,6 +23,13 @@ export async function getReadings(
   limit: number = 1000,
   sources?: DataSource[]
 ): Promise<Reading[]> {
+  // Distinguish "no filter" (sources is undefined) from "filter to nothing"
+  // (sources is an empty array). An empty array means the caller unchecked
+  // every source, so the correct result is an empty list — not "everything".
+  if (sources !== undefined && sources.length === 0) {
+    return [];
+  }
+
   let query = supabase
     .from("readings")
     .select("*")

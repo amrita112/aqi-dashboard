@@ -79,4 +79,17 @@ describe("getReadings", () => {
 
     expect(builder.in).toHaveBeenCalledWith("source", ["user", "openaq"]);
   });
+
+  it("returns [] immediately when sources is an empty array (no DB call)", async () => {
+    // An empty array means "the user unchecked every source" — the correct
+    // answer is an empty list, not "all sources". This is the bug fix from
+    // 2026-07-02: without the guard, an empty array silently returned every
+    // reading in the DB because the `.in()` filter was skipped.
+    const { client, from } = makeFakeSupabase([sampleReading]);
+    const result = await getReadings(client, 1000, []);
+
+    expect(result).toEqual([]);
+    // Guard should short-circuit before touching Supabase at all.
+    expect(from).not.toHaveBeenCalled();
+  });
 });
