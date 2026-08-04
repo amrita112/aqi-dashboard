@@ -5,6 +5,7 @@
 /.pnp
 .pnp.js
 .yarn/install-state.gz
+/Papa_s html prototypes
 
 # testing
 /coverage
@@ -20,6 +21,10 @@
 .DS_Store
 *.pem
 memory_commented.md
+
+# planning docs — kept local, not published
+/docs/v1-plan.md
+/docs/v1-plan-notes.md
 
 # debug
 npm-debug.log*

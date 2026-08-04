@@ -22,8 +22,9 @@ Create a free project at [supabase.com](https://supabase.com). Then run the SQL 
 | `03-seed-data.sql` | Inserts simulated test readings for Indian cities | Optional |
 | `04-openaq-seed.sql` | Inserts real air quality data from OpenAQ | Optional |
 | `05-add-monitors-table.sql` | Adds a `monitors` table and links readings to physical devices | Yes |
+| `06-integrity-fixes.sql` | Adds validation constraints, tightened RLS policies, and missing indexes | Yes |
 
-Files 1, 2, and 5 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
+Files 1, 2, 5, and 6 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
 
 ### 2. Configure environment variables
 
