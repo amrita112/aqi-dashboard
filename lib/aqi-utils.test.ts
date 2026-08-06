@@ -136,9 +136,17 @@ describe("computeSubIndex (NAQI, default scale)", () => {
     expect(computeSubIndex("pm25", 75)).toBe(151);
   });
 
-  it("caps at 500 when value exceeds the highest breakpoint", () => {
-    expect(computeSubIndex("pm25", 500)).toBe(500);
-    expect(computeSubIndex("pm25", 1500)).toBe(500);
+  it("extrapolates linearly above the top band, capped at 1000", () => {
+    expect(computeSubIndex("pm25", 500)).toBe(500);   // top of the standard scale
+    // Above scale: last band is (250-500 → 401-500), slope 99/250 = 0.396.
+    // value = 1500 → 401 + 0.396*(1500-250) = 401 + 495 = 896
+    expect(computeSubIndex("pm25", 1500)).toBe(896);
+    // Very extreme concentration would extrapolate above 1000; capped at 1000.
+    expect(computeSubIndex("pm25", 3000)).toBe(1000);
+  });
+
+  it("throws for negative concentrations", () => {
+    expect(() => computeSubIndex("pm25", -5)).toThrow(/negative/i);
   });
 
   it("returns exact boundary values for PM10", () => {
@@ -157,7 +165,7 @@ describe("computeSubIndex (NAQI, default scale)", () => {
 
 describe("computeSubIndex (EPA scale, sanity)", () => {
   it("matches EPA boundary values for PM2.5", () => {
-    expect(computeSubIndex("pm25", 12.0, "epa")).toBe(50);
+    expect(computeSubIndex("pm25", 9.0, "epa")).toBe(50);
     expect(computeSubIndex("pm25", 35.4, "epa")).toBe(100);
     expect(computeSubIndex("pm25", 55.4, "epa")).toBe(150);
   });

@@ -7,7 +7,7 @@
  *   - EPA  (US):         Good / Moderate / USG / Unhealthy / Very Unhealthy / Hazardous
  *
  * Both scales share the same 0–500 numeric range but use different
- * per-pollutant breakpoints, so the same concentration can produce very
+ * per-pollutant breakpoints, so the same concentration can produce 
  * different labels under each. See docs/v1-plan.md for the rationale on
  * choosing NAQI as the default.
  *
@@ -132,12 +132,12 @@ const NAQI_BREAKPOINTS: Record<Pollutant, Breakpoint[]> = {
  */
 const EPA_BREAKPOINTS: Record<Pollutant, Breakpoint[]> = {
   pm25: [
-    { c_lo: 0.0,   c_hi: 12.0,  i_lo: 0,   i_hi: 50  },
-    { c_lo: 12.1,  c_hi: 35.4,  i_lo: 51,  i_hi: 100 },
+    { c_lo: 0.0,   c_hi: 9.0,  i_lo: 0,   i_hi: 50  },
+    { c_lo: 9.1,  c_hi: 35.4,  i_lo: 51,  i_hi: 100 },
     { c_lo: 35.5,  c_hi: 55.4,  i_lo: 101, i_hi: 150 },
-    { c_lo: 55.5,  c_hi: 150.4, i_lo: 151, i_hi: 200 },
-    { c_lo: 150.5, c_hi: 250.4, i_lo: 201, i_hi: 300 },
-    { c_lo: 250.5, c_hi: 500.4, i_lo: 301, i_hi: 500 },
+    { c_lo: 55.5,  c_hi: 125.4, i_lo: 151, i_hi: 200 },
+    { c_lo: 125.5, c_hi: 225.4, i_lo: 201, i_hi: 300 },
+    { c_lo: 225.5, c_hi: 500.4, i_lo: 301, i_hi: 500 },
   ],
   pm10: [
     { c_lo: 0,    c_hi: 54,    i_lo: 0,   i_hi: 50  },
@@ -227,24 +227,33 @@ export function getAqiTextColor(value: number, scale: Scale = DEFAULT_SCALE): st
 /**
  * Compute the per-pollutant AQI sub-index for one measurement.
  * The value must be in POLLUTANT_UNITS[pollutant] canonical units.
- * Values above the highest breakpoint cap at that band's upper AQI (500).
+ *
+ * Values above the standard scale (top of the highest breakpoint band) are
+ * handled by extrapolating linearly using that band's slope, then capping at
+ * 1000 to match the DB CHECK on readings.aqi_value. This preserves severity
+ * information for extreme events (e.g., Delhi winter PM2.5 above 500 µg/m³)
+ * rather than silently flattening every above-scale reading to the ceiling.
+ *
+ * UI code is expected to display above-500 values with a "500+" or similar
+ * treatment; the raw number is what's stored.
  */
 export function computeSubIndex(
   pollutant: Pollutant,
   value: number,
   scale: Scale = DEFAULT_SCALE
 ): number {
-  const table = BREAKPOINTS[scale][pollutant];
-  const last = table[table.length - 1];
-  if (value >= last.c_hi) return last.i_hi;                  // cap at scale max
-  const bp = table.find((b) => value >= b.c_lo && value <= b.c_hi);
-  if (!bp) {
-    // Only reachable for negative values (all tables start at c_lo = 0).
-    throw new Error(`No breakpoint found for ${pollutant} = ${value}`);
+  if (value < 0) {
+    throw new Error(
+      `Cannot compute sub-index for negative concentration: ${pollutant} = ${value}`
+    );
   }
+  const table = BREAKPOINTS[scale][pollutant];
+  // Find the matching band, or fall back to the top band for above-scale values.
+  const bp = table.find((b) => value >= b.c_lo && value <= b.c_hi)
+    ?? table[table.length - 1];
   const subIndex =
     ((bp.i_hi - bp.i_lo) / (bp.c_hi - bp.c_lo)) * (value - bp.c_lo) + bp.i_lo;
-  return Math.round(subIndex);
+  return Math.min(1000, Math.round(subIndex));
 }
 
 /**

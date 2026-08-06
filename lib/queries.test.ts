@@ -92,4 +92,41 @@ describe("getReadings", () => {
     // Guard should short-circuit before touching Supabase at all.
     expect(from).not.toHaveBeenCalled();
   });
+
+  it("selects just '*' by default (no measurements join)", async () => {
+    const { client, builder } = makeFakeSupabase([]);
+    await getReadings(client);
+
+    expect(builder.select).toHaveBeenCalledWith("*");
+  });
+
+  it("selects '*, measurements(*)' when includeMeasurements is true", async () => {
+    // PostgREST embedded-select syntax pulls child rows in one round-trip.
+    const { client, builder } = makeFakeSupabase([]);
+    await getReadings(client, 1000, undefined, { includeMeasurements: true });
+
+    expect(builder.select).toHaveBeenCalledWith("*, measurements(*)");
+  });
+
+  it("returns readings with nested measurements when the DB provides them", async () => {
+    const readingWithMeasurements: Reading = {
+      ...sampleReading,
+      measurements: [
+        {
+          id: "m1",
+          reading_id: "r1",
+          pollutant: "pm25",
+          value: 60,
+          unit: "µg/m³",
+          created_at: "2026-04-01T00:00:00Z",
+        },
+      ],
+    };
+    const { client } = makeFakeSupabase([readingWithMeasurements]);
+    const result = await getReadings(client, 1000, undefined, { includeMeasurements: true });
+
+    expect(result[0].measurements).toHaveLength(1);
+    expect(result[0].measurements?.[0].pollutant).toBe("pm25");
+    expect(result[0].measurements?.[0].value).toBe(60);
+  });
 });

@@ -25,7 +25,7 @@ export interface Reading {
   id: string;                  // Unique identifier for this reading (auto-generated)
   user_id: string;             // The user who submitted this reading
   monitor_id: string | null;   // The physical monitor this reading came from (nullable)
-  aqi_value: number;           // The AQI number (0–500, EPA scale)
+  aqi_value: number;           // Composite AQI (see lib/aqi-utils.ts for scale details)
   latitude: number;            // GPS latitude (e.g., 28.6139 for Delhi)
   longitude: number;           // GPS longitude (e.g., 77.2090 for Delhi)
   image_url: string | null;    // Future: URL to a photo of the monitor
@@ -33,6 +33,8 @@ export interface Reading {
   source: DataSource;          // Where this reading came from (user, openaq, government, simulated)
   recorded_at: string;         // When the reading was taken (ISO timestamp)
   created_at: string;          // When the row was saved to the database
+  measurements?: Measurement[]; // Per-pollutant child rows, populated only when
+                               // the query explicitly fetches them (includeMeasurements: true)
 }
 
 /** The form data when a user submits a new reading (before it hits the database) */

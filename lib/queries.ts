@@ -14,6 +14,20 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { Reading, ReadingInsert, DataSource } from "./types";
 
 /**
+ * Optional flags for getReadings. Currently just controls whether per-pollutant
+ * child rows are joined in; expected to grow as we add more fetch controls
+ * (e.g., includeMonitor, includeUser) without breaking existing callers.
+ */
+export interface GetReadingsOptions {
+  /**
+   * If true, each returned Reading has its `measurements` array populated
+   * (via a Postgres embedded select). Otherwise `measurements` is undefined.
+   * Costs an extra join per row, so leave false unless the UI actually needs it.
+   */
+  includeMeasurements?: boolean;
+}
+
+/**
  * Fetch all readings, newest first.
  * Optionally filter by data sources (e.g., only show OpenAQ and user data).
  * If no sources are specified, all readings are returned.
@@ -21,7 +35,8 @@ import { Reading, ReadingInsert, DataSource } from "./types";
 export async function getReadings(
   supabase: SupabaseClient,
   limit: number = 1000,
-  sources?: DataSource[]
+  sources?: DataSource[],
+  options: GetReadingsOptions = {}
 ): Promise<Reading[]> {
   // Distinguish "no filter" (sources is undefined) from "filter to nothing"
   // (sources is an empty array). An empty array means the caller unchecked
@@ -30,9 +45,14 @@ export async function getReadings(
     return [];
   }
 
+  // Supabase's PostgREST syntax: "*, measurements(*)" pulls each reading's
+  // child measurement rows in one round-trip, nested under a `measurements`
+  // key on each parent. Without the flag we skip the join for speed.
+  const selectClause = options.includeMeasurements ? "*, measurements(*)" : "*";
+
   let query = supabase
     .from("readings")
-    .select("*")
+    .select(selectClause)
     .order("recorded_at", { ascending: false })
     .limit(limit);
 
@@ -45,7 +65,7 @@ export async function getReadings(
   const { data, error } = await query;
 
   if (error) throw error;
-  return data as Reading[];
+  return data as unknown as Reading[];
 }
 
 /**
