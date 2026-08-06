@@ -127,12 +127,12 @@ describe("AqiMap wiring", () => {
     expect(markers[2].dataset.center).toBe(JSON.stringify([12.97, 77.59]));
   });
 
-  it("colors each marker by its AQI value (EPA scale)", () => {
-    // Pick one reading from each EPA category so we can assert the color mapping.
+  it("colors each marker by its AQI value (NAQI scale, default)", () => {
+    // One reading per NAQI category we care to check.
     const readings = [
-      makeReading({ id: "good",      aqi_value: 25  }),  // Good      → #00e400
-      makeReading({ id: "moderate",  aqi_value: 75  }),  // Moderate  → #ffff00
-      makeReading({ id: "hazardous", aqi_value: 400 }),  // Hazardous → #7e0023
+      makeReading({ id: "good",         aqi_value: 25  }),  // Good         → #00b050
+      makeReading({ id: "satisfactory", aqi_value: 75  }),  // Satisfactory → #92d050
+      makeReading({ id: "severe",       aqi_value: 450 }),  // Severe       → #7e0023
     ];
 
     const { getAllByTestId } = render(
@@ -140,8 +140,8 @@ describe("AqiMap wiring", () => {
     );
 
     const markers = getAllByTestId("circle-marker");
-    expect(markers[0].dataset.fillColor).toBe("#00e400");
-    expect(markers[1].dataset.fillColor).toBe("#ffff00");
+    expect(markers[0].dataset.fillColor).toBe("#00b050");
+    expect(markers[1].dataset.fillColor).toBe("#92d050");
     expect(markers[2].dataset.fillColor).toBe("#7e0023");
   });
 

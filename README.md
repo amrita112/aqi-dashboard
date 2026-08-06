@@ -23,8 +23,9 @@ Create a free project at [supabase.com](https://supabase.com). Then run the SQL 
 | `04-openaq-seed.sql` | Inserts real air quality data from OpenAQ | Optional |
 | `05-add-monitors-table.sql` | Adds a `monitors` table and links readings to physical devices | Yes |
 | `06-integrity-fixes.sql` | Adds validation constraints, tightened RLS policies, and missing indexes | Yes |
+| `07-add-measurements-table.sql` | Adds a `measurements` table for per-pollutant data (PM2.5, PM10, O3, etc.) | Yes |
 
-Files 1, 2, 5, and 6 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
+Files 1, 2, 5, 6, and 7 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
 
 ### 2. Configure environment variables
 
@@ -45,6 +46,18 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to see the dashboard.
+
+## How AQI is calculated
+
+The app uses the **India National Air Quality Index (NAQI)** scale by default — the standard published by India's Central Pollution Control Board (CPCB). NAQI has six bands: Good, Satisfactory, Moderate, Poor, Very Poor, and Severe, on a 0–500 scale.
+
+The **US EPA** scale is also supported and can be selected via the `scale` argument on any AQI utility function. EPA has six differently-defined bands (Good, Moderate, Unhealthy for Sensitive Groups, Unhealthy, Very Unhealthy, Hazardous) with different breakpoints, so the same pollutant concentration produces a different composite AQI under each. A future release may expose the scale as a per-user preference.
+
+Composite AQI is computed as the **max of per-pollutant sub-indices** (the standard "worst pollutant wins" approach used by both CPCB and EPA). Each per-pollutant sub-index is a piecewise-linear interpolation between published breakpoints for that pollutant.
+
+**Instantaneous vs. time-averaged.** Regulatory AQI uses 24-hour or 8-hour rolling averages, appropriate for chronic-exposure monitoring. This app applies the breakpoint formula to the *instantaneous* reading — the standard practice for real-time consumer dashboards (Plume, IQAir, AirNow's real-time widget, etc.), because the product answers "should I go outside right now?" not "what was my average exposure last week?"
+
+Verification: all breakpoint tables and the sub-index formula live in [`lib/aqi-utils.ts`](lib/aqi-utils.ts), with unit tests covering CPCB reference values in [`lib/aqi-utils.test.ts`](lib/aqi-utils.test.ts). The default scale can be flipped by changing `DEFAULT_SCALE` in [`lib/types.ts`](lib/types.ts).
 
 ## Project Structure
 

@@ -1,9 +1,10 @@
 /**
  * Unit tests for the AQI utility functions.
  *
- * These functions map AQI numbers (0–500) to EPA categories, colors, and labels.
- * Tests focus on the *boundaries* between categories — those are where bugs
- * usually hide (e.g., is 50 "Good" or "Moderate"?).
+ * The default scale is NAQI (India CPCB), so the bulk of tests cover NAQI
+ * boundaries. EPA gets a smaller "still works via explicit scale arg" set.
+ * Sub-index and composite-AQI tests use published reference values so it's
+ * easy to eyeball against the CPCB breakpoint table.
  */
 
 import { describe, it, expect } from "vitest";
@@ -12,66 +13,197 @@ import {
   getAqiColor,
   getAqiLabel,
   getAqiTextColor,
+  computeSubIndex,
+  computeAqiFromMeasurements,
 } from "./aqi-utils";
 
-describe("getAqiCategory", () => {
-  // Each tuple is [input AQI value, expected category label].
-  // Boundary values (50/51, 100/101, etc.) verify the < / <= edges.
+describe("getAqiCategory (default = NAQI)", () => {
   const cases: Array<[number, string]> = [
     [0,   "Good"],
     [50,  "Good"],
-    [51,  "Moderate"],
-    [100, "Moderate"],
-    [101, "Unhealthy for Sensitive Groups"],
-    [150, "Unhealthy for Sensitive Groups"],
-    [151, "Unhealthy"],
-    [200, "Unhealthy"],
-    [201, "Very Unhealthy"],
-    [300, "Very Unhealthy"],
-    [301, "Hazardous"],
-    [500, "Hazardous"],
+    [51,  "Satisfactory"],
+    [100, "Satisfactory"],
+    [101, "Moderate"],
+    [200, "Moderate"],
+    [201, "Poor"],
+    [300, "Poor"],
+    [301, "Very Poor"],
+    [400, "Very Poor"],
+    [401, "Severe"],
+    [500, "Severe"],
   ];
 
-  it.each(cases)("AQI %i maps to %s", (value, label) => {
+  it.each(cases)("NAQI AQI %i maps to %s", (value, label) => {
     expect(getAqiCategory(value).label).toBe(label);
   });
 
-  it("falls back to Hazardous for out-of-range values (above 500)", () => {
-    // Defensive: shouldn't happen with valid data, but the function should
-    // still return *something* sensible rather than undefined.
-    expect(getAqiCategory(999).label).toBe("Hazardous");
+  it("falls back to Severe for out-of-range values (above 1000)", () => {
+    expect(getAqiCategory(9999).label).toBe("Severe");
+  });
+});
+
+describe("getAqiCategory with EPA scale", () => {
+  const cases: Array<[number, string]> = [
+    [50,  "Good"],
+    [75,  "Moderate"],
+    [125, "Unhealthy for Sensitive Groups"],
+    [175, "Unhealthy"],
+    [250, "Very Unhealthy"],
+    [400, "Hazardous"],
+  ];
+
+  it.each(cases)("EPA AQI %i maps to %s", (value, label) => {
+    expect(getAqiCategory(value, "epa").label).toBe(label);
   });
 });
 
 describe("getAqiColor", () => {
-  it("returns the EPA green for Good values", () => {
-    expect(getAqiColor(25)).toBe("#00e400");
+  it("returns NAQI dark green for Good (default scale)", () => {
+    expect(getAqiColor(25)).toBe("#00b050");
   });
 
-  it("returns the EPA maroon for Hazardous values", () => {
-    expect(getAqiColor(400)).toBe("#7e0023");
+  it("returns NAQI light green for Satisfactory", () => {
+    expect(getAqiColor(75)).toBe("#92d050");
+  });
+
+  it("returns NAQI maroon for Severe", () => {
+    expect(getAqiColor(450)).toBe("#7e0023");
+  });
+
+  it("returns EPA colors when scale='epa'", () => {
+    expect(getAqiColor(25,  "epa")).toBe("#00e400"); // EPA Good (brighter green)
+    expect(getAqiColor(75,  "epa")).toBe("#ffff00"); // EPA Moderate (yellow)
+    expect(getAqiColor(400, "epa")).toBe("#7e0023"); // EPA Hazardous
   });
 });
 
 describe("getAqiLabel", () => {
-  it("returns the label string matching the category", () => {
-    expect(getAqiLabel(75)).toBe("Moderate");
-    expect(getAqiLabel(175)).toBe("Unhealthy");
+  it("returns the NAQI label matching the category (default)", () => {
+    expect(getAqiLabel(75)).toBe("Satisfactory");
+    expect(getAqiLabel(175)).toBe("Moderate");
+  });
+
+  it("returns EPA labels when scale='epa'", () => {
+    expect(getAqiLabel(75,  "epa")).toBe("Moderate");
+    expect(getAqiLabel(175, "epa")).toBe("Unhealthy");
   });
 });
 
 describe("getAqiTextColor", () => {
-  // Light backgrounds (Good, Moderate, Unhealthy for Sensitive Groups) → black text.
-  // Dark backgrounds (Unhealthy, Very Unhealthy, Hazardous) → white text.
-  it("returns black for light-background categories", () => {
+  // NAQI: light backgrounds = Good, Satisfactory, Moderate → black text
+  //       dark backgrounds  = Poor, Very Poor, Severe    → white text
+  it("returns black for light-background NAQI categories", () => {
     expect(getAqiTextColor(25)).toBe("#000000");   // Good
-    expect(getAqiTextColor(75)).toBe("#000000");   // Moderate
-    expect(getAqiTextColor(125)).toBe("#000000");  // Unhealthy for Sensitive Groups
+    expect(getAqiTextColor(75)).toBe("#000000");   // Satisfactory
+    expect(getAqiTextColor(150)).toBe("#000000");  // Moderate
   });
 
-  it("returns white for dark-background categories", () => {
-    expect(getAqiTextColor(175)).toBe("#ffffff");  // Unhealthy
-    expect(getAqiTextColor(250)).toBe("#ffffff");  // Very Unhealthy
-    expect(getAqiTextColor(400)).toBe("#ffffff");  // Hazardous
+  it("returns white for dark-background NAQI categories", () => {
+    expect(getAqiTextColor(250)).toBe("#ffffff");  // Poor
+    expect(getAqiTextColor(350)).toBe("#ffffff");  // Very Poor
+    expect(getAqiTextColor(450)).toBe("#ffffff");  // Severe
+  });
+
+  it("uses EPA dark-label list when scale='epa'", () => {
+    // AQI 250 is "Poor" (NAQI, dark) but "Very Unhealthy" (EPA, also dark).
+    expect(getAqiTextColor(250, "epa")).toBe("#ffffff");
+    // AQI 125 is "Moderate" (NAQI, light) but "USG" (EPA, light — orange bg).
+    expect(getAqiTextColor(125, "epa")).toBe("#000000");
+  });
+});
+
+describe("computeSubIndex (NAQI, default scale)", () => {
+  // Reference values from the CPCB NAQI breakpoint table:
+  //   pm25 = 30 → 50 (Good boundary)
+  //   pm25 = 60 → 100 (Satisfactory boundary)
+  //   pm25 = 90 → 200 (Moderate boundary)
+  //   pm25 = 120 → 300 (Poor boundary)
+  //   pm25 = 250 → 400 (Very Poor boundary)
+  it("returns exact boundary values for PM2.5", () => {
+    expect(computeSubIndex("pm25", 30)).toBe(50);
+    expect(computeSubIndex("pm25", 60)).toBe(100);
+    expect(computeSubIndex("pm25", 90)).toBe(200);
+    expect(computeSubIndex("pm25", 120)).toBe(300);
+    expect(computeSubIndex("pm25", 250)).toBe(400);
+  });
+
+  it("interpolates linearly inside a band for PM2.5", () => {
+    // Mid-Satisfactory band (30–60 → 51–100):
+    // value=45 → 51 + (49/30)*15 = 51 + 24.5 = 75.5 → 76
+    expect(computeSubIndex("pm25", 45)).toBe(76);
+    // Mid-Moderate band (60–90 → 101–200):
+    // value=75 → 101 + (99/30)*15 = 101 + 49.5 = 150.5 → 151
+    expect(computeSubIndex("pm25", 75)).toBe(151);
+  });
+
+  it("caps at 500 when value exceeds the highest breakpoint", () => {
+    expect(computeSubIndex("pm25", 500)).toBe(500);
+    expect(computeSubIndex("pm25", 1500)).toBe(500);
+  });
+
+  it("returns exact boundary values for PM10", () => {
+    expect(computeSubIndex("pm10", 50)).toBe(50);
+    expect(computeSubIndex("pm10", 100)).toBe(100);
+    expect(computeSubIndex("pm10", 250)).toBe(200);
+    expect(computeSubIndex("pm10", 350)).toBe(300);
+  });
+
+  it("handles CO correctly (mg/m³, not µg/m³)", () => {
+    expect(computeSubIndex("co", 1.0)).toBe(50);
+    expect(computeSubIndex("co", 2.0)).toBe(100);
+    expect(computeSubIndex("co", 10)).toBe(200);
+  });
+});
+
+describe("computeSubIndex (EPA scale, sanity)", () => {
+  it("matches EPA boundary values for PM2.5", () => {
+    expect(computeSubIndex("pm25", 12.0, "epa")).toBe(50);
+    expect(computeSubIndex("pm25", 35.4, "epa")).toBe(100);
+    expect(computeSubIndex("pm25", 55.4, "epa")).toBe(150);
+  });
+
+  it("gives different sub-indices than NAQI for the same value", () => {
+    // PM2.5 = 60 is the killer example from the design discussion:
+    //   NAQI: 100 (Satisfactory)
+    //   EPA:  ~156 (Unhealthy)
+    expect(computeSubIndex("pm25", 60)).toBe(100);
+    expect(computeSubIndex("pm25", 60, "epa")).toBeGreaterThan(150);
+  });
+});
+
+describe("computeAqiFromMeasurements", () => {
+  it("returns the sub-index for a single-pollutant measurement (NAQI)", () => {
+    expect(computeAqiFromMeasurements([{ pollutant: "pm25", value: 60 }])).toBe(100);
+  });
+
+  it("returns the MAX of sub-indices across multiple pollutants", () => {
+    // pm25=60 → 100, pm10=50 → 50, no2=40 → 50. Max = 100.
+    const composite = computeAqiFromMeasurements([
+      { pollutant: "pm25", value: 60 },
+      { pollutant: "pm10", value: 50 },
+      { pollutant: "no2",  value: 40 },
+    ]);
+    expect(composite).toBe(100);
+  });
+
+  it("picks the 'worst pollutant', not an average", () => {
+    // pm25=90 → 200 dominates even if o3 is low.
+    const composite = computeAqiFromMeasurements([
+      { pollutant: "pm25", value: 90 },
+      { pollutant: "o3",   value: 30 },
+    ]);
+    expect(composite).toBe(200);
+  });
+
+  it("throws for an empty measurements array", () => {
+    expect(() => computeAqiFromMeasurements([])).toThrow(/empty/);
+  });
+
+  it("honours the scale argument", () => {
+    // Under NAQI, pm25=60 → 100. Under EPA, > 150.
+    const naqi = computeAqiFromMeasurements([{ pollutant: "pm25", value: 60 }]);
+    const epa  = computeAqiFromMeasurements([{ pollutant: "pm25", value: 60 }], "epa");
+    expect(naqi).toBe(100);
+    expect(epa).toBeGreaterThan(150);
   });
 });

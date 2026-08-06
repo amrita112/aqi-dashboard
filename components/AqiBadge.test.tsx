@@ -13,18 +13,18 @@ import { render, screen } from "@testing-library/react";
 import AqiBadge from "./AqiBadge";
 
 describe("AqiBadge", () => {
-  it("renders the AQI value and its category label", () => {
+  it("renders the AQI value and its category label (NAQI default)", () => {
     render(<AqiBadge value={75} />);
 
-    // 75 is in the Moderate range (51–100). Both the number and the label
+    // 75 falls in NAQI Satisfactory (51–100). Both number and label
     // should be visible to the user.
     expect(screen.getByText("75")).toBeInTheDocument();
-    expect(screen.getByText(/Moderate/)).toBeInTheDocument();
+    expect(screen.getByText(/Satisfactory/)).toBeInTheDocument();
   });
 
-  it("uses the EPA color for the category as the background", () => {
-    // 400 is Hazardous → background should be the EPA maroon (#7e0023).
-    const { container } = render(<AqiBadge value={400} />);
+  it("uses the NAQI color for the category as the background", () => {
+    // 450 is in NAQI Severe (401–1000) → background should be maroon (#7e0023).
+    const { container } = render(<AqiBadge value={450} />);
     const badge = container.querySelector("span");
 
     expect(badge).toHaveStyle({ backgroundColor: "#7e0023" });
