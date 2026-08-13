@@ -15,6 +15,7 @@ import {
   getAqiTextColor,
   computeSubIndex,
   computeAqiFromMeasurements,
+  convertToCanonical,
 } from "./aqi-utils";
 
 describe("getAqiCategory (default = NAQI)", () => {
@@ -213,5 +214,48 @@ describe("computeAqiFromMeasurements", () => {
     const epa  = computeAqiFromMeasurements([{ pollutant: "pm25", value: 60 }], "epa");
     expect(naqi).toBe(100);
     expect(epa).toBeGreaterThan(150);
+  });
+});
+
+describe("convertToCanonical", () => {
+  it("returns value unchanged when unit already matches canonical", () => {
+    expect(convertToCanonical("pm25", 45,  "µg/m³")).toBe(45);
+    expect(convertToCanonical("pm10", 100, "µg/m³")).toBe(100);
+    expect(convertToCanonical("o3",   80,  "µg/m³")).toBe(80);
+    expect(convertToCanonical("co",   1.5, "mg/m³")).toBe(1.5);
+  });
+
+  it("converts between µg/m³ and mg/m³ (factor of 1000)", () => {
+    expect(convertToCanonical("co",   1500, "µg/m³")).toBe(1.5);
+    expect(convertToCanonical("pm25", 1.5,  "mg/m³")).toBe(1500);
+  });
+
+  it("converts ppb → µg/m³ for NO2, SO2, O3", () => {
+    // 100 ppb × molar-mass factor at 25 °C, 1 atm
+    expect(convertToCanonical("no2", 100, "ppb")).toBeCloseTo(188, 0); // 46.01 / 24.45
+    expect(convertToCanonical("so2", 100, "ppb")).toBeCloseTo(262, 0); // 64.07 / 24.45
+    expect(convertToCanonical("o3",  100, "ppb")).toBeCloseTo(196, 0); // 48.00 / 24.45
+  });
+
+  it("converts ppb → mg/m³ for CO (the OpenAQ bug case)", () => {
+    // 500 ppb CO = 0.5725 mg/m³ → NAQI ~29 (Good).
+    // Without this conversion, treating 500 ppb as 500 mg/m³ would give
+    // NAQI 500 (Severe) — off by ~1000× and every CO reading would look extreme.
+    const canonical = convertToCanonical("co", 500, "ppb");
+    expect(canonical).toBeCloseTo(0.5725, 3);
+    // Sanity: sub-index computed on the canonical value should be Good, not Severe.
+    expect(computeSubIndex("co", canonical!)).toBeLessThan(50);
+  });
+
+  it("converts ppm → canonical for gases", () => {
+    // 1 ppm NO2 = 1.88 mg/m³ = 1880 µg/m³
+    expect(convertToCanonical("no2", 1, "ppm")).toBeCloseTo(1880, 0);
+    // 1 ppm CO = 1.145 mg/m³
+    expect(convertToCanonical("co", 1, "ppm")).toBeCloseTo(1.145, 3);
+  });
+
+  it("returns null for unrecognized units", () => {
+    expect(convertToCanonical("pm25", 45, "grains/liter")).toBeNull();
+    expect(convertToCanonical("no2",  100, "ppq")).toBeNull();
   });
 });

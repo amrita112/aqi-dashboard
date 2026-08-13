@@ -20,6 +20,7 @@
 import {
   AqiCategory,
   Pollutant,
+  POLLUTANT_UNITS,
   Scale,
   DEFAULT_SCALE,
 } from "./types";
@@ -224,9 +225,79 @@ export function getAqiTextColor(value: number, scale: Scale = DEFAULT_SCALE): st
   return DARK_LABELS[scale].includes(getAqiLabel(value, scale)) ? "#ffffff" : "#000000";
 }
 
+// ─── Unit conversion ────────────────────────────────────────────────────────
+// Ingest sources publish measurements in various units. OpenAQ, for example,
+// publishes CO, NO2, and SO2 in ppb — but the NAQI/EPA breakpoint tables
+// above expect canonical units per POLLUTANT_UNITS (µg/m³ for particulates
+// and gaseous pollutants, mg/m³ for CO). Feeding raw ppb values into
+// computeSubIndex() produces sub-indices off by ~1000× (e.g., a moderate CO
+// reading of 500 ppb ≈ 0.57 mg/m³ = Good, but if we treat 500 ppb as
+// 500 mg/m³ we get Severe). Always run raw data through convertToCanonical
+// before computing sub-indices.
+//
+// Conversion factors are at 25 °C, 1 atm — the standard NAQI/CPCB assumption.
+// The formula for gases is: (mg/m³) = ppm × (molar_mass_g_per_mol / 24.45).
+
+/** ppb → µg/m³ multiplier for gases whose canonical unit is µg/m³. */
+const PPB_TO_UGM3: Partial<Record<Pollutant, number>> = {
+  no2: 1.88,   // NO2 molar mass 46.01
+  so2: 2.62,   // SO2 molar mass 64.07
+  o3:  1.96,   // O3  molar mass 48.00
+};
+
+/** ppm → mg/m³ multiplier for gases whose canonical unit is mg/m³. */
+const PPM_TO_MGM3: Partial<Record<Pollutant, number>> = {
+  co:  1.145,  // CO molar mass 28.01
+};
+
+/**
+ * Convert a raw measurement to the canonical unit expected by computeSubIndex().
+ *
+ * Canonical units (see POLLUTANT_UNITS in lib/types.ts):
+ *   pm25, pm10, o3, no2, so2 → µg/m³
+ *   co                       → mg/m³
+ *
+ * Returns null when the unit is unrecognized for the given pollutant — caller
+ * should drop the measurement and log the mismatch rather than silently
+ * feeding a wrong-unit value into the sub-index formula.
+ */
+export function convertToCanonical(
+  pollutant: Pollutant,
+  value: number,
+  unit: string,
+): number | null {
+  const canonical = POLLUTANT_UNITS[pollutant];
+  if (unit === canonical) return value;
+
+  // Particulate / CO mass unit shortcuts
+  if (canonical === "µg/m³" && unit === "mg/m³") return value * 1000;
+  if (canonical === "mg/m³" && unit === "µg/m³") return value / 1000;
+
+  // Gas → µg/m³ (NO2, SO2, O3)
+  const ppbFactor = PPB_TO_UGM3[pollutant];
+  if (canonical === "µg/m³" && ppbFactor !== undefined) {
+    if (unit === "ppb") return value * ppbFactor;
+    if (unit === "ppm") return value * ppbFactor * 1000;
+  }
+
+  // Gas → mg/m³ (CO)
+  const ppmFactor = PPM_TO_MGM3[pollutant];
+  if (canonical === "mg/m³" && ppmFactor !== undefined) {
+    if (unit === "ppm") return value * ppmFactor;
+    if (unit === "ppb") return value * ppmFactor / 1000;
+  }
+
+  return null;
+}
+
 /**
  * Compute the per-pollutant AQI sub-index for one measurement.
- * The value must be in POLLUTANT_UNITS[pollutant] canonical units.
+ *
+ * IMPORTANT: `value` MUST be in POLLUTANT_UNITS[pollutant] canonical units
+ * (µg/m³ for most, mg/m³ for CO). If your source publishes different units
+ * (e.g., OpenAQ publishes CO/NO2/SO2 in ppb), run through convertToCanonical()
+ * first — otherwise sub-indices are wildly wrong (typically off by ~1000× for
+ * gas ppb data).
  *
  * Values above the standard scale (top of the highest breakpoint band) are
  * handled by extrapolating linearly using that band's slope, then capping at

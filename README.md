@@ -59,6 +59,21 @@ Composite AQI is computed as the **max of per-pollutant sub-indices** (the stand
 
 Verification: all breakpoint tables and the sub-index formula live in [`lib/aqi-utils.ts`](lib/aqi-utils.ts), with unit tests covering CPCB reference values in [`lib/aqi-utils.test.ts`](lib/aqi-utils.test.ts). The default scale can be flipped by changing `DEFAULT_SCALE` in [`lib/types.ts`](lib/types.ts).
 
+### Unit handling for ingest data
+
+Data sources publish measurements in different units:
+
+| Pollutant | NAQI canonical unit | Commonly seen from OpenAQ |
+|---|---|---|
+| PM2.5, PM10 | µg/m³ | µg/m³ |
+| O3 | µg/m³ | µg/m³ (usually) |
+| NO2, SO2 | µg/m³ | **ppb** |
+| CO | mg/m³ | **ppb** |
+
+Feeding a raw ppb value into `computeSubIndex()` produces sub-indices off by roughly **1000×** — a moderate CO reading of 500 ppb (≈ 0.57 mg/m³, "Good") would compute as 500 mg/m³ = NAQI 500 ("Severe"). Every ingest path **must** run measurements through `convertToCanonical(pollutant, value, unit)` in [`lib/aqi-utils.ts`](lib/aqi-utils.ts) before computing sub-indices or the composite AQI.
+
+Conversions use standard 25 °C, 1 atm assumptions (matching NAQI and CPCB): 1 ppm = molar-mass ÷ 24.45 mg/m³. Unrecognized units return `null` so bad data can be dropped rather than silently miscomputed.
+
 ## Project Structure
 
 ```

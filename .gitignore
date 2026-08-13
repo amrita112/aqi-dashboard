@@ -26,6 +26,10 @@ memory_commented.md
 /docs/v1-plan.md
 /docs/v1-plan-notes.md
 
+# research notebooks — kept local (may embed API keys / sample data in outputs)
+/notebooks/
+!/notebooks/.gitkeep
+
 # debug
 npm-debug.log*
 yarn-debug.log*

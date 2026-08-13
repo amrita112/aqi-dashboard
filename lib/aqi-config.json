@@ -1,0 +1,154 @@
+{
+  "_comment": "Single source of truth for AQI scales, breakpoints, and unit conversions. Read by both TypeScript (lib/aqi-utils.ts) and Python (scripts/ingest/lib/aqi_utils.py). If you edit this file, both the TypeScript and Python test suites should catch any breakage. See lib/aqi-utils.ts for detailed method docstrings.",
+
+  "default_scale": "naqi",
+
+  "canonical_units": {
+    "pm25": "µg/m³",
+    "pm10": "µg/m³",
+    "o3":   "µg/m³",
+    "no2":  "µg/m³",
+    "so2":  "µg/m³",
+    "co":   "mg/m³"
+  },
+
+  "unit_conversions": {
+    "_comment": "Standard 25 °C, 1 atm conversions. mg/m³ per ppm = molar_mass_g_per_mol / 24.45. µg/m³ per ppb is the same numeric value.",
+    "ppb_to_ugm3": {
+      "no2": 1.88,
+      "so2": 2.62,
+      "o3":  1.96
+    },
+    "ppm_to_mgm3": {
+      "co":  1.145
+    }
+  },
+
+  "scales": {
+    "naqi": {
+      "_comment": "India CPCB National Air Quality Index. Six categories on a 0-500 scale; last band extended to 1000 to match the DB CHECK on readings.aqi_value.",
+      "categories": [
+        { "label": "Good",         "color": "#00b050", "min": 0,   "max": 50   },
+        { "label": "Satisfactory", "color": "#92d050", "min": 51,  "max": 100  },
+        { "label": "Moderate",     "color": "#ffff00", "min": 101, "max": 200  },
+        { "label": "Poor",         "color": "#ff7e00", "min": 201, "max": 300  },
+        { "label": "Very Poor",    "color": "#ff0000", "min": 301, "max": 400  },
+        { "label": "Severe",       "color": "#7e0023", "min": 401, "max": 1000 }
+      ],
+      "dark_labels": ["Poor", "Very Poor", "Severe"],
+      "breakpoints": {
+        "pm25": [
+          { "c_lo": 0,    "c_hi": 30,   "i_lo": 0,   "i_hi": 50  },
+          { "c_lo": 30,   "c_hi": 60,   "i_lo": 51,  "i_hi": 100 },
+          { "c_lo": 60,   "c_hi": 90,   "i_lo": 101, "i_hi": 200 },
+          { "c_lo": 90,   "c_hi": 120,  "i_lo": 201, "i_hi": 300 },
+          { "c_lo": 120,  "c_hi": 250,  "i_lo": 301, "i_hi": 400 },
+          { "c_lo": 250,  "c_hi": 500,  "i_lo": 401, "i_hi": 500 }
+        ],
+        "pm10": [
+          { "c_lo": 0,    "c_hi": 50,   "i_lo": 0,   "i_hi": 50  },
+          { "c_lo": 50,   "c_hi": 100,  "i_lo": 51,  "i_hi": 100 },
+          { "c_lo": 100,  "c_hi": 250,  "i_lo": 101, "i_hi": 200 },
+          { "c_lo": 250,  "c_hi": 350,  "i_lo": 201, "i_hi": 300 },
+          { "c_lo": 350,  "c_hi": 430,  "i_lo": 301, "i_hi": 400 },
+          { "c_lo": 430,  "c_hi": 1000, "i_lo": 401, "i_hi": 500 }
+        ],
+        "o3": [
+          { "c_lo": 0,    "c_hi": 50,   "i_lo": 0,   "i_hi": 50  },
+          { "c_lo": 50,   "c_hi": 100,  "i_lo": 51,  "i_hi": 100 },
+          { "c_lo": 100,  "c_hi": 168,  "i_lo": 101, "i_hi": 200 },
+          { "c_lo": 168,  "c_hi": 208,  "i_lo": 201, "i_hi": 300 },
+          { "c_lo": 208,  "c_hi": 748,  "i_lo": 301, "i_hi": 400 },
+          { "c_lo": 748,  "c_hi": 2000, "i_lo": 401, "i_hi": 500 }
+        ],
+        "no2": [
+          { "c_lo": 0,    "c_hi": 40,   "i_lo": 0,   "i_hi": 50  },
+          { "c_lo": 40,   "c_hi": 80,   "i_lo": 51,  "i_hi": 100 },
+          { "c_lo": 80,   "c_hi": 180,  "i_lo": 101, "i_hi": 200 },
+          { "c_lo": 180,  "c_hi": 280,  "i_lo": 201, "i_hi": 300 },
+          { "c_lo": 280,  "c_hi": 400,  "i_lo": 301, "i_hi": 400 },
+          { "c_lo": 400,  "c_hi": 1000, "i_lo": 401, "i_hi": 500 }
+        ],
+        "so2": [
+          { "c_lo": 0,    "c_hi": 40,   "i_lo": 0,   "i_hi": 50  },
+          { "c_lo": 40,   "c_hi": 80,   "i_lo": 51,  "i_hi": 100 },
+          { "c_lo": 80,   "c_hi": 380,  "i_lo": 101, "i_hi": 200 },
+          { "c_lo": 380,  "c_hi": 800,  "i_lo": 201, "i_hi": 300 },
+          { "c_lo": 800,  "c_hi": 1600, "i_lo": 301, "i_hi": 400 },
+          { "c_lo": 1600, "c_hi": 3000, "i_lo": 401, "i_hi": 500 }
+        ],
+        "co": [
+          { "c_lo": 0,    "c_hi": 1.0,  "i_lo": 0,   "i_hi": 50  },
+          { "c_lo": 1.0,  "c_hi": 2.0,  "i_lo": 51,  "i_hi": 100 },
+          { "c_lo": 2.0,  "c_hi": 10,   "i_lo": 101, "i_hi": 200 },
+          { "c_lo": 10,   "c_hi": 17,   "i_lo": 201, "i_hi": 300 },
+          { "c_lo": 17,   "c_hi": 34,   "i_lo": 301, "i_hi": 400 },
+          { "c_lo": 34,   "c_hi": 100,  "i_lo": 401, "i_hi": 500 }
+        ]
+      }
+    },
+
+    "epa": {
+      "_comment": "US EPA. PM2.5 uses the post-2024 revision. Gaseous pollutants (O3, NO2, SO2, CO) are approximate µg/m³ / mg/m³ conversions from EPA's published ppb/ppm ranges — a proper EPA impl should convert units explicitly if EPA is ever promoted from alternative to default.",
+      "categories": [
+        { "label": "Good",                            "color": "#00e400", "min": 0,   "max": 50   },
+        { "label": "Moderate",                        "color": "#ffff00", "min": 51,  "max": 100  },
+        { "label": "Unhealthy for Sensitive Groups",  "color": "#ff7e00", "min": 101, "max": 150  },
+        { "label": "Unhealthy",                       "color": "#ff0000", "min": 151, "max": 200  },
+        { "label": "Very Unhealthy",                  "color": "#8f3f97", "min": 201, "max": 300  },
+        { "label": "Hazardous",                       "color": "#7e0023", "min": 301, "max": 1000 }
+      ],
+      "dark_labels": ["Unhealthy", "Very Unhealthy", "Hazardous"],
+      "breakpoints": {
+        "pm25": [
+          { "c_lo": 0.0,   "c_hi": 9.0,   "i_lo": 0,   "i_hi": 50  },
+          { "c_lo": 9.1,   "c_hi": 35.4,  "i_lo": 51,  "i_hi": 100 },
+          { "c_lo": 35.5,  "c_hi": 55.4,  "i_lo": 101, "i_hi": 150 },
+          { "c_lo": 55.5,  "c_hi": 125.4, "i_lo": 151, "i_hi": 200 },
+          { "c_lo": 125.5, "c_hi": 225.4, "i_lo": 201, "i_hi": 300 },
+          { "c_lo": 225.5, "c_hi": 500.4, "i_lo": 301, "i_hi": 500 }
+        ],
+        "pm10": [
+          { "c_lo": 0,    "c_hi": 54,    "i_lo": 0,   "i_hi": 50  },
+          { "c_lo": 55,   "c_hi": 154,   "i_lo": 51,  "i_hi": 100 },
+          { "c_lo": 155,  "c_hi": 254,   "i_lo": 101, "i_hi": 150 },
+          { "c_lo": 255,  "c_hi": 354,   "i_lo": 151, "i_hi": 200 },
+          { "c_lo": 355,  "c_hi": 424,   "i_lo": 201, "i_hi": 300 },
+          { "c_lo": 425,  "c_hi": 604,   "i_lo": 301, "i_hi": 500 }
+        ],
+        "o3": [
+          { "c_lo": 0,    "c_hi": 108,   "i_lo": 0,   "i_hi": 50  },
+          { "c_lo": 108,  "c_hi": 140,   "i_lo": 51,  "i_hi": 100 },
+          { "c_lo": 140,  "c_hi": 170,   "i_lo": 101, "i_hi": 150 },
+          { "c_lo": 170,  "c_hi": 210,   "i_lo": 151, "i_hi": 200 },
+          { "c_lo": 210,  "c_hi": 400,   "i_lo": 201, "i_hi": 300 },
+          { "c_lo": 400,  "c_hi": 1200,  "i_lo": 301, "i_hi": 500 }
+        ],
+        "no2": [
+          { "c_lo": 0,    "c_hi": 100,   "i_lo": 0,   "i_hi": 50  },
+          { "c_lo": 100,  "c_hi": 188,   "i_lo": 51,  "i_hi": 100 },
+          { "c_lo": 188,  "c_hi": 677,   "i_lo": 101, "i_hi": 150 },
+          { "c_lo": 677,  "c_hi": 1221,  "i_lo": 151, "i_hi": 200 },
+          { "c_lo": 1221, "c_hi": 2349,  "i_lo": 201, "i_hi": 300 },
+          { "c_lo": 2349, "c_hi": 3853,  "i_lo": 301, "i_hi": 500 }
+        ],
+        "so2": [
+          { "c_lo": 0,    "c_hi": 92,    "i_lo": 0,   "i_hi": 50  },
+          { "c_lo": 92,   "c_hi": 196,   "i_lo": 51,  "i_hi": 100 },
+          { "c_lo": 196,  "c_hi": 485,   "i_lo": 101, "i_hi": 150 },
+          { "c_lo": 485,  "c_hi": 796,   "i_lo": 151, "i_hi": 200 },
+          { "c_lo": 796,  "c_hi": 1583,  "i_lo": 201, "i_hi": 300 },
+          { "c_lo": 1583, "c_hi": 2631,  "i_lo": 301, "i_hi": 500 }
+        ],
+        "co": [
+          { "c_lo": 0,    "c_hi": 5.1,   "i_lo": 0,   "i_hi": 50  },
+          { "c_lo": 5.1,  "c_hi": 10.8,  "i_lo": 51,  "i_hi": 100 },
+          { "c_lo": 10.8, "c_hi": 14.3,  "i_lo": 101, "i_hi": 150 },
+          { "c_lo": 14.3, "c_hi": 17.7,  "i_lo": 151, "i_hi": 200 },
+          { "c_lo": 17.7, "c_hi": 34.9,  "i_lo": 201, "i_hi": 300 },
+          { "c_lo": 34.9, "c_hi": 57.9,  "i_lo": 301, "i_hi": 500 }
+        ]
+      }
+    }
+  }
+}
