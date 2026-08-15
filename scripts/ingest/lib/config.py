@@ -13,11 +13,20 @@ import os
 from pathlib import Path
 from typing import Dict, Tuple
 
+from dotenv import load_dotenv
+
 # ─── Paths ──────────────────────────────────────────────────────────────────
 
 # scripts/ingest/lib/config.py  →  parents[3] is the project root
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 INGEST_DIR   = PROJECT_ROOT / "scripts" / "ingest"
+
+# Load .env.local at project root BEFORE any script calls get_env(). This is
+# the same file Next.js reads for the web app; keeping ingest and web on the
+# same env file means one place to manage OPENAQ_API_KEY, SUPABASE_URL, etc.
+# On GitHub Actions the file doesn't exist and this call is a no-op — env
+# vars come from repository secrets instead.
+load_dotenv(PROJECT_ROOT / ".env.local")
 
 # Populated by bootstrap_stations.py; consumed by both ingest scripts.
 TARGET_STATIONS_PATH = INGEST_DIR / "target_stations.json"

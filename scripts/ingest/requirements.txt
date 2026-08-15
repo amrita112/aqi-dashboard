@@ -8,6 +8,9 @@
 requests>=2.31
 pandas>=2.0
 
+# Load .env.local into os.environ so scripts pick up API keys and Supabase creds
+python-dotenv>=1.0
+
 # For writing to Supabase from GitHub Actions
 supabase>=2.0
 

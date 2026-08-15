@@ -1,0 +1,47 @@
+name: Ingest daily (OpenAQ S3 backfill)
+
+# Runs once a day at 04:00 UTC to fetch yesterday's per-station CSVs from
+# the openaq-data-archive S3 bucket. Files land ~1–2 days after the
+# measurement date, so yesterday is usually complete by early morning UTC.
+# This is the "completeness" path; the hourly cron handles freshness.
+#
+# Does NOT need OPENAQ_API_KEY (S3 is unauthenticated). Only writes to
+# Supabase, so needs the service_role key.
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      backfill_date:
+        description: 'Date to backfill (YYYY-MM-DD). Default: yesterday UTC.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Print what would be written without writing (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scripts/ingest/requirements.txt'
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/ingest/requirements.txt
+
+      - name: Run daily backfill
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKFILL_DATE:             ${{ github.event.inputs.backfill_date }}
+          DRY_RUN:                   ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
+        run: python -m scripts.ingest.daily_backfill_s3

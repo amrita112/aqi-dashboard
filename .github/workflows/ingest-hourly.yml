@@ -1,0 +1,42 @@
+name: Ingest hourly (OpenAQ live API)
+
+# Runs every hour, 5 minutes past, to fetch the last hour's measurements from
+# OpenAQ's live API and write them into Supabase. This is the "freshness" path;
+# the daily S3 backfill handles completeness.
+#
+# Manual runs from Actions UI are also supported via workflow_dispatch —
+# useful when debugging or catching up after an outage.
+
+on:
+  schedule:
+    - cron: '5 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print what would be written without writing (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scripts/ingest/requirements.txt'
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/ingest/requirements.txt
+
+      - name: Run hourly ingest
+        env:
+          OPENAQ_API_KEY:            ${{ secrets.OPENAQ_API_KEY }}
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN:                   ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
+        run: python -m scripts.ingest.hourly_api
