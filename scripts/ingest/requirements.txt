@@ -1,0 +1,15 @@
+# Python dependencies for scripts/ingest/.
+#
+# Install with (from the repo root, into whichever Python your Jupyter runs):
+#   /usr/bin/python3 -m pip install --user -r scripts/ingest/requirements.txt
+# (or use miniforge / a project venv — see project_python_env_split memory.)
+
+# Data + HTTP
+requests>=2.31
+pandas>=2.0
+
+# For writing to Supabase from GitHub Actions
+supabase>=2.0
+
+# Testing
+pytest>=8.0

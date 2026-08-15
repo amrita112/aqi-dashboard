@@ -30,6 +30,12 @@ memory_commented.md
 /notebooks/
 !/notebooks/.gitkeep
 
+# python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
