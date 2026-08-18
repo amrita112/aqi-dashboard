@@ -216,9 +216,14 @@ def parse_backfill_date() -> date:
     override = os.environ.get("BACKFILL_DATE", "").strip()
     if override:
         return datetime.strptime(override, "%Y-%m-%d").date()
-    # Default: yesterday UTC. S3 files land ~1–2 days after the date; yesterday
-    # is usually available. Adjust to `today - 2 days` if you see 404s.
-    return (datetime.now(timezone.utc) - timedelta(days=1)).date()
+    # Default: 2 days ago UTC. S3 files land 1-2 days after the measurement
+    # date; yesterday is often published but sometimes not yet. 2 days ago is
+    # reliably available. Confirmed on 2026-08-18: yesterday's files (for
+    # 2026-08-17) returned 0 rows across all 177 stations, while a run for
+    # 2026-08-15 returned data for most. Costs us 24h of freshness on the
+    # daily job, but the hourly cron already covers freshness — this job
+    # exists for completeness.
+    return (datetime.now(timezone.utc) - timedelta(days=2)).date()
 
 
 def main() -> None:
