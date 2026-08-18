@@ -34,22 +34,19 @@ from __future__ import annotations
 
 import json
 import os
-import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
-
-import requests
 
 from scripts.ingest.lib.aqi_utils import (
     compute_aqi_from_measurements,
     convert_to_canonical,
 )
 from scripts.ingest.lib.config import (
-    OPENAQ_API_BASE,
     TARGET_POLLUTANTS,
     TARGET_STATIONS_PATH,
     get_env,
 )
+from scripts.ingest.lib.openaq_client import OpenAQClient
 from scripts.ingest.lib.supabase_client import (
     get_admin_user_id,
     make_client,
@@ -58,7 +55,6 @@ from scripts.ingest.lib.supabase_client import (
 )
 
 DEFAULT_FETCH_WINDOW_HOURS = 2
-SLEEP_BETWEEN_REQUESTS = 0.1
 
 
 def load_manifest() -> Dict[str, Any]:
@@ -82,15 +78,18 @@ def extract_timestamp(m: Dict[str, Any]) -> str | None:
 
 
 def fetch_sensor_recent(
-    sensor_id: int, since_iso: str, api_key: str
+    openaq: OpenAQClient, sensor_id: int, since_iso: str
 ) -> List[Dict[str, Any]]:
-    """Fetch recent measurements for one sensor; return empty list on error/404."""
+    """Fetch recent measurements for one sensor; return empty list on non-200.
+
+    Uses the shared OpenAQClient so throttling / 429 retries are automatic.
+    A repeated 429 raises HTTPError from openaq.get(); we let that propagate
+    so the whole hourly run stops rather than continuing to hammer the API.
+    """
     try:
-        r = requests.get(
-            f"{OPENAQ_API_BASE}/sensors/{sensor_id}/measurements",
-            headers={"X-API-Key": api_key},
+        r = openaq.get(
+            f"/v3/sensors/{sensor_id}/measurements",
             params={"datetime_from": since_iso, "limit": 100},
-            timeout=30,
         )
     except Exception:
         return []
@@ -202,6 +201,7 @@ def link_measurements(
 
 def main() -> None:
     api_key = get_env("OPENAQ_API_KEY")
+    openaq  = OpenAQClient(api_key)
     dry_run = bool(os.environ.get("DRY_RUN"))
     window_hours = int(os.environ.get("FETCH_WINDOW_HOURS", DEFAULT_FETCH_WINDOW_HOURS))
     now_utc = datetime.now(timezone.utc)
@@ -215,26 +215,26 @@ def main() -> None:
     total_sensors = sum(len(s["sensors"]) for s in stations)
     print(f"Manifest: {len(stations)} stations, {total_sensors} target sensors")
 
-    client = None if dry_run else make_client()
+    supabase = None if dry_run else make_client()
     admin_user_id = (
         "00000000-0000-0000-0000-000000000000"
         if dry_run
-        else get_admin_user_id(client)
+        else get_admin_user_id(supabase)
     )
 
     total_readings = 0
     total_measurements = 0
 
     for i, station in enumerate(stations):
-        # Fetch every target sensor on this station.
+        # Fetch every target sensor on this station. openaq.get() throttles
+        # automatically — no explicit sleep needed between calls.
         sensor_ms: Dict[int, List[Dict[str, Any]]] = {}
         for sensor in station["sensors"]:
             if sensor["parameter"] not in TARGET_POLLUTANTS:
                 continue
             sensor_ms[sensor["sensor_id"]] = fetch_sensor_recent(
-                sensor["sensor_id"], since_iso, api_key
+                openaq, sensor["sensor_id"], since_iso
             )
-            time.sleep(SLEEP_BETWEEN_REQUESTS)
 
         readings, meas_placeholder = build_rows(station, sensor_ms, admin_user_id)
         if not readings:
@@ -244,10 +244,10 @@ def main() -> None:
             total_readings += len(readings)
             total_measurements += len(meas_placeholder)
         else:
-            upsert_readings(client, readings)
-            all_readings = fetch_existing_reading_ids(client, [station["monitor_id"]], since_iso)
+            upsert_readings(supabase, readings)
+            all_readings = fetch_existing_reading_ids(supabase, [station["monitor_id"]], since_iso)
             linked = link_measurements(meas_placeholder, all_readings)
-            m_inserted = upsert_measurements(client, linked)
+            m_inserted = upsert_measurements(supabase, linked)
             total_readings += len(readings)   # upserted; may include no-op skips
             total_measurements += len(m_inserted)
 
@@ -259,6 +259,7 @@ def main() -> None:
         f"\nDone. {total_readings} reading rows and {total_measurements} measurement rows "
         f"{'would be' if dry_run else 'were'} touched."
     )
+    openaq.print_stats()
 
 
 if __name__ == "__main__":

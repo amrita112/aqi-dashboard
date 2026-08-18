@@ -26,15 +26,11 @@ Idempotent — safe to run repeatedly.
 from __future__ import annotations
 
 import json
-import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-import requests
-
 from scripts.ingest.lib.config import (
-    OPENAQ_API_BASE,
     OPENAQ_COUNTRY_ID_INDIA,
     TARGET_CITIES,
     TARGET_POLLUTANTS,
@@ -42,19 +38,22 @@ from scripts.ingest.lib.config import (
     get_env,
     which_city,
 )
+from scripts.ingest.lib.openaq_client import OpenAQClient
 from scripts.ingest.lib.supabase_client import make_client, upsert_monitors
 
 
-def fetch_openaq_india_locations(api_key: str) -> List[Dict[str, Any]]:
-    """Fetch every OpenAQ location in India (paginates until exhausted)."""
+def fetch_openaq_india_locations(client: OpenAQClient) -> List[Dict[str, Any]]:
+    """Fetch every OpenAQ location in India (paginates until exhausted).
+
+    Rate-limiting is handled by the shared OpenAQClient; no explicit sleeps
+    are needed here.
+    """
     all_locations: List[Dict[str, Any]] = []
     page = 1
     while True:
-        r = requests.get(
-            f"{OPENAQ_API_BASE}/locations",
-            headers={"X-API-Key": api_key},
+        r = client.get(
+            "/v3/locations",
             params={"countries_id": OPENAQ_COUNTRY_ID_INDIA, "limit": 1000, "page": page},
-            timeout=30,
         )
         r.raise_for_status()
         results = r.json().get("results", [])
@@ -64,7 +63,6 @@ def fetch_openaq_india_locations(api_key: str) -> List[Dict[str, Any]]:
         if len(results) < 1000:
             break
         page += 1
-        time.sleep(0.5)
     return all_locations
 
 
@@ -162,15 +160,16 @@ def write_manifest(
 
 def main() -> None:
     api_key = get_env("OPENAQ_API_KEY")
-    client  = make_client()
+    openaq = OpenAQClient(api_key)
+    supabase = make_client()
 
     print("Fetching OpenAQ India locations...")
-    all_locations = fetch_openaq_india_locations(api_key)
+    all_locations = fetch_openaq_india_locations(openaq)
     print(f"  {len(all_locations)} total India stations")
 
     print("Filtering to target cities + pollutants...")
     stations = filter_to_target(all_locations)
-    per_city = {}
+    per_city: Dict[str, int] = {}
     for s in stations:
         per_city[s["city"]] = per_city.get(s["city"], 0) + 1
     for city, n in per_city.items():
@@ -179,11 +178,12 @@ def main() -> None:
     print(f"  {len(stations)} stations, {total_sensors} target-pollutant sensors")
 
     print("Syncing monitors table in Supabase...")
-    openaq_to_monitor = sync_monitors_table(client, stations)
+    openaq_to_monitor = sync_monitors_table(supabase, stations)
 
     print("Writing target_stations.json...")
     write_manifest(stations, openaq_to_monitor)
 
+    openaq.print_stats()
     print("Done.")
 
 
