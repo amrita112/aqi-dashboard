@@ -11,10 +11,14 @@ What it does:
   5. Write scripts/ingest/target_stations.json with the mapping the ingest
      scripts need (openaq_id, sensor_id → pollutant, monitor_id, city, coords).
 
-Run:
-    /opt/homebrew/Caskroom/miniforge/base/bin/python3 scripts/ingest/bootstrap_stations.py
+Run from the repo root (module mode — the script uses absolute imports
+like `from scripts.ingest.lib.config import ...`, so a plain
+`python3 scripts/ingest/bootstrap_stations.py` invocation would fail
+with ModuleNotFoundError):
 
-Env vars required:
+    /opt/homebrew/Caskroom/miniforge/base/bin/python3 -m scripts.ingest.bootstrap_stations
+
+Env vars required (from .env.local locally, or GitHub secrets on CI):
   OPENAQ_API_KEY
   SUPABASE_URL
   SUPABASE_SERVICE_ROLE_KEY
