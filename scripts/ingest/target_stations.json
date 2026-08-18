@@ -1,0 +1,5402 @@
+{
+  "generated_at": "2026-08-18T20:53:17.773782+00:00",
+  "source": "openaq",
+  "pollutants": [
+    "no2",
+    "pm10",
+    "pm25",
+    "so2"
+  ],
+  "stations": [
+    {
+      "openaq_id": 13,
+      "name": "Delhi Technological University, Delhi - CPCB",
+      "latitude": 28.744,
+      "longitude": 77.12,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 13866,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 13864,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "9eb7af77-3c69-4594-8556-f272363b758c"
+    },
+    {
+      "openaq_id": 15,
+      "name": "IGI Airport",
+      "latitude": 28.56,
+      "longitude": 77.094,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 28,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 26,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 30,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "b149be2e-c3cb-4629-a87e-ad9eb57f234f"
+    },
+    {
+      "openaq_id": 16,
+      "name": "Civil Lines",
+      "latitude": 28.6787,
+      "longitude": 77.2262,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 32,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 31,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 34,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "e9d9e61b-7416-4f38-9b17-6d87af7ac214"
+    },
+    {
+      "openaq_id": 17,
+      "name": "R K Puram, Delhi - DPCC",
+      "latitude": 28.563262,
+      "longitude": 77.186937,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12234784,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 36,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234786,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 399,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234787,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 35,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234789,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 393,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "7e44bb14-c5b1-46e1-8daf-b5564b033f33"
+    },
+    {
+      "openaq_id": 50,
+      "name": "Punjabi Bagh, Delhi - DPCC",
+      "latitude": 28.674045,
+      "longitude": 77.131023,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 400,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234793,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234795,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 395,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 396,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234796,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 397,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12234798,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "5a5c8dc7-784f-4d5a-8c3a-832cf72026d1"
+    },
+    {
+      "openaq_id": 103,
+      "name": "Income Tax Office, Delhi - CPCB",
+      "latitude": 28.623499999999996,
+      "longitude": 77.2494,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 13863,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 13862,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 13861,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "8aebec89-67d3-429e-9c3a-086c212ade95"
+    },
+    {
+      "openaq_id": 235,
+      "name": "Anand Vihar, New Delhi - DPCC",
+      "latitude": 28.646835,
+      "longitude": 77.316032,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 382,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235607,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235609,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 381,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235610,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 384,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 383,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235612,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "3e709a9e-f3dd-4999-8207-9c5f9b794321"
+    },
+    {
+      "openaq_id": 236,
+      "name": "Mandir Marg, Delhi - DPCC",
+      "latitude": 28.6341,
+      "longitude": 77.2005,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 389,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 391,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 388,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 387,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "55d3a277-0c71-4efe-bb28-c12f34211f7c"
+    },
+    {
+      "openaq_id": 301,
+      "name": "Vikas Sadan, Gurugram - HSPCB",
+      "latitude": 28.4501238,
+      "longitude": 77.0263051,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14258985,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 5409,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14258987,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 506,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14258988,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 1166,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14258990,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 5405,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "5f5f6244-cf4f-4ee9-8a3d-06c4f3973421"
+    },
+    {
+      "openaq_id": 412,
+      "name": "Peenya, Bengaluru - KSPCB",
+      "latitude": 13.0339,
+      "longitude": 77.51321111,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 1518,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 13852,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 13853,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "d279d53c-9d5d-4e07-8547-6e00df76cf3d"
+    },
+    {
+      "openaq_id": 431,
+      "name": "IHBAS, Delhi - CPCB",
+      "latitude": 28.6821,
+      "longitude": 77.305,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 747,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 13868,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 13867,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "417ea43e-6e3c-4d72-a91e-b7884af7ce1d"
+    },
+    {
+      "openaq_id": 594,
+      "name": "BTM Layout, Bengaluru - KSPCB",
+      "latitude": 12.912811110000002,
+      "longitude": 77.60921944,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 1427,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 13836,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 13837,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "fb5b0210-f515-4d0f-a3f0-1c7bd15b8543"
+    },
+    {
+      "openaq_id": 797,
+      "name": "City Railway Station - KSPCB",
+      "latitude": 12.9773472,
+      "longitude": 77.5706972222222,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 1383,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 1382,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14096,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "3b6b5e6b-9843-4aa4-867c-a1f318205702"
+    },
+    {
+      "openaq_id": 2503,
+      "name": "Shadipur, Delhi - CPCB",
+      "latitude": 28.651699999999998,
+      "longitude": 77.1581,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 4852,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 13860,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 13859,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "42d8fc12-528c-44bf-a056-377433bd821e"
+    },
+    {
+      "openaq_id": 2587,
+      "name": "Sector16A, Faridabad - HSPCB",
+      "latitude": 28.410122219999998,
+      "longitude": 77.313775,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 5341,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 40563,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 13900,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 13901,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "cfd66d81-60ae-443a-b2e6-1cea5508f5d3"
+    },
+    {
+      "openaq_id": 2589,
+      "name": "SaneguravaHalli - KSPCB",
+      "latitude": 12.9916694,
+      "longitude": 77.5458305555555,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 5349,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 5348,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14129,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "2eb90839-c0be-46ae-af94-28e4bd097895"
+    },
+    {
+      "openaq_id": 2592,
+      "name": "BWSSB Kadabesanahalli, Bengaluru - KSPCB",
+      "latitude": 12.93890556,
+      "longitude": 77.69727222,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 5380,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 13898,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 13888,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "23fa7e5f-bcdb-4535-bf03-5b96944dfaa4"
+    },
+    {
+      "openaq_id": 2597,
+      "name": "US Diplomatic Post: New Delhi",
+      "latitude": 28.598096,
+      "longitude": 77.189066,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 5398,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "d8c4eba6-7b7e-4e3b-b31e-dd869672fcd2"
+    },
+    {
+      "openaq_id": 2598,
+      "name": "Navi Mumbai Municipal Corporation Airoli",
+      "latitude": 19.1494,
+      "longitude": 72.9986,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 5408,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 5404,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 13523,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "06aaae3b-b632-4ef1-ba2f-23368867f8c6"
+    },
+    {
+      "openaq_id": 5404,
+      "name": "Pusa, Delhi - IMD",
+      "latitude": 28.639645,
+      "longitude": 77.146263,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14084,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234699,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14085,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234701,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234702,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14087,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "a6b8cfa9-1a2a-432e-a267-9b4a8e7abb91"
+    },
+    {
+      "openaq_id": 5509,
+      "name": "Anand Vihar, Delhi - DPCC",
+      "latitude": 28.647622000000002,
+      "longitude": 77.315809,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14523,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14522,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14521,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14520,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "15f10286-aa72-4dc7-b11c-f0e5d2fd1804"
+    },
+    {
+      "openaq_id": 5540,
+      "name": "Punjabi Bagh, Delhi - DPCC",
+      "latitude": 28.6670856,
+      "longitude": 77.1301247,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14613,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14612,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14617,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14615,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "5302dd02-468f-46cc-b3a2-cfad883f1e17"
+    },
+    {
+      "openaq_id": 5541,
+      "name": "Burari Crossing, New Delhi - IMD",
+      "latitude": 28.7256504,
+      "longitude": 77.2011573,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14936,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234681,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234683,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14620,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14912,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234684,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "14e5af76-1489-4171-9767-0a304f8823ac"
+    },
+    {
+      "openaq_id": 5547,
+      "name": "BWSSB Kadabesanahalli, Bengaluru - CPCB",
+      "latitude": 12.9352049,
+      "longitude": 77.6814488,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 14636,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 1303004,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14641,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14634,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "eb8c45c4-afce-433e-b4a4-84c8c962c06c"
+    },
+    {
+      "openaq_id": 5548,
+      "name": "BTM Layout, Bengaluru - CPCB",
+      "latitude": 12.9135218,
+      "longitude": 77.5950804,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 12235358,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14639,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 1305377,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235360,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14635,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235361,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14642,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235363,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "2c51185e-faea-4d1f-9680-ed99cd8a2026"
+    },
+    {
+      "openaq_id": 5570,
+      "name": "Aya Nagar, New Delhi - IMD",
+      "latitude": 28.474261,
+      "longitude": 77.131606,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15019,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234705,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15027,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234707,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234708,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14717,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "8420728d-2a6b-4248-a8db-d671b1f4bbc2"
+    },
+    {
+      "openaq_id": 5574,
+      "name": "City Railway Station, Bengaluru - KSPCB",
+      "latitude": 12.9756843,
+      "longitude": 77.5660749,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 14773,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235376,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235377,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14775,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235378,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 14732,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "3d7a2be7-67f5-49a1-a945-6d36fa4f1168"
+    },
+    {
+      "openaq_id": 5581,
+      "name": "Pusa, New Delhi - IMD",
+      "latitude": 28.610304,
+      "longitude": 77.0996943,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14800,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14851,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14853,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "447d6214-8157-4fc9-8850-14971761eb3c"
+    },
+    {
+      "openaq_id": 5586,
+      "name": "Sirifort, Delhi - CPCB",
+      "latitude": 28.5504249,
+      "longitude": 77.2159377,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12234766,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234768,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234769,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234771,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "fe17f66d-2f4d-4ad1-8d79-4de675e70a45"
+    },
+    {
+      "openaq_id": 5593,
+      "name": "Pimpleshwar Mandir, Thane - MPCB",
+      "latitude": 19.192056,
+      "longitude": 72.9585188,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 14802,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14801,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14806,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14804,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "2ed82735-5400-4def-897f-1aed395000c7"
+    },
+    {
+      "openaq_id": 5598,
+      "name": "Sector - 125, Noida, UP - UPPCB",
+      "latitude": 28.5447608,
+      "longitude": 77.3231257,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235184,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235186,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235187,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235189,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "1da47965-4f45-4b77-bba4-602d8b1e90a0"
+    },
+    {
+      "openaq_id": 5607,
+      "name": "Peenya, Bengaluru - CPCB",
+      "latitude": 13.0270199,
+      "longitude": 77.494094,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 14850,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235367,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235369,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 1303005,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235370,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14859,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14862,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235372,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "9c9477bb-d3b5-40ab-8237-aa386acf3d0c"
+    },
+    {
+      "openaq_id": 5610,
+      "name": "North Campus, DU, Delhi - IMD",
+      "latitude": 28.6573814,
+      "longitude": 77.1585447,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12234687,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14902,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234689,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14886,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234690,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14860,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "f42c0b83-dee8-43a8-bf19-0c031610649e"
+    },
+    {
+      "openaq_id": 5613,
+      "name": "ITO, New Delhi - CPCB",
+      "latitude": 28.628624,
+      "longitude": 77.24106,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14866,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234750,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234752,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14869,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234753,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14878,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234754,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 17781,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "41fc5a0e-0701-43dd-a748-93970205094a"
+    },
+    {
+      "openaq_id": 5616,
+      "name": "Sector - 62, Noida, UP - IMD",
+      "latitude": 28.6245479,
+      "longitude": 77.3577104,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12234717,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234719,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234720,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "4b205c73-5f3c-4efe-bc98-d5e0bc68b5b3"
+    },
+    {
+      "openaq_id": 5617,
+      "name": "Sector- 16A, Faridabad - HSPCB",
+      "latitude": 28.4088421,
+      "longitude": 77.3099081,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14887,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 17547,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14930,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15107,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "dcf143c0-2e5c-4453-a714-7a081691718b"
+    },
+    {
+      "openaq_id": 5622,
+      "name": "NSIT Dwarka, Delhi - CPCB",
+      "latitude": 28.60909,
+      "longitude": 77.0325413,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12234741,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14919,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 34957,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234743,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14922,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234744,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234746,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 14923,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "ab86487a-7476-469d-8355-1b02f5b62844"
+    },
+    {
+      "openaq_id": 5626,
+      "name": "DTU, New Delhi - CPCB",
+      "latitude": 28.7500499,
+      "longitude": 77.1112615,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14941,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234757,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14974,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234759,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14985,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234760,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234762,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 17766,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "bb62fd58-3795-4991-a02f-0fdf3de0edba"
+    },
+    {
+      "openaq_id": 5627,
+      "name": "CRRI Mathura Road, New Delhi - IMD",
+      "latitude": 28.5512005,
+      "longitude": 77.2735737,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15082,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234675,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14946,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234677,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14935,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234678,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "685a65b9-e8d7-45a0-a1dc-97d8e28ba839"
+    },
+    {
+      "openaq_id": 5630,
+      "name": "Shadipur, Delhi - CPCB",
+      "latitude": 28.6514781,
+      "longitude": 77.1473105,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12234723,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15053,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234725,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 36210,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234726,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14959,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234728,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 14952,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "82ad676c-edf2-4851-99fb-e7151cce04ef"
+    },
+    {
+      "openaq_id": 5634,
+      "name": "Lodhi Road, New Delhi - IMD",
+      "latitude": 28.5918245,
+      "longitude": 77.2273074,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14980,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234711,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234713,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14983,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234714,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14984,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "714f274a-268c-4cc3-a0c3-ae5e8f97b242"
+    },
+    {
+      "openaq_id": 5639,
+      "name": "R K Puram, New Delhi - DPCC",
+      "latitude": 28.5646102,
+      "longitude": 77.1670103,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15030,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15059,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15071,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15092,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "8734bc60-93cf-487f-93bb-f3eb381f965b"
+    },
+    {
+      "openaq_id": 5641,
+      "name": "Mandir Marg, New Delhi - DPCC",
+      "latitude": 28.6372688,
+      "longitude": 77.2005604,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15025,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15022,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15014,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15013,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "e3c2da0d-f90f-4856-9b27-681acce2352d"
+    },
+    {
+      "openaq_id": 5644,
+      "name": "Sanegurava Halli, Bengaluru - KSPCB",
+      "latitude": 12.990328,
+      "longitude": 77.5431385,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 12235381,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15035,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235382,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15033,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235384,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 15032,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "8e39cf88-0b42-46b6-ad02-1d4943b76fe7"
+    },
+    {
+      "openaq_id": 5650,
+      "name": "IGI Airport (T3), Delhi - IMD",
+      "latitude": 28.5627763,
+      "longitude": 77.1180053,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12234693,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234695,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234696,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "5fb5140d-6535-47ca-80fd-9983ab5e0689"
+    },
+    {
+      "openaq_id": 5665,
+      "name": "Vasundhara, Ghaziabad - UPPCB",
+      "latitude": 28.6603346,
+      "longitude": 77.3572563,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15236,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235157,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235159,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15238,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15239,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235160,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235162,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 15240,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "8570d128-c16d-4445-8c2d-c79715acafe9"
+    },
+    {
+      "openaq_id": 5742,
+      "name": "Patparganj, Delhi - DPCC",
+      "latitude": 28.6310495,
+      "longitude": 77.2846218,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15498,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15628,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15629,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15499,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "14a7db8c-3f6e-4b24-9f63-8ba6c9a553c0"
+    },
+    {
+      "openaq_id": 5743,
+      "name": "Rohini, Delhi - DPCC",
+      "latitude": 28.7407056,
+      "longitude": 77.0577492,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15508,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15622,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15618,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15504,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "827adfe4-6400-488d-a93d-d1c5d772b40b"
+    },
+    {
+      "openaq_id": 5744,
+      "name": "Dr. Karni Singh Shooting Range, Delhi - DPCC",
+      "latitude": 28.4997315,
+      "longitude": 77.2649067,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15505,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15588,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15589,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15509,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "5d6f8513-9558-4ae0-b552-25a28decb7d4"
+    },
+    {
+      "openaq_id": 5753,
+      "name": "Vivek Vihar, Delhi - DPCC",
+      "latitude": 28.6687803,
+      "longitude": 77.3130982,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15544,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15615,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15604,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15546,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "b07af2b5-02ae-4ce4-8762-8334fa73a3c8"
+    },
+    {
+      "openaq_id": 5754,
+      "name": "Jawaharlal Nehru Stadium, Delhi - DPCC",
+      "latitude": 28.5828503,
+      "longitude": 77.2321778,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15547,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15619,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15620,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15552,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "3b859cee-738a-451f-89dc-c0907d6aebae"
+    },
+    {
+      "openaq_id": 5755,
+      "name": "Major Dhyan Chand National Stadium, Delhi - DPCC",
+      "latitude": 28.6125027,
+      "longitude": 77.2351994,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15574,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15549,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15551,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15587,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "b7f131f4-5e4d-47d6-b7a5-af79afc9febc"
+    },
+    {
+      "openaq_id": 5759,
+      "name": "Sonia Vihar, Delhi - DPCC",
+      "latitude": 28.67795,
+      "longitude": 77.29868,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15567,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15591,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15595,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15565,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "8cf7cc33-3440-4a61-99b5-5a4192af70a3"
+    },
+    {
+      "openaq_id": 5760,
+      "name": "Dwarka-Sector 8, Delhi - DPCC ",
+      "latitude": 28.5206826,
+      "longitude": 76.8023871,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15593,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15569,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15570,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15590,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "a1886430-df92-44ac-bc50-592e2041b072"
+    },
+    {
+      "openaq_id": 5761,
+      "name": "Jahangirpuri, Delhi - DPCC",
+      "latitude": 28.7258373,
+      "longitude": 77.1605631,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15572,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15623,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15621,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15585,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "9d840bb5-017c-47d0-bf13-d52c94cebadb"
+    },
+    {
+      "openaq_id": 5762,
+      "name": "Ashok Vihar, Delhi - DPCC",
+      "latitude": 28.6957202,
+      "longitude": 77.1812947,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15584,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15605,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15602,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15579,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "2ffcecf4-31fb-4e0c-bb1e-ff0fd7e173e1"
+    },
+    {
+      "openaq_id": 5763,
+      "name": "Narela, Delhi - DPCC",
+      "latitude": 28.8446874,
+      "longitude": 77.0332666,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15581,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15609,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15606,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15575,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "4cf23dbc-2883-4137-99b2-61f903967416"
+    },
+    {
+      "openaq_id": 5765,
+      "name": "Okhla Phase-2, Delhi - DPCC",
+      "latitude": 28.5366411,
+      "longitude": 77.2664587,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15600,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15624,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15627,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15599,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "22a8ec00-7d5d-4bdb-8ffb-8de6110eeaad"
+    },
+    {
+      "openaq_id": 5766,
+      "name": "Nehru Nagar, Delhi - DPCC",
+      "latitude": 28.5639543,
+      "longitude": 77.2587868,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15612,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15625,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15626,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15608,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "06b22660-c431-4733-aa2a-d906bfab927c"
+    },
+    {
+      "openaq_id": 6314,
+      "name": "NISE Gwal Pahari, Gurugram - IMD",
+      "latitude": 28.4228859,
+      "longitude": 76.8496963,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 17562,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 17563,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 17564,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "307b469c-60ff-4c5c-be26-db275365af74"
+    },
+    {
+      "openaq_id": 6356,
+      "name": "Pusa, Delhi - DPCC",
+      "latitude": 28.639645,
+      "longitude": 77.146262,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235318,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235320,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235321,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235323,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "565542a3-8587-4503-8f20-311af5b5c1a0"
+    },
+    {
+      "openaq_id": 6357,
+      "name": "Punjabi Bagh, Delhi - DPCC",
+      "latitude": 28.674045000000003,
+      "longitude": 77.13102300000001,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 17771,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 17768,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 17776,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 17778,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "88e96d68-e93f-4165-a906-8841f39344c5"
+    },
+    {
+      "openaq_id": 6358,
+      "name": "Mandir Marg, New Delhi - DPCC",
+      "latitude": 28.636429,
+      "longitude": 77.201067,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 17773,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234775,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234777,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 17775,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234778,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 17770,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234780,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 17779,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "674279f0-03f3-42a8-8c4d-8dc5c4584bba"
+    },
+    {
+      "openaq_id": 6359,
+      "name": "IHBAS, Dilshad Garden,New Delhi - CPCB",
+      "latitude": 28.6811736,
+      "longitude": 77.3025234,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12234732,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 17791,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234734,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 36050,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 17790,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234735,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234737,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 17780,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "397a9c1c-e39b-49d4-9826-e4ccc4b1ca9b"
+    },
+    {
+      "openaq_id": 6924,
+      "name": "Indirapuram, Ghaziabad - UPPCB",
+      "latitude": 28.646233,
+      "longitude": 77.358075,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235776,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 19885,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235778,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19886,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19884,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235779,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235781,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 19887,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "f2de683a-2f79-4474-94a0-a1cb3a9b554e"
+    },
+    {
+      "openaq_id": 6927,
+      "name": "Colaba, Mumbai - MPCB",
+      "latitude": 18.91,
+      "longitude": 72.82,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12235923,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 19892,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20142,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235925,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235926,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20143,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235928,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 20144,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "01f1fa42-d93b-412c-b1ea-8d9bc3e41352"
+    },
+    {
+      "openaq_id": 6929,
+      "name": "Major Dhyan Chand National Stadium, Delhi - DPCC",
+      "latitude": 28.611281,
+      "longitude": 77.237738,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 19902,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235044,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 19904,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235046,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19900,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235047,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235049,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 19899,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "61e1252a-3e1e-4b2c-ad52-f2007b6ca784"
+    },
+    {
+      "openaq_id": 6931,
+      "name": "Dwarka-Sector 8, Delhi - DPCC ",
+      "latitude": 28.5710274,
+      "longitude": 77.0719006,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 19956,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235017,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235019,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19906,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20150,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235020,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20147,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235022,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "4e8ec7d8-8cdf-4e57-8269-c732736565c7"
+    },
+    {
+      "openaq_id": 6932,
+      "name": "Alipur, Delhi - DPCC",
+      "latitude": 28.815329,
+      "longitude": 77.15301,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235695,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 19948,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235697,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19936,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19935,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235698,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 19912,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235700,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "ad8de682-8bd7-46e4-b6f7-6f100c05dd6a"
+    },
+    {
+      "openaq_id": 6934,
+      "name": "Dr. Karni Singh Shooting Range, Delhi - DPCC",
+      "latitude": 28.498571,
+      "longitude": 77.26484,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 19930,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235008,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235010,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19941,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19919,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235011,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235013,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 19943,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "9f588d7b-5234-4e34-b035-fcc106e83ecf"
+    },
+    {
+      "openaq_id": 6936,
+      "name": "Arya Nagar, Bahadurgarh - HSPCB",
+      "latitude": 28.6701,
+      "longitude": 76.9254,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14233901,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 19945,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14233903,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19928,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19922,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14233904,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 19920,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 14233906,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "c59a759f-9a28-4281-933f-a87dbdac38cb"
+    },
+    {
+      "openaq_id": 6938,
+      "name": "Vivek Vihar, Delhi - DPCC",
+      "latitude": 28.672342,
+      "longitude": 77.31526,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 19929,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235130,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235132,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19933,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235133,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 19934,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235135,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 19938,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "0d0627dc-c38d-44ee-8deb-6422dbf91218"
+    },
+    {
+      "openaq_id": 6943,
+      "name": "Mahape, Navi Mumbai - MPCB",
+      "latitude": 19.1135051,
+      "longitude": 73.008978,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12235902,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20069,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235904,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20068,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20046,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235905,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20023,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235907,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "3565d142-e5cd-4ad6-a2ed-26ad7165ad99"
+    },
+    {
+      "openaq_id": 6945,
+      "name": "Kurla, Mumbai - MPCB",
+      "latitude": 19.0863,
+      "longitude": 72.8888,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 20076,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235831,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235833,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19975,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235834,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 19978,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 19987,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12289836,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "d81993e9-1c47-493f-a316-e0cdf562e61f"
+    },
+    {
+      "openaq_id": 6948,
+      "name": "Chhatrapati Shivaji Intl. Airport (T2), Mumbai - MPCB",
+      "latitude": 19.10078,
+      "longitude": 72.87462,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12235857,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 19977,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 19980,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235859,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235860,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 19981,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235862,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 19982,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "4a442036-3776-478e-b54d-46130716c09a"
+    },
+    {
+      "openaq_id": 6956,
+      "name": "Powai, Mumbai - MPCB",
+      "latitude": 19.1375,
+      "longitude": 72.915056,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 20083,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235893,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235895,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20010,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20079,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235896,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235898,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 20101,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "99c16c89-6433-48b0-a612-7f6e5c1b9a0a"
+    },
+    {
+      "openaq_id": 6957,
+      "name": "Jawaharlal Nehru Stadium, Delhi - DPCC",
+      "latitude": 28.58028,
+      "longitude": 77.233829,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 20017,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235035,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235037,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20019,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235038,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20020,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20021,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235040,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "dc3290a0-8b6b-4a50-96c8-09ee0aadad66"
+    },
+    {
+      "openaq_id": 6959,
+      "name": "Siddharth Nagar-Worli, Mumbai - IITM",
+      "latitude": 19.000083,
+      "longitude": 72.813993,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 20030,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236432,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20032,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236434,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236435,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20033,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20034,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "f922112f-cc6f-4b82-bc1c-29ca12e6330a"
+    },
+    {
+      "openaq_id": 6960,
+      "name": "Patparganj, Delhi - DPCC",
+      "latitude": 28.623748,
+      "longitude": 77.287205,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235098,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20037,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20040,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235100,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235101,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20049,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235103,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 20055,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "b637f82d-8319-43a3-9e16-2bbe7e5572d7"
+    },
+    {
+      "openaq_id": 6965,
+      "name": "Borivali East, Mumbai - MPCB",
+      "latitude": 19.227474,
+      "longitude": 72.864394,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12252655,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20081,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12252657,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20085,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20087,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12252658,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12252660,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 20090,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "cbaee839-885c-416f-a0f8-b6e91b9e53ce"
+    },
+    {
+      "openaq_id": 6967,
+      "name": "Sion, Mumbai - MPCB",
+      "latitude": 19.047,
+      "longitude": 72.8746,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12243927,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20107,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12243929,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20097,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20096,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12243930,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12243932,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 20095,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "585017de-6591-4d95-acff-e9776c9710b9"
+    },
+    {
+      "openaq_id": 6973,
+      "name": "Jayanagar 5th Block, Bengaluru - KSPCB",
+      "latitude": 12.920984,
+      "longitude": 77.584908,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 20175,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235264,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20172,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235266,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235267,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20162,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20152,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235269,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "26e762ac-3bd0-4a2b-a994-19611840a91d"
+    },
+    {
+      "openaq_id": 6974,
+      "name": "Bapuji Nagar, Bengaluru - KSPCB",
+      "latitude": 12.951913,
+      "longitude": 77.539784,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 20169,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235237,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235239,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20166,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20165,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235240,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235242,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 20164,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "57c47773-6692-4597-91e0-392e532d56bc"
+    },
+    {
+      "openaq_id": 6975,
+      "name": "Silk Board, Bengaluru - KSPCB",
+      "latitude": 12.917348,
+      "longitude": 77.622813,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 20154,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235282,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20161,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235284,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235285,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20156,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20176,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235287,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "7652c6f8-1e23-48fa-825c-5e90391b4d09"
+    },
+    {
+      "openaq_id": 6978,
+      "name": "Knowledge Park - III, Greater Noida - UPPCB",
+      "latitude": 28.47272,
+      "longitude": 77.482,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 20177,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235193,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235195,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20191,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235196,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20209,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235198,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 20227,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "c92c153f-1a0a-420e-a5d6-a45be4839b19"
+    },
+    {
+      "openaq_id": 6980,
+      "name": "Sector-1, Noida - UPPCB",
+      "latitude": 28.589247,
+      "longitude": 77.321962,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 20187,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235948,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20194,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235950,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235951,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20206,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235953,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 20207,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "d8dda096-1e3e-4839-88be-ac5461ec6bb2"
+    },
+    {
+      "openaq_id": 6983,
+      "name": "Hombegowda Nagar, Bengaluru - KSPCB",
+      "latitude": 12.938539,
+      "longitude": 77.5901,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 12235255,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20196,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20198,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235257,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20199,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235258,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235260,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 20200,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "6272268f-737c-4089-bb71-765fac083803"
+    },
+    {
+      "openaq_id": 6984,
+      "name": "Hebbal, Bengaluru - KSPCB",
+      "latitude": 13.029152,
+      "longitude": 77.585901,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 20222,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235246,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20213,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235248,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20212,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235249,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20210,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235251,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "a797941f-7883-4aa4-9918-cc175ad77fe6"
+    },
+    {
+      "openaq_id": 6986,
+      "name": "Knowledge Park - V, Greater Noida - UPPCB",
+      "latitude": 28.557054,
+      "longitude": 77.453663,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 20232,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235932,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20241,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235934,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20242,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235935,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235937,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 20244,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "d06410ca-2aef-496e-b1b8-9ab0ef66aed1"
+    },
+    {
+      "openaq_id": 6987,
+      "name": "Vile Parle West, Mumbai - MPCB",
+      "latitude": 19.10861,
+      "longitude": 72.83622,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 20239,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235848,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235850,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20243,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20251,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235851,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20254,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235853,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "f15f7599-4fc9-421e-b946-5d5e86a1f181"
+    },
+    {
+      "openaq_id": 6988,
+      "name": "Sector-116, Noida - UPPCB",
+      "latitude": 28.56923,
+      "longitude": 77.393848,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12241383,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235941,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235942,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235944,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "1f92dc0c-db6d-45f7-915a-a6ef5a03f4b4"
+    },
+    {
+      "openaq_id": 7005,
+      "name": "Loni, Ghaziabad - UPPCB",
+      "latitude": 28.757294,
+      "longitude": 77.278792,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 20294,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235785,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20293,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235786,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20290,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235787,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20291,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235789,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "0855ec67-02ea-4c97-ad93-b0b1f67d3074"
+    },
+    {
+      "openaq_id": 7044,
+      "name": "R K Puram, Delhi - DPCC",
+      "latitude": 28.563262000000005,
+      "longitude": 77.186937,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 20409,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 20407,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20411,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20408,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "6c2c9fc1-247d-4064-9282-d1bddd5646ea"
+    },
+    {
+      "openaq_id": 7434,
+      "name": "East Arjun Nagar, Delhi - CPCB",
+      "latitude": 28.655601699999995,
+      "longitude": 77.2859318,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 21624,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 21623,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "04f7809b-06e0-4ad8-a807-fe04814efa58"
+    },
+    {
+      "openaq_id": 7850,
+      "name": "Bandra, Mumbai - MPCB",
+      "latitude": 19.0627,
+      "longitude": 72.84614,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 36453,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 22798,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 36447,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 36446,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "238e1d3b-546c-457e-9acf-17e57043d40f"
+    },
+    {
+      "openaq_id": 8039,
+      "name": "Mumbai",
+      "latitude": 19.07283,
+      "longitude": 72.88261,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 23320,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "8bbc695d-3dc7-45b2-92d1-c52a2e4ff24e"
+    },
+    {
+      "openaq_id": 8092,
+      "name": "East Arjun Nagar, Delhi - CPCB",
+      "latitude": 28.655935,
+      "longitude": 77.294904,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 23669,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 34750,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "573a900e-8a84-4b4c-8a98-4ee8df95534f"
+    },
+    {
+      "openaq_id": 8118,
+      "name": "New Delhi",
+      "latitude": 28.63576,
+      "longitude": 77.22445,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 23534,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "d386fed1-9fb1-4d84-9bc3-9a2f55ae56b7"
+    },
+    {
+      "openaq_id": 8235,
+      "name": "Jahangirpuri, Delhi - DPCC",
+      "latitude": 28.73282,
+      "longitude": 77.170633,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235026,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 23994,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 23996,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235028,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235029,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 23997,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235031,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 23998,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "a86be6c9-ce94-4f86-8e50-9d3b9c61ec28"
+    },
+    {
+      "openaq_id": 8239,
+      "name": "Okhla Phase-2, Delhi - DPCC",
+      "latitude": 28.530785,
+      "longitude": 77.271255,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 24008,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235071,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235073,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 24011,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235074,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 24007,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235076,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 24009,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "d8fc4e06-0403-4943-a0b7-a5251a7fbae5"
+    },
+    {
+      "openaq_id": 8365,
+      "name": "Nehru Nagar, Delhi - DPCC",
+      "latitude": 28.56789,
+      "longitude": 77.250515,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235080,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 24303,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235082,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 35012,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 35010,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235083,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 35009,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235085,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "595425e4-9cb8-453f-9150-6eebfbd4b3ef"
+    },
+    {
+      "openaq_id": 8472,
+      "name": "Bawana, Delhi - DPCC",
+      "latitude": 28.7762,
+      "longitude": 77.051074,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235291,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 36394,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235293,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 24602,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 36391,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235294,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235296,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "7a5e1af2-1e10-47fb-b51c-8b4e52aa6242"
+    },
+    {
+      "openaq_id": 8475,
+      "name": "Sonia Vihar, Delhi - DPCC",
+      "latitude": 28.710508,
+      "longitude": 77.249485,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235107,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 35047,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 35049,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235109,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235110,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 35050,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235112,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 35051,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "6317c5c8-39ea-42f4-84cc-39383e716048"
+    },
+    {
+      "openaq_id": 8915,
+      "name": "Wazirpur, Delhi - DPCC",
+      "latitude": 28.699793,
+      "longitude": 77.165453,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235121,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 34732,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 26026,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235123,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 34731,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235124,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235126,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 34729,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "95609c46-3d9c-4bbe-86cf-4a11c042c63b"
+    },
+    {
+      "openaq_id": 8917,
+      "name": "Ashok Vihar, Delhi - DPCC",
+      "latitude": 28.695381,
+      "longitude": 77.181665,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 34768,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234999,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235001,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 34785,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 26032,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235002,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 34786,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235004,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "bbaddcf0-c848-4451-8578-ccba19666560"
+    },
+    {
+      "openaq_id": 10484,
+      "name": "Sri Aurobindo Marg, Delhi - DPCC",
+      "latitude": 28.531346,
+      "longitude": 77.190156,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 34758,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235309,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 34781,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235311,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 34772,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235312,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235314,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 34759,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "e1901136-eacd-47e8-b27c-9d17e6846395"
+    },
+    {
+      "openaq_id": 10485,
+      "name": "Narela, Delhi - DPCC",
+      "latitude": 28.822836,
+      "longitude": 77.101981,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235053,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 34760,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235055,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 34791,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 34790,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235056,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235058,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 34789,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "cd011ca1-dd94-443f-8b0b-7859a5dba50b"
+    },
+    {
+      "openaq_id": 10486,
+      "name": "Mundka, Delhi - DPCC",
+      "latitude": 28.684678,
+      "longitude": 77.076574,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 34764,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235300,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 34766,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235302,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235303,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 34767,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235305,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 34769,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "3cb840e3-bdf7-459c-a47b-93516327c811"
+    },
+    {
+      "openaq_id": 10487,
+      "name": "Anand Vihar, Delhi - DPCC",
+      "latitude": 28.646835,
+      "longitude": 77.316032,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 34784,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 34780,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 34771,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 34770,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "399b726d-7308-480b-8912-9a5fac2fa305"
+    },
+    {
+      "openaq_id": 10488,
+      "name": "Najafgarh, Delhi - DPCC",
+      "latitude": 28.570173,
+      "longitude": 76.933762,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235062,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 34778,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235064,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 34775,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 34774,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235065,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 34773,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235067,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "1816d64d-3704-46e3-b951-887f71c4a283"
+    },
+    {
+      "openaq_id": 10489,
+      "name": "ITO, Delhi - CPCB",
+      "latitude": 28.628624,
+      "longitude": 77.24106,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 34821,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 34793,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 35016,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 35015,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "62dfff6b-f0a6-49f8-999a-8b6d384015d7"
+    },
+    {
+      "openaq_id": 10820,
+      "name": "Sector 30, Faridabad - HSPCB",
+      "latitude": 28.4417,
+      "longitude": 77.3217,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12236233,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236235,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236236,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236238,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "2e66b00c-1adf-4e1f-a962-53a492307d8d"
+    },
+    {
+      "openaq_id": 10825,
+      "name": "Sector-51, Gurugram - HSPCB",
+      "latitude": 28.4227,
+      "longitude": 77.0667,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12236256,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 36178,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 36180,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236258,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236259,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 36181,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 36182,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12236261,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "28b08885-f471-4d83-9b43-aa3ea4c8d244"
+    },
+    {
+      "openaq_id": 10831,
+      "name": "Rohini, Delhi - DPCC",
+      "latitude": 28.732528,
+      "longitude": 77.11992,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 36209,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235089,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235091,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 36382,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235092,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 36399,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235094,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 36449,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "0519139d-490a-41d9-bcba-dde767db959a"
+    },
+    {
+      "openaq_id": 10900,
+      "name": "Teri Gram, Gurugram - HSPCB",
+      "latitude": 28.4275,
+      "longitude": 77.1465,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14573420,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 36535,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236250,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 36538,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236251,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 36539,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14516016,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 36540,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "747f09a3-3f43-4773-ad0a-61ca3e8bfc33"
+    },
+    {
+      "openaq_id": 10919,
+      "name": "Sanjay Nagar, Ghaziabad - UPPCB",
+      "latitude": 28.685382,
+      "longitude": 77.453839,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 36645,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235767,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235769,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 36660,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235770,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 36675,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 36676,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235772,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "ef98a64c-2b01-4583-af04-97ebc5323b96"
+    },
+    {
+      "openaq_id": 10921,
+      "name": "NISE Gwal Pahari, Gurugram - IMD",
+      "latitude": 28.422681,
+      "longitude": 77.148944,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12235704,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 36702,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 36703,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235706,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235707,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 36701,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "ad22c564-b0b2-4ef4-8a15-d41ac1eced57"
+    },
+    {
+      "openaq_id": 11602,
+      "name": "Bandra Kurla Complex, Mumbai - IITM",
+      "latitude": 19.053536000000005,
+      "longitude": 72.84643,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 39406,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 39405,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 39404,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 39407,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "449f54ae-de51-483a-b0f1-ad922254ed09"
+    },
+    {
+      "openaq_id": 11603,
+      "name": "Chandni Chowk, Delhi - IITM",
+      "latitude": 28.656756,
+      "longitude": 77.227234,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12236358,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 39412,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 39411,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236360,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236361,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 39410,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 39413,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12236363,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "749a8d57-bcd8-45e1-b162-33f2948321e8"
+    },
+    {
+      "openaq_id": 11604,
+      "name": "Deonar, Mumbai - IITM",
+      "latitude": 19.04946,
+      "longitude": 72.923,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 39418,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 39417,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 39416,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 39419,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "a540dce2-76e3-49dc-b1aa-1899a8d74b5e"
+    },
+    {
+      "openaq_id": 11606,
+      "name": "Borivali East, Mumbai - IITM",
+      "latitude": 19.23241,
+      "longitude": 72.86895,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12236415,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 39430,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 39429,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236417,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 39428,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236418,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "cbc9907a-a39c-48b4-b403-5e8b42dd46e8"
+    },
+    {
+      "openaq_id": 11607,
+      "name": "Lodhi Road, Delhi - IITM",
+      "latitude": 28.588333,
+      "longitude": 77.221667,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 39435,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236374,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 39434,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236375,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 39433,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236376,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236378,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 39436,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "be091d06-6d0a-4970-8aa8-73383394c2bf"
+    },
+    {
+      "openaq_id": 11611,
+      "name": "Malad West, Mumbai - IITM",
+      "latitude": 19.19709,
+      "longitude": 72.82204,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 39456,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236423,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 39455,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236425,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236426,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 39454,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236428,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 39457,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "ce1a2284-2e8a-405b-b753-a4a3504cb001"
+    },
+    {
+      "openaq_id": 11612,
+      "name": "Sector-19A Nerul, Navi Mumbai - IITM",
+      "latitude": 19.044,
+      "longitude": 73.03250000000001,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 39462,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 39461,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 39460,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 39463,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "740511eb-5a39-431e-9341-785a00e43d66"
+    },
+    {
+      "openaq_id": 12024,
+      "name": "Chakala-Andheri East, Mumbai - IITM",
+      "latitude": 19.11074,
+      "longitude": 72.86084,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12236408,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 40574,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12442195,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 40572,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12442196,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 40571,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236411,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 40573,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "3c4eab0c-a430-4630-b28c-d2774cd85a36"
+    },
+    {
+      "openaq_id": 12039,
+      "name": "Khindipada-Bhandup West, Mumbai - IITM",
+      "latitude": 19.164394,
+      "longitude": 72.928297,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12236391,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 40639,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236393,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 40615,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 40608,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236394,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236396,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 40617,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "29c5c3f2-1959-494c-ab85-2b12c9bb01f6"
+    },
+    {
+      "openaq_id": 12040,
+      "name": "Mulund West, Mumbai - MPCB",
+      "latitude": 19.175,
+      "longitude": 72.9419,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12236478,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 40612,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 40628,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236480,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236481,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 40641,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 40640,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12236483,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "7867d79a-5a53-4ea0-a635-72085a33a061"
+    },
+    {
+      "openaq_id": 12044,
+      "name": "Kandivali East, Mumbai - MPCB",
+      "latitude": 19.2058,
+      "longitude": 72.8682,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 40624,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236469,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236471,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 40652,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 40650,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236472,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 40620,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12236474,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "eb17d715-2eb5-4c73-885b-9ca509908ed3"
+    },
+    {
+      "openaq_id": 60661,
+      "name": "Siddharth Nagar-Worli, Mumbai - IITM",
+      "latitude": 19.000083,
+      "longitude": 72.813993,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 389767,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 389771,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 389761,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "704a49d1-023b-4740-bc9d-c99dfdeb56a8"
+    },
+    {
+      "openaq_id": 229473,
+      "name": "blore_India_07_14_official",
+      "latitude": 13.003347077,
+      "longitude": 77.628012188,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 1321837,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "7394322a-58c4-45c6-a596-4231d153819b"
+    },
+    {
+      "openaq_id": 2498781,
+      "name": "SiriJaya",
+      "latitude": 12.909153635368195,
+      "longitude": 77.52476183092863,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 7979259,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 7971081,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 7951363,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "67eab9ef-c016-442d-aa3c-4696c01f1645"
+    },
+    {
+      "openaq_id": 2860223,
+      "name": "GK1 (Oberoi Terrace)",
+      "latitude": 28.5500047,
+      "longitude": 77.2431058,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 9320368,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 9320367,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "5120e027-9d35-4acb-9851-fa708079406d"
+    },
+    {
+      "openaq_id": 3409312,
+      "name": "BWSSB Kadabesanahalli, Bengaluru - CPCB",
+      "latitude": 12.9352049,
+      "longitude": 77.6814488,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 14406992,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14411592,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14406995,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14406996,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "ad376eed-4241-4792-95b7-b9d199b3a3a6"
+    },
+    {
+      "openaq_id": 3409322,
+      "name": "Pimpleshwar Mandir, Thane - MPCB",
+      "latitude": 19.192056,
+      "longitude": 72.9585188,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12235641,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235643,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235644,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235646,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "94dd8abc-5be9-44c7-8df7-db98299d2f90"
+    },
+    {
+      "openaq_id": 3409323,
+      "name": "Worli, Mumbai - MPCB",
+      "latitude": 18.9936162,
+      "longitude": 72.8128113,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12235911,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235913,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235914,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235916,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "b86cd3d0-6939-4e3a-886d-6dc25bfced8a"
+    },
+    {
+      "openaq_id": 3409328,
+      "name": "Bandra Kurla Complex, Mumbai - IITM",
+      "latitude": 19.0627,
+      "longitude": 72.84614,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12708243,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12708245,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12708246,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12708248,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "bbc48dbd-823a-4f3a-bb59-611fa3b05526"
+    },
+    {
+      "openaq_id": 3409329,
+      "name": "Deonar, Mumbai - IITM",
+      "latitude": 19.04946,
+      "longitude": 72.923,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12236382,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236384,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236385,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236387,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "e3136dde-d002-4114-a41a-25f5d6a793dd"
+    },
+    {
+      "openaq_id": 3409330,
+      "name": "Sector-19A Nerul, Navi Mumbai - IITM",
+      "latitude": 19.044,
+      "longitude": 73.0325,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 14230326,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14230327,
+          "parameter": "pm10"
+        }
+      ],
+      "monitor_id": "1be81777-2b74-4e53-b3eb-6d44494633c9"
+    },
+    {
+      "openaq_id": 3409385,
+      "name": "RVCE-Mailasandra, Bengaluru - KSPCB",
+      "latitude": 12.921418,
+      "longitude": 77.502466,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 12237570,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12237572,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12237573,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12237575,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "99790e88-812a-4f57-b52b-89ab2afb1aa4"
+    },
+    {
+      "openaq_id": 3409388,
+      "name": "Kasturi Nagar, Bengaluru - KSPCB",
+      "latitude": 13.003872,
+      "longitude": 77.664217,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 12237597,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12237599,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12237600,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12237602,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "11be65ed-6a5e-4348-81ee-c9ec2da4711c"
+    },
+    {
+      "openaq_id": 3409393,
+      "name": "Shivapura_Peenya, Bengaluru - KSPCB",
+      "latitude": 13.0246342,
+      "longitude": 77.5080115,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 12237642,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12237644,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12237645,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12237647,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "0c12c88d-7d78-402d-b96c-c568c36e2df2"
+    },
+    {
+      "openaq_id": 3409469,
+      "name": "Kasarvadavali, Thane - MPCB",
+      "latitude": 19.26777,
+      "longitude": 72.97182,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238255,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238257,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238258,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238260,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "a667cfac-fed2-4874-a6ed-e1377181f03f"
+    },
+    {
+      "openaq_id": 3409472,
+      "name": "Upvan Fort, Thane - MPCB",
+      "latitude": 19.222279,
+      "longitude": 72.957979,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238282,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238284,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238285,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238287,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "5b3c441e-daf8-4561-8ab0-6bad104d9f5a"
+    },
+    {
+      "openaq_id": 3409476,
+      "name": "CBD Belapur, Belapur - MPCB",
+      "latitude": 19.0243902,
+      "longitude": 73.0406721,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238318,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238320,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238321,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238323,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "35a555b5-fd32-4fd8-824a-8ab27a4c6064"
+    },
+    {
+      "openaq_id": 3409477,
+      "name": "Kopripada-Vashi, Navi Mumbai - MPCB",
+      "latitude": 19.090337,
+      "longitude": 73.014232,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238327,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238329,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238330,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238332,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "014f6f1b-5b3c-4ace-900d-152b29a50602"
+    },
+    {
+      "openaq_id": 3409478,
+      "name": "Bhayandar West, Mira-Bhayandar - MPCB",
+      "latitude": 19.296481,
+      "longitude": 72.840923,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238336,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238338,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238339,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238341,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "cdeb8e65-128f-43ec-8746-518efed971d7"
+    },
+    {
+      "openaq_id": 3409479,
+      "name": "Mindspace-Malad West, Mumbai - MPCB",
+      "latitude": 19.1878657,
+      "longitude": 72.8304069,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238345,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238347,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238348,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238350,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "b9ecb15e-52c2-4944-8b58-9ac8af58de60"
+    },
+    {
+      "openaq_id": 3409482,
+      "name": "Bandra Kurla Complex, Mumbai - MPCB",
+      "latitude": 19.065931,
+      "longitude": 72.862131,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238372,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238374,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238375,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238377,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "0827a47a-3c2e-44e6-81e5-186463b3af6b"
+    },
+    {
+      "openaq_id": 3409483,
+      "name": "Chembur, Mumbai - MPCB",
+      "latitude": 19.0364585,
+      "longitude": 72.8954371,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238381,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238383,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238384,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238386,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "57a15ebc-1005-4a4d-9b9e-a9e0a2be816e"
+    },
+    {
+      "openaq_id": 3409486,
+      "name": "Kherwadi_Bandra East, Mumbai - MPCB",
+      "latitude": 19.0632143,
+      "longitude": 72.8456324,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238408,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238410,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238411,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238413,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "4cc7ebc5-1625-4095-9374-b0885d9732f8"
+    },
+    {
+      "openaq_id": 3409487,
+      "name": "Sanpada, Navi Mumbai - MPCB",
+      "latitude": 19.0575752,
+      "longitude": 73.0151367,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12243946,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12243948,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12243949,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12243951,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "ba014c8c-6d35-4f21-857d-7c1a7265f6cb"
+    },
+    {
+      "openaq_id": 3409496,
+      "name": "New Moti Bagh, Delhi - MHUA",
+      "latitude": 28.57834,
+      "longitude": 77.184,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15646333,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15646335,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "b6de7a30-7fd5-4425-b637-e407bb714103"
+    },
+    {
+      "openaq_id": 3409510,
+      "name": "Byculla, Mumbai - BMC",
+      "latitude": 18.9767,
+      "longitude": 72.838,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238564,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238566,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238567,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238569,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "e57cfb84-bd7b-4ba0-a986-67a7459297a1"
+    },
+    {
+      "openaq_id": 3409511,
+      "name": "Shivaji Nagar, Mumbai - BMC",
+      "latitude": 19.060498,
+      "longitude": 72.923356,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238573,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238575,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238576,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238578,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "1da4b1de-4c83-4976-9c5a-d464a703761b"
+    },
+    {
+      "openaq_id": 3409512,
+      "name": "Kandivali West, Mumbai - BMC",
+      "latitude": 19.215859,
+      "longitude": 72.831718,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238582,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238584,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238585,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238587,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "68f85dce-9b13-40a4-845f-f3c71bc8dd77"
+    },
+    {
+      "openaq_id": 3409513,
+      "name": "Sewri, Mumbai - BMC",
+      "latitude": 19.000084,
+      "longitude": 72.85673,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238591,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238593,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238594,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238596,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "6d09e8e6-de8d-4f4c-847d-4c4dd7ae4dad"
+    },
+    {
+      "openaq_id": 3409514,
+      "name": "Ghatkopar, Mumbai - BMC",
+      "latitude": 19.083694,
+      "longitude": 72.920967,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12238600,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238602,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238603,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238605,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "4a897033-5af5-4e97-bdf7-d1c9e0d81385"
+    },
+    {
+      "openaq_id": 4663956,
+      "name": "Santushti Apartments, Vasant Kunj",
+      "latitude": 28.5266,
+      "longitude": 77.1493,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 13273790,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "be87938d-c1ad-41b5-8cc6-bd6580329d5e"
+    },
+    {
+      "openaq_id": 4712609,
+      "name": "Air Check",
+      "latitude": 28.623056,
+      "longitude": 77.234167,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15289075,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "ec1808de-1941-4a57-b474-94e3f7f6724e"
+    },
+    {
+      "openaq_id": 6105800,
+      "name": "Sector 1, Noida extension",
+      "latitude": 28.583491,
+      "longitude": 77.431714,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14453757,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "ba2efabd-9073-43c5-be1b-a937d6ddff67"
+    },
+    {
+      "openaq_id": 6119271,
+      "name": "Kumaraswamy Layout",
+      "latitude": 12.9044,
+      "longitude": 77.5649,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 14551750,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "cbf7826c-b4e6-498e-a2b2-d84d98bdaaf5"
+    },
+    {
+      "openaq_id": 6119272,
+      "name": "Sector - 5, Vasundhara, Ghaziabad, Uttar Pradesh ",
+      "latitude": 28.658398,
+      "longitude": 77.3780531,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14551755,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "3b7ac229-3b2e-4192-9cc9-d3fd598432eb"
+    },
+    {
+      "openaq_id": 6125489,
+      "name": "Uptitude Cloud Pvt Ltd - Sector 62, GGN",
+      "latitude": 28.40240847053802,
+      "longitude": 77.08477464826682,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14598776,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "9bf88399-cafa-4895-9e26-5ae42c0561b5"
+    },
+    {
+      "openaq_id": 6145551,
+      "name": "Anand Lok",
+      "latitude": 28.5587,
+      "longitude": 77.21886,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14745878,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "799b2cf2-de03-4376-8523-b03cadf6304a"
+    },
+    {
+      "openaq_id": 6146655,
+      "name": "Bellandur",
+      "latitude": 12.9178128,
+      "longitude": 77.6955288,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 14754075,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "b150494e-c04d-4abc-8db1-b8a15a0dffc8"
+    },
+    {
+      "openaq_id": 6148686,
+      "name": "IIT Delhi, Delhi - IITM",
+      "latitude": 28.54246,
+      "longitude": 77.191651,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 14769470,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 14769473,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 14769474,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "a8a81c6d-6464-4b11-aed6-9a9432a62ebf"
+    },
+    {
+      "openaq_id": 6206921,
+      "name": "Koramangala",
+      "latitude": 12.9370223,
+      "longitude": 77.6115928,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 15203555,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "d19f771c-1fff-46b3-885d-0e173e4ece79"
+    },
+    {
+      "openaq_id": 6254594,
+      "name": "Talkatora Garden, Delhi - DPCC",
+      "latitude": 28.62181,
+      "longitude": 77.1944633,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15554204,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15554207,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15554208,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15554210,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "5c1062d5-c4da-4b70-9f6b-55ec20d96da7"
+    },
+    {
+      "openaq_id": 6254663,
+      "name": "JNU, Delhi - DPCC",
+      "latitude": 28.540721,
+      "longitude": 77.168544,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15554700,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15554703,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15554704,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15554706,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "0c82f958-2c3e-4d3c-861f-72f9ad3e3489"
+    },
+    {
+      "openaq_id": 6254664,
+      "name": "NSUT Jaffarpur, Delhi - DPCC",
+      "latitude": 28.594004,
+      "longitude": 76.909423,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15554712,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15554715,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15554716,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15554718,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "5116dd73-422a-4afc-aa26-e75f03c782ce"
+    },
+    {
+      "openaq_id": 6254665,
+      "name": "Commonwealth Sports Complex, Delhi - DPCC",
+      "latitude": 28.615828,
+      "longitude": 77.271992,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15554724,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15554727,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15554728,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15554730,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "1bdfcd2b-66df-4bc5-9a7c-cc2a5b48679b"
+    },
+    {
+      "openaq_id": 6254666,
+      "name": "IGNOU_Maidan Garhi, Delhi - DPCC",
+      "latitude": 28.493624,
+      "longitude": 77.201159,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15554736,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15554739,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15554740,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15554742,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "de74b6db-e313-4875-80f1-0c9f1d0018fa"
+    },
+    {
+      "openaq_id": 6257818,
+      "name": "Cantonment Area, Delhi - DPCC",
+      "latitude": 28.594169,
+      "longitude": 77.1251,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15578287,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15578290,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15578291,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15578293,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "88db5ab7-be3c-4d63-af98-12a358483a7f"
+    },
+    {
+      "openaq_id": 6299494,
+      "name": "Prashant Garden, Khora - UPPCB",
+      "latitude": 28.61119,
+      "longitude": 77.34206,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15888914,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15888917,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15888918,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15888920,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "b72c1f4e-5fd8-460f-b38f-365b4deac880"
+    },
+    {
+      "openaq_id": 6299678,
+      "name": "Ved Vihar-Loni, Ghaziabad - UPPCB",
+      "latitude": 28.739153,
+      "longitude": 77.273668,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15890337,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15890340,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15890341,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15890343,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "b66ce444-ba7a-4f66-b9ed-39544f9365d9"
+    },
+    {
+      "openaq_id": 6311324,
+      "name": "Govindpuram, Ghaziabad - UPPCB",
+      "latitude": 28.694528,
+      "longitude": 77.494705,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 15978429,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 15978432,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 15978433,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15978435,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "dffe67ce-60b5-4581-a23c-f9eb025ef03d"
+    },
+    {
+      "openaq_id": 6458520,
+      "name": "Wave City, Ghaziabad - UPPCB",
+      "latitude": 28.646675,
+      "longitude": 77.489049,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 17025418,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 17025421,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 17025422,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 17025423,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "2807156a-e1ec-42eb-a0e3-8490503fc319"
+    }
+  ]
+}
