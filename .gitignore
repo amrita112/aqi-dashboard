@@ -25,6 +25,7 @@ memory_commented.md
 # planning docs — kept local, not published
 /docs/v1-plan.md
 /docs/v1-plan-notes.md
+/docs/llm-integration-research.md
 
 # research notebooks — kept local (may embed API keys / sample data in outputs)
 /notebooks/
