@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Print what would be written without writing (true/false)'
+        description: 'Dry run — log what would be inserted, do not write to Supabase (true/false)'
         required: false
         default: 'false'
 
