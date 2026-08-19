@@ -1,24 +1,27 @@
 """
-Hourly real-time ingest from the OpenAQ live API.
+Scheduled ingest of recent measurements from the OpenAQ live API.
 
-Runs every hour via GitHub Actions. Fetches the last ~2 hours of measurements
-for each target-city sensor listed in target_stations.json, converts every
-value to canonical units, groups by (station, timestamp), and upserts into
-Supabase.
+Runs every 6 hours via GitHub Actions (00:00, 06:00, 12:00, 18:00 UTC).
+Fetches the last 8 hours of measurements for each target-city sensor listed
+in target_stations.json, converts every value to canonical units, groups by
+(station, timestamp), and upserts into Supabase.
 
-Why hourly (not 15-minute even though stations update at 15-min cadence):
-Users don't need sub-hourly freshness on this scale of dashboard, and 15-min
-runs would quadruple our API request volume for negligible product value.
-Empirically 900-second station cadence is comfortably within an hourly window.
+Why every 6h with an 8h window (not hourly):
+6h between runs + 2h overlap = 8h window. The overlap is a no-op thanks to
+the (monitor_id, source, recorded_at) uniqueness constraint on readings.
+4-6 hours of data lag is acceptable for the "should I go outside now" use
+case since historical patterns matter more than the most-recent reading.
+6-hourly cuts ~4x the API + GHA runtime for a negligible UX cost.
 
 Why per-sensor requests (not one big global call):
-The OpenAQ /parameters/{id}/latest endpoint returns the latest sensor value
-globally per pollutant, but response filtering is client-side and could exceed
-rate limits at scale. Per-sensor is ~600 calls per run at 0.1s spacing (~60s
-total) — well within any free-tier limit and easy to reason about.
+The OpenAQ /parameters/{id}/latest endpoint returns latest sensor values
+globally per pollutant, but response filtering is client-side and could
+exceed rate limits at scale. Per-sensor at 1.2s throttle (~905 calls,
+~18-20 min per run) is easy to reason about and gives us headroom under
+the 60/min OpenAQ limit.
 
 Usage (from repo root):
-    /opt/homebrew/Caskroom/miniforge/base/bin/python3 -m scripts.ingest.hourly_api
+    /opt/homebrew/Caskroom/miniforge/base/bin/python3 -m scripts.ingest.ingest_recent_readings
 
 Env vars required (from .env.local locally, or GitHub secrets on CI):
     OPENAQ_API_KEY
@@ -26,8 +29,8 @@ Env vars required (from .env.local locally, or GitHub secrets on CI):
     SUPABASE_SERVICE_ROLE_KEY
 
 Optional:
-    DRY_RUN=1                   # print what would be written without writing
-    FETCH_WINDOW_HOURS=2        # how far back to ask for measurements
+    DRY_RUN=1                   # log what would be inserted without writing
+    FETCH_WINDOW_HOURS=8        # how far back to ask for measurements
 """
 
 from __future__ import annotations
@@ -54,7 +57,7 @@ from scripts.ingest.lib.supabase_client import (
     upsert_readings,
 )
 
-DEFAULT_FETCH_WINDOW_HOURS = 2
+DEFAULT_FETCH_WINDOW_HOURS = 8
 
 
 def load_manifest() -> Dict[str, Any]:
@@ -84,7 +87,7 @@ def fetch_sensor_recent(
 
     Uses the shared OpenAQClient so throttling / 429 retries are automatic.
     A repeated 429 raises HTTPError from openaq.get(); we let that propagate
-    so the whole hourly run stops rather than continuing to hammer the API.
+    so the whole ingest run stops rather than continuing to hammer the API.
     """
     try:
         r = openaq.get(
@@ -207,7 +210,7 @@ def main() -> None:
     now_utc = datetime.now(timezone.utc)
     since_iso = (now_utc - timedelta(hours=window_hours)).isoformat()
 
-    print(f"Hourly ingest: window = last {window_hours}h up to {now_utc.isoformat()}")
+    print(f"Recent-readings ingest: window = last {window_hours}h up to {now_utc.isoformat()}")
     print(f"dry_run = {dry_run}")
 
     manifest = load_manifest()

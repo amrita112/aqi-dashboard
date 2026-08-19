@@ -3,7 +3,7 @@ name: Bootstrap stations (weekly refresh)
 # Runs Sundays 04:30 UTC to refresh scripts/ingest/target_stations.json
 # from the latest OpenAQ station roster in the 3 target cities. New
 # stations get monitor rows created in Supabase; the manifest gets
-# committed back to the repo if it changed, so the daily/hourly workflows
+# committed back to the repo if it changed, so the daily + recent-readings workflows
 # see the update immediately on their next run.
 #
 # Only touches OpenAQ and Supabase — cheap operation (~1 API call to

@@ -3,7 +3,7 @@ name: Ingest daily (OpenAQ S3 backfill)
 # Runs once a day at 04:00 UTC to fetch yesterday's per-station CSVs from
 # the openaq-data-archive S3 bucket. Files land ~1–2 days after the
 # measurement date, so yesterday is usually complete by early morning UTC.
-# This is the "completeness" path; the hourly cron handles freshness.
+# This is the "completeness" path; the 6-hourly recent-readings cron handles freshness.
 #
 # Does NOT need OPENAQ_API_KEY (S3 is unauthenticated). Only writes to
 # Supabase, so needs the service_role key.

@@ -10,9 +10,9 @@ Why S3 rather than the live API for the daily job:
   - Files are complete for a day once posted (~1–2 days after the date).
   - Survives short OpenAQ API outages / key suspensions.
 
-The hourly cron (hourly_api.py) handles freshness; this daily job handles
-completeness — fills any hour the hourly cron missed and gives us a
-canonical snapshot of yesterday's data.
+The 6-hourly cron (ingest_recent_readings.py) handles freshness; this daily
+job handles completeness — fills any hour the recent-readings cron missed
+and gives us a canonical snapshot of the target day.
 
 Usage (from repo root):
     /opt/homebrew/Caskroom/miniforge/base/bin/python3 scripts/ingest/daily_backfill_s3.py
@@ -221,7 +221,7 @@ def parse_backfill_date() -> date:
     # reliably available. Confirmed on 2026-08-18: yesterday's files (for
     # 2026-08-17) returned 0 rows across all 177 stations, while a run for
     # 2026-08-15 returned data for most. Costs us 24h of freshness on the
-    # daily job, but the hourly cron already covers freshness — this job
+    # daily job, but the 6-hourly cron already covers freshness — this job
     # exists for completeness.
     return (datetime.now(timezone.utc) - timedelta(days=2)).date()
 

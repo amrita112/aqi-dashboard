@@ -1,15 +1,23 @@
-name: Ingest hourly (OpenAQ live API)
+name: Ingest recent readings (OpenAQ live API)
 
-# Runs every hour, 5 minutes past, to fetch the last hour's measurements from
-# OpenAQ's live API and write them into Supabase. This is the "freshness" path;
-# the daily S3 backfill handles completeness.
+# Runs every 6 hours (00:00, 06:00, 12:00, 18:00 UTC) to fetch the last 8h of
+# measurements from OpenAQ's live API and write them into Supabase. The 8h
+# window covers the 6h since the last run plus a 2h safety overlap; the
+# uniqueness constraints on readings + measurements make the overlap a no-op.
+#
+# This is the "recent readings" path; the daily S3 backfill handles completeness.
+#
+# Cadence rationale: 4-6 hours' data lag is acceptable for the "should I go
+# outside now" use case because historical patterns matter more than the exact
+# most-recent reading. 6-hourly instead of hourly cuts ~4× the API + GHA
+# runtime for a negligible UX cost.
 #
 # Manual runs from Actions UI are also supported via workflow_dispatch —
 # useful when debugging or catching up after an outage.
 
 on:
   schedule:
-    - cron: '5 * * * *'
+    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -20,7 +28,7 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -33,11 +41,11 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r scripts/ingest/requirements.txt
 
-      - name: Run hourly ingest
+      - name: Run recent-readings ingest
         env:
           OPENAQ_API_KEY:            ${{ secrets.OPENAQ_API_KEY }}
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DRY_RUN:                   ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
           PYTHONUNBUFFERED:          '1'
-        run: python -m scripts.ingest.hourly_api
+        run: python -m scripts.ingest.ingest_recent_readings

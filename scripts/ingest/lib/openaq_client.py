@@ -27,8 +27,11 @@ from typing import Any, Dict, Optional
 
 import requests
 
-# OpenAQ free tier: 60 requests/minute. 1 rps floor keeps us just under.
-MIN_SECONDS_BETWEEN_REQUESTS = 1.0
+# OpenAQ free tier: 60 requests/minute. A 1.0s floor sits right at the 60 rpm
+# ceiling with zero safety margin — any timing variance on OpenAQ's side tips
+# us over. 1.2s caps us at ~50 rpm (16% under the limit), which has held up
+# in practice. Confirmed on 2026-08-18 after a 1.0s run hit a 429 partway.
+MIN_SECONDS_BETWEEN_REQUESTS = 1.2
 
 BASE_URL = "https://api.openaq.org"
 
