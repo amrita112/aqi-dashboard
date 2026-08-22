@@ -51,6 +51,7 @@ from scripts.ingest.lib.config import (
 )
 from scripts.ingest.lib.openaq_client import OpenAQClient
 from scripts.ingest.lib.supabase_client import (
+    canonical_ts,
     get_admin_user_id,
     make_client,
     upsert_measurements,
@@ -144,6 +145,7 @@ def build_rows(
         composite = compute_aqi_from_measurements(
             [{"pollutant": p, "value": v} for p, v in by_pollutant.items()]
         )
+        ts_canonical = canonical_ts(ts)
         readings_rows.append({
             "user_id":     admin_user_id,
             "monitor_id":  station["monitor_id"],
@@ -151,12 +153,12 @@ def build_rows(
             "latitude":    station["latitude"],
             "longitude":   station["longitude"],
             "source":      "openaq",
-            "recorded_at": ts,
+            "recorded_at": ts_canonical,
         })
         for pollutant, value in by_pollutant.items():
             unit = "mg/m³" if pollutant == "co" else "µg/m³"
             measurements_placeholder.append({
-                "_reading_key": f"{station['monitor_id']}:{ts}",
+                "_reading_key": f"{station['monitor_id']}:{ts_canonical}",
                 "pollutant":    pollutant,
                 "value":        float(value),
                 "unit":         unit,
@@ -188,7 +190,7 @@ def link_measurements(
 ) -> List[Dict[str, Any]]:
     """Attach the real reading UUID to each measurement placeholder."""
     key_to_uuid = {
-        f"{r['monitor_id']}:{r['recorded_at']}": r["id"]
+        f"{r['monitor_id']}:{canonical_ts(r['recorded_at'])}": r["id"]
         for r in all_readings
     }
     linked = []

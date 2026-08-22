@@ -17,11 +17,23 @@ idempotent, so a re-run of the same window is safe.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List
 
 from supabase import Client, create_client
 
 from scripts.ingest.lib.config import get_env
+
+
+def canonical_ts(s: str) -> str:
+    """Normalize an ISO timestamp string so keys generated on either side of a
+    Supabase round-trip compare equal. Postgres/PostgREST canonicalizes
+    timestamptz on the way out (e.g. 'Z' → '+00:00', drops trailing zeros in
+    fractional seconds), so raw string comparison against a source-native
+    format fails silently — measurements then can't find their parent reading
+    UUID when linking. Applied on both write-time (recorded_at, _reading_key)
+    and read-time (Supabase-returned recorded_at) sides."""
+    return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat()
 
 
 def make_client() -> Client:

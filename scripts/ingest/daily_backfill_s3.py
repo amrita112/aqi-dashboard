@@ -41,6 +41,7 @@ from scripts.ingest.lib.aqi_utils import (
     compute_aqi_from_measurements,
     convert_to_canonical,
 )
+from scripts.ingest.lib.supabase_client import canonical_ts
 from scripts.ingest.lib.config import (
     OPENAQ_S3_BASE,
     TARGET_POLLUTANTS,
@@ -136,7 +137,8 @@ def rows_to_ingest(
         ]
         composite = compute_aqi_from_measurements(measurements_for_ts)
 
-        reading_id = f"{monitor_id}:{ts.isoformat()}"   # deterministic string used only for FK
+        ts_canonical = canonical_ts(ts.isoformat())
+        reading_id = f"{monitor_id}:{ts_canonical}"   # deterministic string used only for FK
         readings_rows.append({
             # We rely on the DB to assign the UUID (default gen_random_uuid()),
             # so we omit `id` here and let the upsert response return it.
@@ -146,7 +148,7 @@ def rows_to_ingest(
             "latitude":    latitude,
             "longitude":   longitude,
             "source":      "openaq",
-            "recorded_at": ts.isoformat(),
+            "recorded_at": ts_canonical,
         })
         # Placeholder — we'll attach the actual reading_id after upsert returns.
         for pollutant, value in canonical_by_pollutant.items():
@@ -174,7 +176,7 @@ def link_measurements_to_readings(
     """
     key_to_uuid: Dict[str, str] = {}
     for r in inserted_readings + existing_readings:
-        k = f"{r['monitor_id']}:{r['recorded_at']}"
+        k = f"{r['monitor_id']}:{canonical_ts(r['recorded_at'])}"
         key_to_uuid[k] = r["id"]
     linked = []
     for m in measurements_placeholder:
