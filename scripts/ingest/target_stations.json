@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-23T05:01:55.919839+00:00",
+  "generated_at": "2026-08-30T10:03:27.772740+00:00",
   "source": "openaq",
   "pollutants": [
     "no2",
@@ -128,19 +128,19 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 395,
-          "parameter": "pm10"
-        },
-        {
           "sensor_id": 12234795,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 396,
-          "parameter": "pm25"
+          "sensor_id": 395,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 12234796,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 396,
           "parameter": "pm25"
         },
         {
@@ -184,35 +184,35 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 382,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12235607,
           "parameter": "no2"
         },
         {
-          "sensor_id": 381,
-          "parameter": "pm10"
+          "sensor_id": 382,
+          "parameter": "no2"
         },
         {
           "sensor_id": 12235609,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235610,
-          "parameter": "pm25"
+          "sensor_id": 381,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 384,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 383,
-          "parameter": "so2"
+          "sensor_id": 12235610,
+          "parameter": "pm25"
         },
         {
           "sensor_id": 12235612,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 383,
           "parameter": "so2"
         }
       ],
@@ -252,11 +252,11 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 5409,
+          "sensor_id": 14258985,
           "parameter": "no2"
         },
         {
-          "sensor_id": 14258985,
+          "sensor_id": 5409,
           "parameter": "no2"
         },
         {
@@ -268,11 +268,11 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 1166,
+          "sensor_id": 14258988,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 14258988,
+          "sensor_id": 1166,
           "parameter": "pm25"
         },
         {
@@ -526,11 +526,11 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12234702,
+          "sensor_id": 14087,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 14087,
+          "sensor_id": 12234702,
           "parameter": "pm25"
         }
       ],
@@ -604,19 +604,19 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 14620,
-          "parameter": "pm10"
-        },
-        {
           "sensor_id": 12234683,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12234684,
-          "parameter": "pm25"
+          "sensor_id": 14620,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 14912,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234684,
           "parameter": "pm25"
         }
       ],
@@ -664,19 +664,19 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 1305377,
-          "parameter": "pm10"
-        },
-        {
           "sensor_id": 12235360,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235361,
-          "parameter": "pm25"
+          "sensor_id": 1305377,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 14635,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235361,
           "parameter": "pm25"
         },
         {
@@ -874,11 +874,11 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 1303005,
+          "sensor_id": 12235369,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235369,
+          "sensor_id": 1303005,
           "parameter": "pm10"
         },
         {
@@ -908,19 +908,19 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 14902,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12234687,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12234689,
-          "parameter": "pm10"
+          "sensor_id": 14902,
+          "parameter": "no2"
         },
         {
           "sensor_id": 14886,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234689,
           "parameter": "pm10"
         },
         {
@@ -942,19 +942,19 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 12234750,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 14866,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12234752,
-          "parameter": "pm10"
+          "sensor_id": 12234750,
+          "parameter": "no2"
         },
         {
           "sensor_id": 14869,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234752,
           "parameter": "pm10"
         },
         {
@@ -1032,35 +1032,35 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 14919,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12234741,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12234743,
-          "parameter": "pm10"
+          "sensor_id": 14919,
+          "parameter": "no2"
         },
         {
           "sensor_id": 34957,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12234744,
-          "parameter": "pm25"
+          "sensor_id": 12234743,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 14922,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 14923,
-          "parameter": "so2"
+          "sensor_id": 12234744,
+          "parameter": "pm25"
         },
         {
           "sensor_id": 12234746,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 14923,
           "parameter": "so2"
         }
       ],
@@ -1074,27 +1074,27 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 14941,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12234757,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12234759,
-          "parameter": "pm10"
+          "sensor_id": 14941,
+          "parameter": "no2"
         },
         {
           "sensor_id": 14974,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12234760,
-          "parameter": "pm25"
+          "sensor_id": 12234759,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 14985,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234760,
           "parameter": "pm25"
         },
         {
@@ -1116,27 +1116,27 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 12234675,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 15082,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12234677,
-          "parameter": "pm10"
+          "sensor_id": 12234675,
+          "parameter": "no2"
         },
         {
           "sensor_id": 14946,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 14935,
-          "parameter": "pm25"
+          "sensor_id": 12234677,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 12234678,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 14935,
           "parameter": "pm25"
         }
       ],
@@ -1150,35 +1150,35 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 15053,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12234723,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12234725,
-          "parameter": "pm10"
+          "sensor_id": 15053,
+          "parameter": "no2"
         },
         {
           "sensor_id": 36210,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12234726,
-          "parameter": "pm25"
+          "sensor_id": 12234725,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 14959,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12234728,
-          "parameter": "so2"
+          "sensor_id": 12234726,
+          "parameter": "pm25"
         },
         {
           "sensor_id": 14952,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12234728,
           "parameter": "so2"
         }
       ],
@@ -1200,11 +1200,11 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 14983,
+          "sensor_id": 12234713,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12234713,
+          "sensor_id": 14983,
           "parameter": "pm10"
         },
         {
@@ -1286,11 +1286,11 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 15033,
+          "sensor_id": 12235382,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235382,
+          "sensor_id": 15033,
           "parameter": "pm10"
         },
         {
@@ -1342,19 +1342,19 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235159,
-          "parameter": "pm10"
-        },
-        {
           "sensor_id": 15238,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 15239,
-          "parameter": "pm25"
+          "sensor_id": 12235159,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 12235160,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 15239,
           "parameter": "pm25"
         },
         {
@@ -1846,11 +1846,11 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12234735,
+          "sensor_id": 17790,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 17790,
+          "sensor_id": 12234735,
           "parameter": "pm25"
         },
         {
@@ -1930,11 +1930,11 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 20143,
+          "sensor_id": 12235926,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12235926,
+          "sensor_id": 20143,
           "parameter": "pm25"
         },
         {
@@ -1964,11 +1964,11 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 19904,
+          "sensor_id": 12235046,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235046,
+          "sensor_id": 19904,
           "parameter": "pm10"
         },
         {
@@ -1992,7 +1992,7 @@
     },
     {
       "openaq_id": 6931,
-      "name": "Dwarka-Sector 8, Delhi - DPCC ",
+      "name": "Dwarka-Sector 8, Delhi - DPCC",
       "latitude": 28.5710274,
       "longitude": 77.0719006,
       "city": "Delhi NCR",
@@ -2014,11 +2014,11 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 20150,
+          "sensor_id": 12235020,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12235020,
+          "sensor_id": 20150,
           "parameter": "pm25"
         },
         {
@@ -2040,11 +2040,11 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 19948,
+          "sensor_id": 12235695,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235695,
+          "sensor_id": 19948,
           "parameter": "no2"
         },
         {
@@ -2056,11 +2056,11 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 19935,
+          "sensor_id": 12235698,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12235698,
+          "sensor_id": 19935,
           "parameter": "pm25"
         },
         {
@@ -2090,11 +2090,11 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 19941,
+          "sensor_id": 12235010,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235010,
+          "sensor_id": 19941,
           "parameter": "pm10"
         },
         {
@@ -2106,11 +2106,11 @@
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12235013,
+          "sensor_id": 19943,
           "parameter": "so2"
         },
         {
-          "sensor_id": 19943,
+          "sensor_id": 12235013,
           "parameter": "so2"
         }
       ],
@@ -2140,11 +2140,11 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 14233904,
+          "sensor_id": 19922,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 19922,
+          "sensor_id": 14233904,
           "parameter": "pm25"
         },
         {
@@ -2166,19 +2166,19 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 12235130,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 19929,
           "parameter": "no2"
         },
         {
-          "sensor_id": 19933,
-          "parameter": "pm10"
+          "sensor_id": 12235130,
+          "parameter": "no2"
         },
         {
           "sensor_id": 12235132,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 19933,
           "parameter": "pm10"
         },
         {
@@ -2208,35 +2208,35 @@
       "city": "Mumbai",
       "sensors": [
         {
-          "sensor_id": 20069,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12235902,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235904,
-          "parameter": "pm10"
+          "sensor_id": 20069,
+          "parameter": "no2"
         },
         {
           "sensor_id": 20068,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235905,
-          "parameter": "pm25"
+          "sensor_id": 12235904,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 20046,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12235907,
-          "parameter": "so2"
+          "sensor_id": 12235905,
+          "parameter": "pm25"
         },
         {
           "sensor_id": 20023,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235907,
           "parameter": "so2"
         }
       ],
@@ -2266,11 +2266,11 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 19978,
+          "sensor_id": 12235834,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12235834,
+          "sensor_id": 19978,
           "parameter": "pm25"
         },
         {
@@ -2300,11 +2300,11 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235859,
+          "sensor_id": 19980,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 19980,
+          "sensor_id": 12235859,
           "parameter": "pm10"
         },
         {
@@ -2316,11 +2316,11 @@
           "parameter": "pm25"
         },
         {
-          "sensor_id": 19982,
+          "sensor_id": 12235862,
           "parameter": "so2"
         },
         {
-          "sensor_id": 12235862,
+          "sensor_id": 19982,
           "parameter": "so2"
         }
       ],
@@ -2334,11 +2334,11 @@
       "city": "Mumbai",
       "sensors": [
         {
-          "sensor_id": 12235893,
+          "sensor_id": 20083,
           "parameter": "no2"
         },
         {
-          "sensor_id": 20083,
+          "sensor_id": 12235893,
           "parameter": "no2"
         },
         {
@@ -2358,11 +2358,11 @@
           "parameter": "pm25"
         },
         {
-          "sensor_id": 20101,
+          "sensor_id": 12235898,
           "parameter": "so2"
         },
         {
-          "sensor_id": 12235898,
+          "sensor_id": 20101,
           "parameter": "so2"
         }
       ],
@@ -2384,27 +2384,27 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 20019,
-          "parameter": "pm10"
-        },
-        {
           "sensor_id": 12235037,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235038,
-          "parameter": "pm25"
+          "sensor_id": 20019,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 20020,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12235040,
-          "parameter": "so2"
+          "sensor_id": 12235038,
+          "parameter": "pm25"
         },
         {
           "sensor_id": 20021,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235040,
           "parameter": "so2"
         }
       ],
@@ -2418,11 +2418,11 @@
       "city": "Mumbai",
       "sensors": [
         {
-          "sensor_id": 20030,
+          "sensor_id": 12236432,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12236432,
+          "sensor_id": 20030,
           "parameter": "no2"
         },
         {
@@ -2434,11 +2434,11 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 20033,
+          "sensor_id": 12236435,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12236435,
+          "sensor_id": 20033,
           "parameter": "pm25"
         },
         {
@@ -2456,35 +2456,35 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 20037,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12235098,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235100,
-          "parameter": "pm10"
+          "sensor_id": 20037,
+          "parameter": "no2"
         },
         {
           "sensor_id": 20040,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235101,
-          "parameter": "pm25"
+          "sensor_id": 12235100,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 20049,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12235103,
-          "parameter": "so2"
+          "sensor_id": 12235101,
+          "parameter": "pm25"
         },
         {
           "sensor_id": 20055,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235103,
           "parameter": "so2"
         }
       ],
@@ -2522,11 +2522,11 @@
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12252660,
+          "sensor_id": 20090,
           "parameter": "so2"
         },
         {
-          "sensor_id": 20090,
+          "sensor_id": 12252660,
           "parameter": "so2"
         }
       ],
@@ -2548,19 +2548,19 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 20097,
-          "parameter": "pm10"
-        },
-        {
           "sensor_id": 12243929,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 20096,
-          "parameter": "pm25"
+          "sensor_id": 20097,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 12243930,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20096,
           "parameter": "pm25"
         },
         {
@@ -2582,19 +2582,19 @@
       "city": "Bangalore",
       "sensors": [
         {
-          "sensor_id": 20175,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12235264,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235266,
-          "parameter": "pm10"
+          "sensor_id": 20175,
+          "parameter": "no2"
         },
         {
           "sensor_id": 20172,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235266,
           "parameter": "pm10"
         },
         {
@@ -2640,19 +2640,19 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 20165,
-          "parameter": "pm25"
-        },
-        {
           "sensor_id": 12235240,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12235242,
-          "parameter": "so2"
+          "sensor_id": 20165,
+          "parameter": "pm25"
         },
         {
           "sensor_id": 20164,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235242,
           "parameter": "so2"
         }
       ],
@@ -2666,27 +2666,27 @@
       "city": "Bangalore",
       "sensors": [
         {
-          "sensor_id": 12235282,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 20154,
           "parameter": "no2"
         },
         {
-          "sensor_id": 20161,
-          "parameter": "pm10"
+          "sensor_id": 12235282,
+          "parameter": "no2"
         },
         {
           "sensor_id": 12235284,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235285,
-          "parameter": "pm25"
+          "sensor_id": 20161,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 20156,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235285,
           "parameter": "pm25"
         },
         {
@@ -2708,27 +2708,27 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 12235193,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 20177,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235195,
-          "parameter": "pm10"
+          "sensor_id": 12235193,
+          "parameter": "no2"
         },
         {
           "sensor_id": 20191,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 20209,
-          "parameter": "pm25"
+          "sensor_id": 12235195,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 12235196,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 20209,
           "parameter": "pm25"
         },
         {
@@ -2758,19 +2758,19 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 20194,
-          "parameter": "pm10"
-        },
-        {
           "sensor_id": 12235950,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235951,
-          "parameter": "pm25"
+          "sensor_id": 20194,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 20206,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235951,
           "parameter": "pm25"
         },
         {
@@ -2792,19 +2792,19 @@
       "city": "Bangalore",
       "sensors": [
         {
-          "sensor_id": 20196,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12235255,
           "parameter": "no2"
         },
         {
-          "sensor_id": 20198,
-          "parameter": "pm10"
+          "sensor_id": 20196,
+          "parameter": "no2"
         },
         {
           "sensor_id": 12235257,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 20198,
           "parameter": "pm10"
         },
         {
@@ -2834,19 +2834,19 @@
       "city": "Bangalore",
       "sensors": [
         {
-          "sensor_id": 20222,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12235246,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235248,
-          "parameter": "pm10"
+          "sensor_id": 20222,
+          "parameter": "no2"
         },
         {
           "sensor_id": 20213,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235248,
           "parameter": "pm10"
         },
         {
@@ -2900,11 +2900,11 @@
           "parameter": "pm25"
         },
         {
-          "sensor_id": 20244,
+          "sensor_id": 12235937,
           "parameter": "so2"
         },
         {
-          "sensor_id": 12235937,
+          "sensor_id": 20244,
           "parameter": "so2"
         }
       ],
@@ -2926,27 +2926,27 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235850,
-          "parameter": "pm10"
-        },
-        {
           "sensor_id": 20243,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235851,
-          "parameter": "pm25"
+          "sensor_id": 12235850,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 20251,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 20254,
-          "parameter": "so2"
+          "sensor_id": 12235851,
+          "parameter": "pm25"
         },
         {
           "sensor_id": 12235853,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 20254,
           "parameter": "so2"
         }
       ],
@@ -2994,27 +2994,27 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235786,
-          "parameter": "pm10"
-        },
-        {
           "sensor_id": 20293,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 20290,
-          "parameter": "pm25"
+          "sensor_id": 12235786,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 12235787,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12235789,
-          "parameter": "so2"
+          "sensor_id": 20290,
+          "parameter": "pm25"
         },
         {
           "sensor_id": 20291,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 12235789,
           "parameter": "so2"
         }
       ],
@@ -3144,19 +3144,19 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 12235026,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 23994,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235028,
-          "parameter": "pm10"
+          "sensor_id": 12235026,
+          "parameter": "no2"
         },
         {
           "sensor_id": 23996,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235028,
           "parameter": "pm10"
         },
         {
@@ -3168,11 +3168,11 @@
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12235031,
+          "sensor_id": 23998,
           "parameter": "so2"
         },
         {
-          "sensor_id": 23998,
+          "sensor_id": 12235031,
           "parameter": "so2"
         }
       ],
@@ -3194,11 +3194,11 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235073,
+          "sensor_id": 24011,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 24011,
+          "sensor_id": 12235073,
           "parameter": "pm10"
         },
         {
@@ -3228,19 +3228,19 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 24303,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12235080,
           "parameter": "no2"
         },
         {
-          "sensor_id": 35012,
-          "parameter": "pm10"
+          "sensor_id": 24303,
+          "parameter": "no2"
         },
         {
           "sensor_id": 12235082,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 35012,
           "parameter": "pm10"
         },
         {
@@ -3252,11 +3252,11 @@
           "parameter": "pm25"
         },
         {
-          "sensor_id": 35009,
+          "sensor_id": 12235085,
           "parameter": "so2"
         },
         {
-          "sensor_id": 12235085,
+          "sensor_id": 35009,
           "parameter": "so2"
         }
       ],
@@ -3308,11 +3308,11 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 35047,
+          "sensor_id": 12235107,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235107,
+          "sensor_id": 35047,
           "parameter": "no2"
         },
         {
@@ -3324,19 +3324,19 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235110,
-          "parameter": "pm25"
-        },
-        {
           "sensor_id": 35050,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 35051,
-          "parameter": "so2"
+          "sensor_id": 12235110,
+          "parameter": "pm25"
         },
         {
           "sensor_id": 12235112,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 35051,
           "parameter": "so2"
         }
       ],
@@ -3350,19 +3350,19 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 34732,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12235121,
           "parameter": "no2"
         },
         {
-          "sensor_id": 26026,
-          "parameter": "pm10"
+          "sensor_id": 34732,
+          "parameter": "no2"
         },
         {
           "sensor_id": 12235123,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 26026,
           "parameter": "pm10"
         },
         {
@@ -3392,11 +3392,11 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 12234999,
+          "sensor_id": 34768,
           "parameter": "no2"
         },
         {
-          "sensor_id": 34768,
+          "sensor_id": 12234999,
           "parameter": "no2"
         },
         {
@@ -3442,11 +3442,11 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 34781,
+          "sensor_id": 12235311,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235311,
+          "sensor_id": 34781,
           "parameter": "pm10"
         },
         {
@@ -3484,11 +3484,11 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 34791,
+          "sensor_id": 12235055,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235055,
+          "sensor_id": 34791,
           "parameter": "pm10"
         },
         {
@@ -3526,19 +3526,19 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235302,
-          "parameter": "pm10"
-        },
-        {
           "sensor_id": 34766,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235303,
-          "parameter": "pm25"
+          "sensor_id": 12235302,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 34767,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235303,
           "parameter": "pm25"
         },
         {
@@ -3586,11 +3586,11 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 34778,
+          "sensor_id": 12235062,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235062,
+          "sensor_id": 34778,
           "parameter": "no2"
         },
         {
@@ -3680,19 +3680,19 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 36178,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12236256,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12236258,
-          "parameter": "pm10"
+          "sensor_id": 36178,
+          "parameter": "no2"
         },
         {
           "sensor_id": 36180,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236258,
           "parameter": "pm10"
         },
         {
@@ -3704,11 +3704,11 @@
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12236261,
+          "sensor_id": 36182,
           "parameter": "so2"
         },
         {
-          "sensor_id": 36182,
+          "sensor_id": 12236261,
           "parameter": "so2"
         }
       ],
@@ -3722,11 +3722,11 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 36209,
+          "sensor_id": 12235089,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235089,
+          "sensor_id": 36209,
           "parameter": "no2"
         },
         {
@@ -3746,11 +3746,11 @@
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12235094,
+          "sensor_id": 36449,
           "parameter": "so2"
         },
         {
-          "sensor_id": 36449,
+          "sensor_id": 12235094,
           "parameter": "so2"
         }
       ],
@@ -3764,27 +3764,27 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 36535,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 14573420,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12236250,
-          "parameter": "pm10"
+          "sensor_id": 36535,
+          "parameter": "no2"
         },
         {
           "sensor_id": 36538,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 36539,
-          "parameter": "pm25"
+          "sensor_id": 12236250,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 12236251,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 36539,
           "parameter": "pm25"
         },
         {
@@ -3806,11 +3806,11 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 12235767,
+          "sensor_id": 36645,
           "parameter": "no2"
         },
         {
-          "sensor_id": 36645,
+          "sensor_id": 12235767,
           "parameter": "no2"
         },
         {
@@ -3822,11 +3822,11 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12235770,
+          "sensor_id": 36675,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 36675,
+          "sensor_id": 12235770,
           "parameter": "pm25"
         },
         {
@@ -3848,27 +3848,27 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 36702,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12235704,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12235706,
-          "parameter": "pm10"
+          "sensor_id": 36702,
+          "parameter": "no2"
         },
         {
           "sensor_id": 36703,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 36701,
-          "parameter": "pm25"
+          "sensor_id": 12235706,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 12235707,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 36701,
           "parameter": "pm25"
         }
       ],
@@ -3908,19 +3908,19 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 39412,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12236358,
           "parameter": "no2"
         },
         {
-          "sensor_id": 39411,
-          "parameter": "pm10"
+          "sensor_id": 39412,
+          "parameter": "no2"
         },
         {
           "sensor_id": 12236360,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 39411,
           "parameter": "pm10"
         },
         {
@@ -4010,11 +4010,11 @@
       "city": "Delhi NCR",
       "sensors": [
         {
-          "sensor_id": 39435,
+          "sensor_id": 12236374,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12236374,
+          "sensor_id": 39435,
           "parameter": "no2"
         },
         {
@@ -4052,11 +4052,11 @@
       "city": "Mumbai",
       "sensors": [
         {
-          "sensor_id": 39456,
+          "sensor_id": 12236423,
           "parameter": "no2"
         },
         {
-          "sensor_id": 12236423,
+          "sensor_id": 39456,
           "parameter": "no2"
         },
         {
@@ -4128,27 +4128,27 @@
           "parameter": "no2"
         },
         {
-          "sensor_id": 40572,
-          "parameter": "pm10"
-        },
-        {
           "sensor_id": 12442195,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12442196,
-          "parameter": "pm25"
+          "sensor_id": 40572,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 40571,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 40573,
-          "parameter": "so2"
+          "sensor_id": 12442196,
+          "parameter": "pm25"
         },
         {
           "sensor_id": 12236411,
+          "parameter": "so2"
+        },
+        {
+          "sensor_id": 40573,
           "parameter": "so2"
         }
       ],
@@ -4178,11 +4178,11 @@
           "parameter": "pm10"
         },
         {
-          "sensor_id": 40608,
+          "sensor_id": 12236394,
           "parameter": "pm25"
         },
         {
-          "sensor_id": 12236394,
+          "sensor_id": 40608,
           "parameter": "pm25"
         },
         {
@@ -4204,27 +4204,27 @@
       "city": "Mumbai",
       "sensors": [
         {
-          "sensor_id": 40612,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12236478,
           "parameter": "no2"
         },
         {
-          "sensor_id": 40628,
-          "parameter": "pm10"
+          "sensor_id": 40612,
+          "parameter": "no2"
         },
         {
           "sensor_id": 12236480,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 12236481,
-          "parameter": "pm25"
+          "sensor_id": 40628,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 40641,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236481,
           "parameter": "pm25"
         },
         {
@@ -4246,27 +4246,27 @@
       "city": "Mumbai",
       "sensors": [
         {
-          "sensor_id": 40624,
-          "parameter": "no2"
-        },
-        {
           "sensor_id": 12236469,
           "parameter": "no2"
         },
         {
-          "sensor_id": 40652,
-          "parameter": "pm10"
+          "sensor_id": 40624,
+          "parameter": "no2"
         },
         {
           "sensor_id": 12236471,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 40650,
-          "parameter": "pm25"
+          "sensor_id": 40652,
+          "parameter": "pm10"
         },
         {
           "sensor_id": 12236472,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 40650,
           "parameter": "pm25"
         },
         {
@@ -4324,11 +4324,11 @@
       "city": "Bangalore",
       "sensors": [
         {
-          "sensor_id": 7971081,
+          "sensor_id": 7979259,
           "parameter": "pm10"
         },
         {
-          "sensor_id": 7979259,
+          "sensor_id": 7971081,
           "parameter": "pm10"
         },
         {
@@ -5397,6 +5397,20 @@
         }
       ],
       "monitor_id": "2807156a-e1ec-42eb-a0e3-8490503fc319"
+    },
+    {
+      "openaq_id": 6514356,
+      "name": "Malleswaram, Bangalore ",
+      "latitude": 13.00074,
+      "longitude": 77.56952,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 17434361,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "b95458b3-73c2-4f0b-8784-0f8460304b9a"
     }
   ]
 }
