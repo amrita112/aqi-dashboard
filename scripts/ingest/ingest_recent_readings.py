@@ -128,6 +128,12 @@ def build_rows(
             canonical = convert_to_canonical(pollutant, float(raw_value), str(unit))
             if canonical is None:
                 continue
+            # Negative concentrations are physically impossible — usually a
+            # sensor calibrating near zero. Drop rather than clamp: a bad
+            # reading is not a zero reading, and compute_subindex refuses
+            # negatives anyway (would crash the whole ingest run).
+            if canonical < 0:
+                continue
             flat.append((pollutant, ts, canonical))
 
     if not flat:

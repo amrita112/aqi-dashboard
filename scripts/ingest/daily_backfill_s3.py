@@ -111,6 +111,13 @@ def rows_to_ingest(
         lambda r: convert_to_canonical(r.pollutant, r.value, r.units), axis=1
     )
     csv_df = csv_df.dropna(subset=["value_canonical"])
+    # Negative concentrations are physically impossible — usually a sensor
+    # calibrating near zero. Drop rather than clamp: compute_subindex refuses
+    # negatives (would crash the whole ingest run for one bad sensor).
+    n_negative = int((csv_df["value_canonical"] < 0).sum())
+    if n_negative:
+        print(f"  monitor {monitor_id}: dropping {n_negative} negative readings")
+    csv_df = csv_df[csv_df["value_canonical"] >= 0]
     if csv_df.empty:
         return [], []
 
