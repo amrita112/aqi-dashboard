@@ -47,7 +47,10 @@ def target_dates() -> List[date]:
     override = os.environ.get("ROLLUP_DATE", "").strip()
     if override:
         return [datetime.strptime(override, "%Y-%m-%d").date()]
-    lookback = int(os.environ.get("ROLLUP_LOOKBACK_DAYS", DEFAULT_LOOKBACK_DAYS))
+    # GitHub Actions passes unset workflow inputs as "" not unset, so guard
+    # against int("") crashing when the user leaves the input blank.
+    lookback_raw = os.environ.get("ROLLUP_LOOKBACK_DAYS", "").strip()
+    lookback = int(lookback_raw) if lookback_raw else DEFAULT_LOOKBACK_DAYS
     today = datetime.now(timezone.utc).date()
     # Skip today itself (partial day), roll up yesterday and back.
     return [today - timedelta(days=i) for i in range(1, lookback + 1)]
