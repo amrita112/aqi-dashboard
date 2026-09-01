@@ -225,12 +225,15 @@ def parse_backfill_date() -> date:
     override = os.environ.get("BACKFILL_DATE", "").strip()
     if override:
         return datetime.strptime(override, "%Y-%m-%d").date()
-    # Default: 3 days ago UTC. S3 files land 2-3 days after the measurement
-    # date. Confirmed 2026-08-21: T-2 (2026-08-19) returned 0 rows, while T-3
-    # (2026-08-18) returned data from 112 stations and T-4 from 110. T-3 is
-    # the freshest reliably-published date. The 6-hourly recent-readings cron
-    # covers freshness; this job exists for completeness.
-    return (datetime.now(timezone.utc) - timedelta(days=3)).date()
+    # Default: 7 days ago UTC. Earlier calibration (2026-08-21) suggested T-3
+    # was enough, but that turned out not to represent the norm: automated
+    # runs since 2026-08-19 got 0 rows because S3 files for those dates
+    # actually took longer than 3 days to populate. Confirmed 2026-09-01: a
+    # manual re-fetch of 2026-08-22 (T-10) returned 110 stations while the
+    # scheduled T-3 run for the same date on 2026-08-25 had returned 0. T-7
+    # gives S3 a safe margin. Recent-readings covers freshness; this job
+    # trades ~4 more days of "delay" for reliability at no data cost.
+    return (datetime.now(timezone.utc) - timedelta(days=7)).date()
 
 
 def main() -> None:
