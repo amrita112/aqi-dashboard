@@ -129,11 +129,13 @@ def test_naqi_pm25_interpolates_inside_a_band():
 
 
 def test_naqi_extrapolates_above_top_band_and_caps_at_1000():
-    assert compute_subindex("pm25", 500) == 500          # top of standard scale
-    # Above scale: last band is (250-500 → 401-500), slope 99/250 = 0.396.
-    # value = 1500 → 401 + 0.396 * (1500-250) = 401 + 495 = 896
-    assert compute_subindex("pm25", 1500) == 896
-    # Very extreme concentration would extrapolate above 1000; capped at 1000.
+    # PM2.5 Severe band now (250-380 → 401-500), slope 99/130 = 0.7615.
+    # value=380 (top of Severe band) → 500 exactly.
+    assert compute_subindex("pm25", 380) == 500
+    # value=500 (above Severe) → 401 + 0.7615*(500-250) = 591.
+    assert compute_subindex("pm25", 500) == 591
+    # value=1500 would extrapolate to ~1353; capped at 1000.
+    assert compute_subindex("pm25", 1500) == 1000
     assert compute_subindex("pm25", 3000) == 1000
 
 

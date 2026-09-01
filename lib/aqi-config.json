@@ -26,7 +26,7 @@
 
   "scales": {
     "naqi": {
-      "_comment": "India CPCB National Air Quality Index. Six categories on a 0-500 scale; last band extended to 1000 to match the DB CHECK on readings.aqi_value.",
+      "_comment": "India CPCB National Air Quality Index. Six categories on a 0-500 scale; last band extended to 1000 to match the DB CHECK on readings.aqi_value. Above-Severe extrapolation policy: CPCB defines the Severe band as open-ended (e.g. PM2.5 ≥ 250 → AQI ≥ 401). We continue the slope of the Very Poor band through Severe and past 500 — c_hi of the Severe band is set to c_lo + (Very Poor band width) so the AQI curve stays continuous. compute_subindex extrapolates linearly past c_hi using the last band's slope, capping at 1000. Rationale: 600 is meaningfully worse than 499 for Delhi winter events; a hard 500 cap would erase that signal.",
       "categories": [
         { "label": "Good",         "color": "#00b050", "min": 0,   "max": 50   },
         { "label": "Satisfactory", "color": "#92d050", "min": 51,  "max": 100  },
@@ -43,7 +43,7 @@
           { "c_lo": 60,   "c_hi": 90,   "i_lo": 101, "i_hi": 200 },
           { "c_lo": 90,   "c_hi": 120,  "i_lo": 201, "i_hi": 300 },
           { "c_lo": 120,  "c_hi": 250,  "i_lo": 301, "i_hi": 400 },
-          { "c_lo": 250,  "c_hi": 500,  "i_lo": 401, "i_hi": 500 }
+          { "c_lo": 250,  "c_hi": 380,  "i_lo": 401, "i_hi": 500 }
         ],
         "pm10": [
           { "c_lo": 0,    "c_hi": 50,   "i_lo": 0,   "i_hi": 50  },
@@ -51,7 +51,7 @@
           { "c_lo": 100,  "c_hi": 250,  "i_lo": 101, "i_hi": 200 },
           { "c_lo": 250,  "c_hi": 350,  "i_lo": 201, "i_hi": 300 },
           { "c_lo": 350,  "c_hi": 430,  "i_lo": 301, "i_hi": 400 },
-          { "c_lo": 430,  "c_hi": 1000, "i_lo": 401, "i_hi": 500 }
+          { "c_lo": 430,  "c_hi": 510,  "i_lo": 401, "i_hi": 500 }
         ],
         "o3": [
           { "c_lo": 0,    "c_hi": 50,   "i_lo": 0,   "i_hi": 50  },
@@ -59,7 +59,7 @@
           { "c_lo": 100,  "c_hi": 168,  "i_lo": 101, "i_hi": 200 },
           { "c_lo": 168,  "c_hi": 208,  "i_lo": 201, "i_hi": 300 },
           { "c_lo": 208,  "c_hi": 748,  "i_lo": 301, "i_hi": 400 },
-          { "c_lo": 748,  "c_hi": 2000, "i_lo": 401, "i_hi": 500 }
+          { "c_lo": 748,  "c_hi": 1288, "i_lo": 401, "i_hi": 500 }
         ],
         "no2": [
           { "c_lo": 0,    "c_hi": 40,   "i_lo": 0,   "i_hi": 50  },
@@ -67,7 +67,7 @@
           { "c_lo": 80,   "c_hi": 180,  "i_lo": 101, "i_hi": 200 },
           { "c_lo": 180,  "c_hi": 280,  "i_lo": 201, "i_hi": 300 },
           { "c_lo": 280,  "c_hi": 400,  "i_lo": 301, "i_hi": 400 },
-          { "c_lo": 400,  "c_hi": 1000, "i_lo": 401, "i_hi": 500 }
+          { "c_lo": 400,  "c_hi": 520,  "i_lo": 401, "i_hi": 500 }
         ],
         "so2": [
           { "c_lo": 0,    "c_hi": 40,   "i_lo": 0,   "i_hi": 50  },
@@ -75,7 +75,7 @@
           { "c_lo": 80,   "c_hi": 380,  "i_lo": 101, "i_hi": 200 },
           { "c_lo": 380,  "c_hi": 800,  "i_lo": 201, "i_hi": 300 },
           { "c_lo": 800,  "c_hi": 1600, "i_lo": 301, "i_hi": 400 },
-          { "c_lo": 1600, "c_hi": 3000, "i_lo": 401, "i_hi": 500 }
+          { "c_lo": 1600, "c_hi": 2400, "i_lo": 401, "i_hi": 500 }
         ],
         "co": [
           { "c_lo": 0,    "c_hi": 1.0,  "i_lo": 0,   "i_hi": 50  },
@@ -83,7 +83,7 @@
           { "c_lo": 2.0,  "c_hi": 10,   "i_lo": 101, "i_hi": 200 },
           { "c_lo": 10,   "c_hi": 17,   "i_lo": 201, "i_hi": 300 },
           { "c_lo": 17,   "c_hi": 34,   "i_lo": 301, "i_hi": 400 },
-          { "c_lo": 34,   "c_hi": 100,  "i_lo": 401, "i_hi": 500 }
+          { "c_lo": 34,   "c_hi": 51,   "i_lo": 401, "i_hi": 500 }
         ]
       }
     },

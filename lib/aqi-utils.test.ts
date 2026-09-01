@@ -138,11 +138,13 @@ describe("computeSubIndex (NAQI, default scale)", () => {
   });
 
   it("extrapolates linearly above the top band, capped at 1000", () => {
-    expect(computeSubIndex("pm25", 500)).toBe(500);   // top of the standard scale
-    // Above scale: last band is (250-500 → 401-500), slope 99/250 = 0.396.
-    // value = 1500 → 401 + 0.396*(1500-250) = 401 + 495 = 896
-    expect(computeSubIndex("pm25", 1500)).toBe(896);
-    // Very extreme concentration would extrapolate above 1000; capped at 1000.
+    // PM2.5 Severe band now (250-380 → 401-500), slope 99/130 = 0.7615.
+    // value = 380 (top of Severe band) → 500 exactly.
+    expect(computeSubIndex("pm25", 380)).toBe(500);
+    // value = 500 (above Severe) → 401 + 0.7615*(500-250) = 591.
+    expect(computeSubIndex("pm25", 500)).toBe(591);
+    // value = 1500 would extrapolate to ~1353; capped at 1000.
+    expect(computeSubIndex("pm25", 1500)).toBe(1000);
     expect(computeSubIndex("pm25", 3000)).toBe(1000);
   });
 
