@@ -1,0 +1,51 @@
+name: Rollup daily (compress raw → readings_daily)
+
+# Runs 05:00 UTC daily, after ingest-daily (04:00 UTC) has had time to
+# write T-3 S3-backfill data. Rolls up the last 5 days by default so
+# late-arriving raw data updates the rollup on its next nightly run.
+#
+# Does NOT touch OpenAQ — Supabase-only.
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+    inputs:
+      rollup_date:
+        description: 'Single date to roll up (YYYY-MM-DD). Leave empty for last 5 days.'
+        required: false
+        default: ''
+      lookback_days:
+        description: 'How many days back to roll up when no single date is given (default 5).'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run — log what would be written, do not write to Supabase (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  rollup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scripts/ingest/requirements.txt'
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/ingest/requirements.txt
+
+      - name: Run daily rollup
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ROLLUP_DATE:               ${{ github.event.inputs.rollup_date }}
+          ROLLUP_LOOKBACK_DAYS:      ${{ github.event.inputs.lookback_days }}
+          DRY_RUN:                   ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
+          PYTHONUNBUFFERED:          '1'
+        run: python -m scripts.ingest.rollup_daily
