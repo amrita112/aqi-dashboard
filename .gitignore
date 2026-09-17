@@ -22,6 +22,7 @@
 *.pem
 memory_commented.md
 /XKDR_data
+/App mockups
 
 # planning docs — kept local, not published
 /docs/v1-plan.md
