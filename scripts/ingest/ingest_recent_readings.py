@@ -6,9 +6,12 @@ Fetches the last 8 hours of measurements for each target-city sensor listed
 in target_stations.json, converts every value to canonical units, groups by
 (station, timestamp), and upserts into Supabase.
 
-Why every 6h with an 8h window (not hourly):
-6h between runs + 2h overlap = 8h window. The overlap is a no-op thanks to
-the (monitor_id, source, recorded_at) uniqueness constraint on readings.
+Why every 6h with a 48h window (not hourly, and not 8h):
+The window has to cover OpenAQ's PUBLICATION lag, not just the gap between
+runs. OpenAQ publishes measurements ~17-24h after the fact, so the original
+8h window (6h cadence + 2h overlap) always asked for hours that did not exist
+yet and came back empty. Re-seen rows are a no-op thanks to the
+(monitor_id, source, recorded_at) uniqueness constraint on readings.
 4-6 hours of data lag is acceptable for the "should I go outside now" use
 case since historical patterns matter more than the most-recent reading.
 6-hourly cuts ~4x the API + GHA runtime for a negligible UX cost.
@@ -30,7 +33,7 @@ Env vars required (from .env.local locally, or GitHub secrets on CI):
 
 Optional:
     DRY_RUN=1                   # log what would be inserted without writing
-    FETCH_WINDOW_HOURS=8        # how far back to ask for measurements
+    FETCH_WINDOW_HOURS=48       # how far back to ask for measurements
 """
 
 from __future__ import annotations
@@ -58,7 +61,21 @@ from scripts.ingest.lib.supabase_client import (
     upsert_readings,
 )
 
-DEFAULT_FETCH_WINDOW_HOURS = 8
+# OpenAQ's live API does not publish in real time: measurements appear roughly
+# 17-24 hours after the hour they describe. An 8-hour window (6h cadence + 2h
+# overlap) therefore asked for a stretch of time OpenAQ had not published yet,
+# and returned nothing on every scheduled run -- which is what looked from the
+# outside like an OpenAQ outage for Indian stations from 2026-08-27 onward.
+#
+# Measured 2026-09-17 against sensor 12234787 (R K Puram PM2.5), asking for the
+# last N hours:  8h -> 0 rows, 24h -> 0 rows, 48h -> 87 rows. The freshest
+# reading available anywhere in the API was 16.8 hours old.
+#
+# 48h covers the publication lag with room to spare. The overlap costs nothing:
+# the uniqueness constraint on (monitor_id, source, recorded_at) makes re-seen
+# rows a no-op, and a dry run over the full manifest at this window produced
+# 8,903 readings / 31,165 measurements where the 8h window produced none.
+DEFAULT_FETCH_WINDOW_HOURS = 48
 
 
 def load_manifest() -> Dict[str, Any]:

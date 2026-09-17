@@ -189,6 +189,61 @@ def backtest(series: pd.Series, test_year: int,
     return pd.DataFrame(rows)
 
 
+def backtest_stale_input(series: pd.Series, test_year: int,
+                         data_lags: Iterable[int] = (0, 1, 2, 3, 4),
+                         wants: Iterable[int] = (1, 2, 3)) -> pd.DataFrame:
+    """Score the forecast when the most recent reading is already old.
+
+    The model's only current information is the last observation. If that
+    reading is `lag` days old, then forecasting `want` days into the future is
+    really a (lag + want)-step problem -- the anomaly being carried forward has
+    had lag+want days to decay, not want days.
+
+    This matters because our sources differ in freshness: the OpenAQ live API
+    runs about a day behind, and the S3 archive three to four days. Asking "can
+    we forecast tomorrow" has a different answer for each.
+
+    Scored over the pollution season only, and compared against climatology --
+    the forecast is worth showing only while it still beats the seasonal
+    average, which needs no current reading at all.
+    """
+    train = series[series.index.year < test_year].dropna()
+    test = series[series.index.year == test_year]
+    if train.empty or test.notna().sum() == 0:
+        return pd.DataFrame()
+
+    clim = climatology(train)
+    y = test.dropna()
+    idx = y.index
+    y = y[idx.month.isin(SEASON_MONTHS)]
+    idx = y.index
+
+    cl_now = pd.Series(clim.reindex(idx.dayofyear).values, index=idx)
+    clim_mae = float(np.abs(cl_now - y).mean())
+
+    rows: List[Dict] = []
+    for lag in data_lags:
+        for want in wants:
+            eff = lag + want          # effective horizon from the last reading
+            alpha = fit_alpha(train, clim, eff)
+            prev = _lagged(series, idx, eff)
+            cl_prev = pd.Series(clim.reindex((idx - pd.Timedelta(days=eff)).dayofyear).values,
+                                index=idx)
+            pred = cl_now + alpha * (prev - cl_prev)
+            mask = pred.notna() & y.notna()
+            if mask.sum() == 0:
+                continue
+            mae = float(np.abs(pred[mask] - y[mask]).mean())
+            rows.append({
+                "city": series.name, "data_lag": lag, "forecast_for": want,
+                "effective_horizon": eff, "alpha": alpha, "n": int(mask.sum()),
+                "mae": mae, "clim_mae": clim_mae,
+                "skill_vs_clim": 100 * (clim_mae - mae) / clim_mae,
+                "beats_clim": mae < clim_mae,
+            })
+    return pd.DataFrame(rows)
+
+
 def predictions_for(series: pd.Series, test_year: int, h: int) -> pd.DataFrame:
     """Actual vs each model's prediction for one horizon — for plotting."""
     train = series[series.index.year < test_year].dropna()
