@@ -44,8 +44,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 XKDR_GLOB = str(PROJECT_ROOT / "data" / "XKDR_data" / "data" / "v1"
                 / "measurements" / "*" / "*" / "data.parquet")
 
-# XKDR city spellings for our three target cities.
-CITIES = ["Delhi", "Mumbai", "Bengaluru"]
+# XKDR city spellings for our six target cities. Note these are XKDR's names,
+# which differ from TARGET_CITIES in config.py ("Bengaluru" vs "Bangalore",
+# "Delhi" vs "Delhi NCR") -- the app maps between them.
+CITIES = ["Delhi", "Mumbai", "Bengaluru", "Hyderabad", "Chennai", "Kolkata"]
 
 # The months that motivate the whole product. Delhi's PM2.5 roughly quadruples
 # between its August low and its November peak; a forecast that only works in
