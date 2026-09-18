@@ -77,6 +77,10 @@ from scripts.ingest.lib.supabase_client import (
 # 8,903 readings / 31,165 measurements where the 8h window produced none.
 DEFAULT_FETCH_WINDOW_HOURS = 48
 
+# Max rows requested per sensor per run. See fetch_sensor_measurements for why
+# this has to comfortably exceed the number of readings a full window can hold.
+MEASUREMENT_PAGE_LIMIT = 1000
+
 
 def load_manifest() -> Dict[str, Any]:
     if not TARGET_STATIONS_PATH.exists():
@@ -108,15 +112,34 @@ def fetch_sensor_recent(
     so the whole ingest run stops rather than continuing to hammer the API.
     """
     try:
+        # The API returns rows ASCENDING from datetime_from and truncates at
+        # `limit` -- so a limit that is too small silently drops the NEWEST
+        # measurements, which is precisely the wrong end for this job.
+        #
+        # 48h at 15-minute resolution is 192 rows; the old limit of 100 was
+        # sized for the previous 8h window (32 rows) and became a latent bug
+        # when the window grew. It is not firing today only because OpenAQ's
+        # ~17h publication lag means a 48h window currently holds ~81 rows.
+        # If that lag shortens, the window fills and the cap starts biting.
+        # 1000 covers 48h even at 5-minute resolution.
         r = openaq.get(
             f"/v3/sensors/{sensor_id}/measurements",
-            params={"datetime_from": since_iso, "limit": 100},
+            params={"datetime_from": since_iso, "limit": MEASUREMENT_PAGE_LIMIT},
         )
     except Exception:
         return []
     if r.status_code != 200:
         return []
-    return r.json().get("results", [])
+    results = r.json().get("results", [])
+    # Loud rather than silent: hitting the cap means we almost certainly lost
+    # the most recent readings for this sensor.
+    if len(results) >= MEASUREMENT_PAGE_LIMIT:
+        print(
+            f"  WARNING sensor {sensor_id}: hit the {MEASUREMENT_PAGE_LIMIT}-row page "
+            f"limit; newest measurements may be missing. Raise MEASUREMENT_PAGE_LIMIT "
+            f"or paginate."
+        )
+    return results
 
 
 def build_rows(

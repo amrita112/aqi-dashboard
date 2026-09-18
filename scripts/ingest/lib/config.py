@@ -36,10 +36,21 @@ TARGET_STATIONS_PATH = INGEST_DIR / "target_stations.json"
 # Target cities as bounding boxes (lat_min, lng_min, lat_max, lng_max).
 # City-core + inner suburbs. Any OpenAQ station whose coordinates fall inside
 # one of these boxes is ingested; anything else is ignored.
+# Boxes were drawn from the actual station distribution (all 764 Indian OpenAQ
+# locations plotted against each city centre), not from map intuition: wide
+# enough to take in the built-up area and its industrial fringe, tight enough
+# to exclude neighbouring towns that would distort a city average. Chennai's
+# stops short of Gummidipoondi (47 km out) and Kanchipuram (63 km) for exactly
+# that reason.
 TARGET_CITIES: Dict[str, Tuple[float, float, float, float]] = {
     "Delhi NCR": (28.40, 76.80, 28.90, 77.50),
     "Mumbai":    (18.85, 72.75, 19.30, 73.05),
     "Bangalore": (12.80, 77.40, 13.15, 77.80),
+    # Added 2026-09-18. Station counts measured the same day (target-pollutant
+    # stations in box / of those, reporting within 7 days):
+    "Hyderabad": (17.20, 78.20, 17.60, 78.70),   # 18 / 13
+    "Chennai":   (12.85, 80.05, 13.30, 80.35),   # 14 /  8
+    "Kolkata":   (22.40, 88.20, 22.80, 88.50),   # 18 / 13  (includes Howrah)
 }
 
 # Pollutants we ingest. Matches the CHECK constraint on measurements.pollutant

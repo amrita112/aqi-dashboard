@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-18T14:25:04.685442+00:00",
+  "generated_at": "2026-09-18T18:17:09.051251+00:00",
   "source": "openaq",
   "pollutants": [
     "no2",
@@ -155,6 +155,58 @@
         }
       ],
       "monitor_id": "5f5f6244-cf4f-4ee9-8a3d-06c4f3973421"
+    },
+    {
+      "openaq_id": 407,
+      "name": "Zoo Park, Hyderabad - TSPCB",
+      "latitude": 17.349694,
+      "longitude": 78.451437,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12235580,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235582,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235583,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235585,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "93510300-6186-4eed-91b7-0c142989a3f2"
+    },
+    {
+      "openaq_id": 2586,
+      "name": "Manali, Chennai - CPCB",
+      "latitude": 13.164544,
+      "longitude": 80.26285,
+      "city": "Chennai",
+      "sensors": [
+        {
+          "sensor_id": 12235650,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235652,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235653,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235655,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "934e4a0e-ef6b-4449-9005-7540f58d67d8"
     },
     {
       "openaq_id": 5404,
@@ -323,6 +375,32 @@
       "monitor_id": "1da47965-4f45-4b77-bba4-602d8b1e90a0"
     },
     {
+      "openaq_id": 5599,
+      "name": "Bollaram Industrial Area, Hyderabad - TSPCB",
+      "latitude": 17.540891,
+      "longitude": 78.358528,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12235397,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235399,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235400,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235402,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "5f27e819-3ffd-49db-a543-21cebd114d56"
+    },
+    {
       "openaq_id": 5607,
       "name": "Peenya, Bengaluru - CPCB",
       "latitude": 13.0270199,
@@ -397,6 +475,32 @@
       "monitor_id": "41fc5a0e-0701-43dd-a748-93970205094a"
     },
     {
+      "openaq_id": 5614,
+      "name": "Padmapukur, Howrah - WBPCB",
+      "latitude": 22.5687319,
+      "longitude": 88.2797276,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12234972,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12234974,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12234975,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12234977,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "0149f66e-5db1-4bcc-ba1e-776133120d7a"
+    },
+    {
       "openaq_id": 5616,
       "name": "Sector - 62, Noida, UP - IMD",
       "latitude": 28.6245479,
@@ -443,6 +547,58 @@
         }
       ],
       "monitor_id": "ab86487a-7476-469d-8355-1b02f5b62844"
+    },
+    {
+      "openaq_id": 5623,
+      "name": "Central University, Hyderabad - TSPCB",
+      "latitude": 17.460103,
+      "longitude": 78.334361,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12242118,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12242120,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12242121,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12242123,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "c9d53a4e-081f-4e5e-9281-bd4ee7ee337c"
+    },
+    {
+      "openaq_id": 5624,
+      "name": "IDA Pashamylaram, Hyderabad - TSPCB",
+      "latitude": 17.5316895,
+      "longitude": 78.218939,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12235502,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235504,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235505,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235507,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "32354209-c96e-459e-86f8-eee14c667eda"
     },
     {
       "openaq_id": 5626,
@@ -563,6 +719,54 @@
       "monitor_id": "8e39cf88-0b42-46b6-ad02-1d4943b76fe7"
     },
     {
+      "openaq_id": 5645,
+      "name": "ICRISAT Patancheru, Hyderabad - TSPCB",
+      "latitude": 17.5184,
+      "longitude": 78.278777,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12235406,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235408,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235409,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235411,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "400dea19-8c8e-4f67-a758-af46df42fb11"
+    },
+    {
+      "openaq_id": 5647,
+      "name": "Sanathnagar, Hyderabad - TSPCB",
+      "latitude": 17.4559458,
+      "longitude": 78.4332152,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12242127,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12242129,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12242131,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "1306385d-5d2b-43af-a7ce-d65cd9f4f5a0"
+    },
+    {
       "openaq_id": 5650,
       "name": "IGI Airport (T3), Delhi - IMD",
       "latitude": 28.5627763,
@@ -583,6 +787,32 @@
         }
       ],
       "monitor_id": "5fb5140d-6535-47ca-80fd-9983ab5e0689"
+    },
+    {
+      "openaq_id": 5655,
+      "name": "Velachery Res. Area, Chennai - CPCB",
+      "latitude": 13.0052189,
+      "longitude": 80.2398125,
+      "city": "Chennai",
+      "sensors": [
+        {
+          "sensor_id": 12235528,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235530,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235531,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235533,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "229fd987-495e-4c2b-8c25-071b3ce5073f"
     },
     {
       "openaq_id": 5665,
@@ -941,6 +1171,32 @@
       "monitor_id": "d81993e9-1c47-493f-a316-e0cdf562e61f"
     },
     {
+      "openaq_id": 6946,
+      "name": "Belur Math, Howrah - WBPCB",
+      "latitude": 22.629801,
+      "longitude": 88.352017,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12235811,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235813,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235814,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235816,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "33bc4ca2-29e2-44b9-8b34-29d52ee08a98"
+    },
+    {
       "openaq_id": 6948,
       "name": "Chhatrapati Shivaji Intl. Airport (T2), Mumbai - MPCB",
       "latitude": 19.10078,
@@ -965,6 +1221,32 @@
         }
       ],
       "monitor_id": "4a442036-3776-478e-b54d-46130716c09a"
+    },
+    {
+      "openaq_id": 6950,
+      "name": "Jadavpur, Kolkata - WBPCB",
+      "latitude": 22.49929,
+      "longitude": 88.36917,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12235884,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235886,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235887,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235889,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "09f2ae92-a4a5-4b71-b8e4-4dc069bed56c"
     },
     {
       "openaq_id": 6956,
@@ -1247,6 +1529,32 @@
         }
       ],
       "monitor_id": "d8dda096-1e3e-4839-88be-ac5461ec6bb2"
+    },
+    {
+      "openaq_id": 6981,
+      "name": "Fort William, Kolkata - WBPCB",
+      "latitude": 22.55664,
+      "longitude": 88.342674,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12235875,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235877,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235878,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235880,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "ff78bf8d-6ccb-4766-8a99-8a109224645f"
     },
     {
       "openaq_id": 6983,
@@ -1537,6 +1845,20 @@
       "monitor_id": "6317c5c8-39ea-42f4-84cc-39383e716048"
     },
     {
+      "openaq_id": 8558,
+      "name": "Chennai",
+      "latitude": 13.08784,
+      "longitude": 80.278475,
+      "city": "Chennai",
+      "sensors": [
+        {
+          "sensor_id": 5077812,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "351404ca-28ff-4d50-aadf-f3aeb836c649"
+    },
+    {
       "openaq_id": 8915,
       "name": "Wazirpur, Delhi - DPCC",
       "latitude": 28.699793,
@@ -1693,6 +2015,58 @@
       "monitor_id": "1816d64d-3704-46e3-b951-887f71c4a283"
     },
     {
+      "openaq_id": 10633,
+      "name": "Victoria, Kolkata - WBPCB",
+      "latitude": 22.5448082,
+      "longitude": 88.3403691,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12235677,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235679,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235680,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235682,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "7430a7ec-07fa-4d72-9fd7-a27fad58b386"
+    },
+    {
+      "openaq_id": 10780,
+      "name": "Manali Village, Chennai - TNPCB",
+      "latitude": 13.1662,
+      "longitude": 80.2584,
+      "city": "Chennai",
+      "sensors": [
+        {
+          "sensor_id": 12235793,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235795,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235796,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235798,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "493028c4-0cbf-4434-9113-7ece1b72369a"
+    },
+    {
       "openaq_id": 10820,
       "name": "Sector 30, Faridabad - HSPCB",
       "latitude": 28.4417,
@@ -1771,6 +2145,58 @@
       "monitor_id": "0519139d-490a-41d9-bcba-dde767db959a"
     },
     {
+      "openaq_id": 10844,
+      "name": "Ghusuri, Howrah - WBPCB",
+      "latitude": 22.611968,
+      "longitude": 88.347422,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12235493,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235495,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235496,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235498,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "b14ddd59-2139-45e9-b9ce-67fbe80b6e8d"
+    },
+    {
+      "openaq_id": 10851,
+      "name": "Bidhannagar, Kolkata - WBPCB",
+      "latitude": 22.58157048,
+      "longitude": 88.41002457,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12235991,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235993,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235994,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235996,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "6c78a437-1672-4b4a-ae75-1f0eb3e299ff"
+    },
+    {
       "openaq_id": 10900,
       "name": "Teri Gram, Gurugram - HSPCB",
       "latitude": 28.4275,
@@ -1795,6 +2221,58 @@
         }
       ],
       "monitor_id": "747f09a3-3f43-4773-ad0a-61ca3e8bfc33"
+    },
+    {
+      "openaq_id": 10904,
+      "name": "Rabindra Sarobar, Kolkata - WBPCB",
+      "latitude": 22.51106,
+      "longitude": 88.35142,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12235964,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235966,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235967,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235969,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "64f13a1b-bed8-4e4f-b482-ff32e8994b5c"
+    },
+    {
+      "openaq_id": 10918,
+      "name": "Ballygunge, Kolkata - WBPCB",
+      "latitude": 22.5367507,
+      "longitude": 88.3638022,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12236009,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236011,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236012,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236014,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "223771a3-0f18-40d2-ae47-fef3d8dd2855"
     },
     {
       "openaq_id": 10919,
@@ -1843,6 +2321,84 @@
         }
       ],
       "monitor_id": "ad22c564-b0b2-4ef4-8a15-d41ac1eced57"
+    },
+    {
+      "openaq_id": 11578,
+      "name": "Royapuram, Chennai - TNPCB",
+      "latitude": 13.1036,
+      "longitude": 80.2909,
+      "city": "Chennai",
+      "sensors": [
+        {
+          "sensor_id": 12236296,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236298,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236299,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236301,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "ffff7365-558f-4441-93a8-c20e8b3f3371"
+    },
+    {
+      "openaq_id": 11579,
+      "name": "Kodungaiyur, Chennai - TNPCB",
+      "latitude": 13.1278,
+      "longitude": 80.2642,
+      "city": "Chennai",
+      "sensors": [
+        {
+          "sensor_id": 12236305,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236307,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236308,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236310,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "78a7b975-3032-4839-a804-44b1a3898b17"
+    },
+    {
+      "openaq_id": 11581,
+      "name": "Arumbakkam, Chennai - TNPCB",
+      "latitude": 13.0664,
+      "longitude": 80.2112,
+      "city": "Chennai",
+      "sensors": [
+        {
+          "sensor_id": 12236272,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236273,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236274,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236276,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "394fcd0e-8412-4243-afc6-118e82507c90"
     },
     {
       "openaq_id": 11603,
@@ -1997,6 +2553,32 @@
       "monitor_id": "7867d79a-5a53-4ea0-a635-72085a33a061"
     },
     {
+      "openaq_id": 12046,
+      "name": "Perungudi, Chennai - TNPCB",
+      "latitude": 12.9533,
+      "longitude": 80.2357,
+      "city": "Chennai",
+      "sensors": [
+        {
+          "sensor_id": 12236287,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236289,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236290,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236292,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "b80b1e68-3d02-45b4-b546-34bae1a59bcb"
+    },
+    {
       "openaq_id": 229473,
       "name": "blore_India_07_14_official",
       "latitude": 13.003347077,
@@ -2009,6 +2591,188 @@
         }
       ],
       "monitor_id": "7394322a-58c4-45c6-a596-4231d153819b"
+    },
+    {
+      "openaq_id": 344103,
+      "name": "ECIL Kapra, Hyderabad - TSPCB",
+      "latitude": 17.470431,
+      "longitude": 78.566959,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12237095,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12237097,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12237098,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12237100,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "e4519e6a-9097-4503-b907-d1c5de017404"
+    },
+    {
+      "openaq_id": 344104,
+      "name": "Kompally Municipal Office, Hyderabad - TSPCB",
+      "latitude": 17.544898999999997,
+      "longitude": 78.486949,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12237122,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12237124,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12237125,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12237127,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "1d70e77d-d150-4ff3-83c0-efafc6986b2b"
+    },
+    {
+      "openaq_id": 344140,
+      "name": "Somajiguda, Hyderabad - TSPCB",
+      "latitude": 17.417094,
+      "longitude": 78.457437,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12237113,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12237115,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12237116,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12237118,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "e52c500f-435f-49ab-8eb7-5e1215fbc286"
+    },
+    {
+      "openaq_id": 344142,
+      "name": "Nacharam_TSIIC IALA, Hyderabad - TSPCB",
+      "latitude": 17.429398,
+      "longitude": 78.569354,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12237131,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12237133,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12237134,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12237136,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "da821618-f9f3-4c47-af5d-afce07376e99"
+    },
+    {
+      "openaq_id": 346257,
+      "name": "Ramachandrapuram, Hyderabad - TSPCB",
+      "latitude": 17.528544,
+      "longitude": 78.28619499999999,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12242161,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12242163,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12242164,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12242166,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "b4f899ae-380a-4a6f-971c-b43305df2d10"
+    },
+    {
+      "openaq_id": 346258,
+      "name": "Kokapet, Hyderabad - TSPCB",
+      "latitude": 17.393559,
+      "longitude": 78.33919399999999,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12237158,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12237160,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12237161,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12237163,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "871fbeaf-caed-427c-b349-09493f61dace"
+    },
+    {
+      "openaq_id": 352465,
+      "name": "New Malakpet, Hyderabad - TSPCB",
+      "latitude": 17.37206,
+      "longitude": 78.50864,
+      "city": "Hyderabad",
+      "sensors": [
+        {
+          "sensor_id": 12237086,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12237088,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12237089,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12237091,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "9013b674-a8e0-4baa-85a1-95e35f1a20f3"
     },
     {
       "openaq_id": 2860223,
@@ -2049,6 +2813,32 @@
         }
       ],
       "monitor_id": "ad376eed-4241-4792-95b7-b9d199b3a3a6"
+    },
+    {
+      "openaq_id": 3409320,
+      "name": "Rabindra Bharati University, Kolkata - WBPCB",
+      "latitude": 22.627875,
+      "longitude": 88.3804,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12235562,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235564,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235565,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235567,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "05954dd8-f93b-4093-b05c-3e75694149ac"
     },
     {
       "openaq_id": 3409322,
@@ -2493,6 +3283,32 @@
       "monitor_id": "ba014c8c-6d35-4f21-857d-7c1a7265f6cb"
     },
     {
+      "openaq_id": 3409509,
+      "name": "SVSPA Campus, Barrackpore - WBPCB",
+      "latitude": 22.7605581,
+      "longitude": 88.3617589,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12238555,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238557,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238558,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238560,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "d4c719c0-001d-47f2-986c-d35e856beb59"
+    },
+    {
       "openaq_id": 3409510,
       "name": "Byculla, Mumbai - BMC",
       "latitude": 18.9767,
@@ -2621,6 +3437,58 @@
         }
       ],
       "monitor_id": "4a897033-5af5-4e97-bdf7-d1c9e0d81385"
+    },
+    {
+      "openaq_id": 3409524,
+      "name": "Botanical Garden, Howrah - WBPCB",
+      "latitude": 22.554954,
+      "longitude": 88.292568,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12243955,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12243957,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12243958,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12243960,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "a49737c0-5076-435a-b1e9-08d5fece9f3c"
+    },
+    {
+      "openaq_id": 3409530,
+      "name": "Dasnagar, Howrah - WBPCB",
+      "latitude": 22.6025571,
+      "longitude": 88.3105664,
+      "city": "Kolkata",
+      "sensors": [
+        {
+          "sensor_id": 12244863,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12244865,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12244866,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12244868,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "81dd8250-d385-4e8e-a8e3-a64172749306"
     },
     {
       "openaq_id": 4663956,
