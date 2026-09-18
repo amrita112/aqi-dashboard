@@ -31,10 +31,11 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
 from scripts.ingest.lib.config import (
+    get_sensor_max_age_days,
     OPENAQ_COUNTRY_ID_INDIA,
     TARGET_CITIES,
     TARGET_POLLUTANTS,
@@ -68,6 +69,75 @@ def fetch_openaq_india_locations(client: OpenAQClient) -> List[Dict[str, Any]]:
             break
         page += 1
     return all_locations
+
+
+def drop_stale_sensors(client, stations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Remove sensors that stopped reporting, keeping the manifest to live ones.
+
+    OpenAQ periodically re-registers a station's sensors under new ids and
+    leaves the old ones listed forever, returning nothing. The location list
+    used by filter_to_target() does not carry per-sensor recency, so this makes
+    one extra call per station to /v3/locations/{id}/sensors, which does.
+
+    Costs ~178 requests on a weekly job; saves roughly half of every 6-hourly
+    ingest run. A station left with no live sensor is dropped entirely.
+
+    Sensors whose age cannot be determined are KEPT: an API hiccup should not
+    silently shrink the manifest, and a live sensor wrongly dropped would be
+    invisible until someone noticed missing data.
+    """
+    max_age = get_sensor_max_age_days()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max_age)
+    print(f"Checking sensor freshness (keeping sensors seen in the last {max_age} days) ...")
+
+    kept_stations: List[Dict[str, Any]] = []
+    n_before = sum(len(st["sensors"]) for st in stations)
+    n_undetermined = 0
+
+    for i, st in enumerate(stations, start=1):
+        try:
+            r = client.get(f"/v3/locations/{st['openaq_id']}/sensors")
+            r.raise_for_status()
+            results = r.json().get("results", [])
+        except Exception as e:
+            print(f"  station {st['openaq_id']}: freshness check failed ({e}); keeping as-is")
+            kept_stations.append(st)
+            continue
+
+        last_seen: Dict[int, Any] = {}
+        for sensor in results:
+            stamp = (sensor.get("datetimeLast") or {}).get("utc")
+            if not stamp:
+                continue
+            try:
+                last_seen[sensor["id"]] = datetime.fromisoformat(
+                    stamp.replace("Z", "+00:00")
+                )
+            except ValueError:
+                continue
+
+        live = []
+        for sensor in st["sensors"]:
+            seen = last_seen.get(sensor["sensor_id"])
+            if seen is None:
+                n_undetermined += 1
+                live.append(sensor)          # keep: unknown is not the same as dead
+            elif seen >= cutoff:
+                live.append(sensor)
+
+        if live:
+            kept_stations.append({**st, "sensors": live})
+
+        if i % 50 == 0:
+            print(f"  ... {i}/{len(stations)} stations checked")
+
+    n_after = sum(len(st["sensors"]) for st in kept_stations)
+    print(
+        f"Sensor prune: {n_before} -> {n_after} sensors "
+        f"({n_before - n_after} stale dropped, {n_undetermined} kept as undetermined); "
+        f"{len(stations)} -> {len(kept_stations)} stations"
+    )
+    return kept_stations
 
 
 def filter_to_target(locations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -173,6 +243,9 @@ def main() -> None:
 
     print("Filtering to target cities + pollutants...")
     stations = filter_to_target(all_locations)
+    # Drop sensors OpenAQ has stopped updating, before anything downstream
+    # inherits them (see drop_stale_sensors for why this matters).
+    stations = drop_stale_sensors(openaq, stations)
     per_city: Dict[str, int] = {}
     for s in stations:
         per_city[s["city"]] = per_city.get(s["city"], 0) + 1

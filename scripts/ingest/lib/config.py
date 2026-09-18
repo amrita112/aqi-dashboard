@@ -49,6 +49,30 @@ TARGET_CITIES: Dict[str, Tuple[float, float, float, float]] = {
 # ppb-vs-mg/m³ unit bug; O3 sits under 4% across all target cities.
 TARGET_POLLUTANTS = frozenset({"pm25", "pm10", "no2", "so2"})
 
+# ─── Sensor freshness ───────────────────────────────────────────────────────
+
+# OpenAQ re-registers a station's sensors periodically and leaves the old ones
+# in place, returning nothing forever. On 2026-09-18 our 178-station manifest
+# held 906 target-pollutant sensors whose last-reading ages were almost
+# perfectly bimodal: 409 within two days, 440 more than three years stale
+# (mostly frozen at 2018-02-22), and only 46 anywhere in between.
+#
+# Polling the dead half cost ~9 minutes of every 6-hourly run for nothing, and
+# pushed the job close to its 30-minute workflow timeout.
+#
+# The cutoff sits in that empty middle, so its exact value barely matters; 90
+# days is chosen because a sensor silent for a whole season cannot help a
+# "what is the air like now" app. Pruning is safe because it is not permanent:
+# bootstrap re-runs weekly and re-adds any sensor that starts reporting again.
+DEFAULT_SENSOR_MAX_AGE_DAYS = 90
+
+
+def get_sensor_max_age_days() -> int:
+    """Freshness cutoff for keeping a sensor in the manifest (env-overridable)."""
+    raw = os.environ.get("SENSOR_MAX_AGE_DAYS", "").strip()
+    return int(raw) if raw else DEFAULT_SENSOR_MAX_AGE_DAYS
+
+
 # OpenAQ constants
 OPENAQ_COUNTRY_ID_INDIA = 9   # v3 country_id (was 27 in v2)
 OPENAQ_API_BASE = "https://api.openaq.org/v3"
