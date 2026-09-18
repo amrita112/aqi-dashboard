@@ -33,7 +33,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -262,6 +262,255 @@ def predictions_for(series: pd.Series, test_year: int, h: int) -> pd.DataFrame:
         "climatology": cl_now,
         "blend": cl_now + alpha * (prev - cl_prev),
     }, index=idx)
+
+
+# ─── Hourly series and the diurnal shape ─────────────────────────────────────
+
+CITY_HOURLY_CACHE = PROJECT_ROOT / "data" / "xkdr_city_hourly.parquet"
+
+
+def load_city_hourly(rebuild: bool = False, min_stations: int = 3,
+                     since: str = "2019-01-01") -> pd.DataFrame:
+    """Hourly city-mean PM2.5, cached as parquet.
+
+    Same two-step averaging as the daily loader, one level finer: mean across
+    the stations reporting in that hour. Hours backed by fewer than
+    `min_stations` are dropped, because a "city average" resting on one monitor
+    is that monitor, not the city.
+    """
+    import duckdb
+
+    if CITY_HOURLY_CACHE.exists() and not rebuild:
+        df = pd.read_parquet(CITY_HOURLY_CACHE)
+    else:
+        con = duckdb.connect()
+        con.execute(
+            f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
+            f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
+        )
+        city_list = ", ".join(f"'{c}'" for c in CITIES)
+        con.execute(f"""COPY (
+            SELECT city_name AS city, collected_at AS ts,
+                   CAST(collected_at AS DATE) AS d,
+                   EXTRACT(hour FROM collected_at)::INTEGER AS hr,
+                   EXTRACT(month FROM collected_at)::INTEGER AS mo,
+                   avg(value) AS pm25, count(*) AS n_st
+            FROM m
+            WHERE parameter_name = 'PM2.5' AND city_name IN ({city_list})
+              AND value BETWEEN 0 AND 2000 AND collected_at >= '{since}'
+            GROUP BY 1,2,3,4,5 HAVING count(*) >= {min_stations}
+        ) TO '{CITY_HOURLY_CACHE}' (FORMAT PARQUET, COMPRESSION ZSTD)""")
+        df = pd.read_parquet(CITY_HOURLY_CACHE)
+
+    df["ts"] = pd.to_datetime(df["ts"])
+    df["d"] = pd.to_datetime(df["d"])
+    return df
+
+
+def complete_days(g: pd.DataFrame, min_hours: int = 20) -> pd.DataFrame:
+    """Keep only days with enough hours for a daily mean to mean anything."""
+    return g[g.groupby("d")["pm25"].transform("size") >= min_hours]
+
+
+def diurnal_shape(train: pd.DataFrame) -> pd.Series:
+    """Mean ratio of hourly value to that day's mean, per (month, hour).
+
+    A RATIO rather than an absolute profile, so the shape scales with the
+    level: one learned in a clean month still applies in a dirty one. Indexed
+    by (month, hour); multiply a daily forecast by it to get an hourly one.
+    """
+    day_mean = train.groupby("d")["pm25"].transform("mean")
+    ok = day_mean > 1                      # avoid dividing by ~0 on clean days
+    t = train[ok].assign(ratio=train.loc[ok, "pm25"] / day_mean[ok])
+    return t.groupby(["mo", "hr"])["ratio"].mean()
+
+
+def variance_decomposition(g: pd.DataFrame) -> Dict[str, float]:
+    """Split hourly variance into day-level, diurnal, and residual shares."""
+    g = complete_days(g)
+    day_mean = g.groupby("d")["pm25"].transform("mean")
+    g = g[day_mean > 1]
+    day_mean = day_mean[day_mean > 1]
+    shape = diurnal_shape(g)
+    pred = day_mean.values * g.set_index(["mo", "hr"]).index.map(shape).values
+    total = g["pm25"].var()
+    resid = float(np.var(g["pm25"].values - pred))
+    day = float(day_mean.var())
+    return {"day": day / total, "diurnal": 1 - day / total - resid / total,
+            "residual": resid / total}
+
+
+def backtest_hour(g: pd.DataFrame, test_year: int,
+                  hours: Iterable[int] = (9, 15, 18)) -> pd.DataFrame:
+    """Compare ways of forecasting a NAMED hour one day ahead.
+
+    flat        - quote the day's forecast for every hour (no shape at all)
+    shape       - day forecast x climatological diurnal shape
+    same_hour   - yesterday's value at this same hour
+    hour_clim   - the historical mean for this (month, hour)
+
+    The day forecast used here is persistence of the daily mean, so the
+    comparison isolates the HOUR treatment rather than re-testing the daily
+    model. Scored over the pollution season only.
+    """
+    g = complete_days(g).sort_values("ts")
+    daily = g.groupby("d")["pm25"].mean()
+    train = g[g["d"].dt.year < test_year]
+    if train.empty:
+        return pd.DataFrame()
+
+    shape = diurnal_shape(train)
+    hour_clim = train.groupby(["mo", "hr"])["pm25"].mean()
+    by_ts = g.set_index("ts")["pm25"]
+
+    test = g[(g["d"].dt.year == test_year) & (g["mo"].isin(SEASON_MONTHS))]
+    rows: List[Dict] = []
+    for hour in hours:
+        sub = test[test.hr == hour]
+        if len(sub) < 30:
+            continue
+        prev_daily = daily.reindex(sub["d"] - pd.Timedelta(days=1)).values
+        preds = {
+            "flat":      prev_daily,
+            "shape":     prev_daily * np.array([shape.get((m, hour), 1.0)
+                                                for m in sub["mo"].values]),
+            "same_hour": by_ts.reindex(sub["ts"] - pd.Timedelta(days=1)).values,
+            "hour_clim": np.array([hour_clim.get((m, hour), np.nan)
+                                   for m in sub["mo"].values]),
+        }
+        y = sub["pm25"].values
+        for name, p in preds.items():
+            mask = ~np.isnan(p) & ~np.isnan(y)
+            if mask.sum() < 10:
+                continue
+            rows.append({"city": g["city"].iloc[0], "hour": hour, "model": name,
+                         "n": int(mask.sum()),
+                         "mae": float(np.abs(p[mask] - y[mask]).mean())})
+    return pd.DataFrame(rows)
+
+
+def best_hour_eval(g: pd.DataFrame, test_year: int, n_pick: int = 3,
+                   day_window: Tuple[int, int] = (6, 21)) -> Optional[Dict[str, float]]:
+    """Does the shape's "cleanest hours" advice actually pick clean hours?
+
+    Takes the `n_pick` lowest-ratio daytime hours from the climatological
+    shape, then looks up where those hours really ranked that day. Reports the
+    mean rank (against a random-choice baseline), how often a pick lands in the
+    day's true best five, and the concentration avoided versus just going out
+    at an average time -- which is the number a user actually feels.
+    """
+    g = complete_days(g).sort_values("ts")
+    train = g[g["d"].dt.year < test_year]
+    if train.empty:
+        return None
+    shape = diurnal_shape(train)
+
+    lo, hi = day_window
+    test = g[(g["d"].dt.year == test_year) & (g["mo"].isin(SEASON_MONTHS))
+             & (g.hr.between(lo, hi))]
+    ranks, in_best5, saved, n_slots = [], [], [], []
+    for _, day in test.groupby("d"):
+        if len(day) < (hi - lo):
+            continue
+        mo = int(day["mo"].iloc[0])
+        sh = {int(h): shape.get((mo, int(h)), np.nan) for h in day.hr}
+        if any(np.isnan(v) for v in sh.values()):
+            continue
+        picks = sorted(sh, key=lambda k: sh[k])[:n_pick]
+        actual = day.set_index("hr")["pm25"]
+        order = actual.rank()
+        n_slots.append(len(actual))
+        for h in picks:
+            if h in order.index:
+                ranks.append(float(order[h]))
+                in_best5.append(bool(order[h] <= 5))
+        saved.append(float(actual.mean() - actual.reindex(picks).mean()))
+    if not ranks:
+        return None
+    return {"mean_rank": float(np.mean(ranks)),
+            "random_rank": (float(np.mean(n_slots)) + 1) / 2,
+            "pct_in_best5": 100 * float(np.mean(in_best5)),
+            "ugm3_saved": float(np.mean(saved)),
+            "n_days": len(saved)}
+
+
+def backtest_anomaly_window(series: pd.Series, test_year: int,
+                            windows: Iterable[int] = (1, 2, 3, 5, 7, 14, 30),
+                            horizon: int = 1) -> pd.DataFrame:
+    """How many recent days should the anomaly be averaged over?
+
+    The model carries forward the latest departure from the seasonal normal.
+    This asks whether averaging that departure over several recent days is
+    steadier than taking the single freshest one. Alpha is refitted per window
+    on training years only, so each window is judged at its own best setting.
+    """
+    train = series[series.index.year < test_year].dropna()
+    test = series[series.index.year == test_year].dropna()
+    test = test[test.index.month.isin(SEASON_MONTHS)]
+    if train.empty or len(test) < 60:
+        return pd.DataFrame()
+
+    clim = climatology(train)
+
+    def mean_anomaly(idx: pd.DatetimeIndex, n: int) -> pd.Series:
+        parts = []
+        for lag in range(horizon, horizon + n):
+            prev = _lagged(series, idx, lag)
+            cl_prev = pd.Series(
+                clim.reindex((idx - pd.Timedelta(days=lag)).dayofyear).values, index=idx)
+            parts.append(prev - cl_prev)
+        return pd.concat(parts, axis=1).mean(axis=1, skipna=True)
+
+    rows: List[Dict] = []
+    for n in windows:
+        t_anom = mean_anomaly(train.index, n)
+        t_cl = pd.Series(clim.reindex(train.index.dayofyear).values, index=train.index)
+        best_a, best_e = 0.0, np.inf
+        for a in np.arange(0, 1.001, 0.05):
+            p = t_cl + a * t_anom
+            m = p.notna() & train.notna()
+            if m.sum() == 0:
+                continue
+            e = float(np.abs(p[m] - train[m]).mean())
+            if e < best_e:
+                best_a, best_e = float(a), e
+
+        cl_now = pd.Series(clim.reindex(test.index.dayofyear).values, index=test.index)
+        pred = cl_now + best_a * mean_anomaly(test.index, n)
+        m = pred.notna() & test.notna()
+        if m.sum() == 0:
+            continue
+        rows.append({"city": series.name, "window_days": n, "alpha": best_a,
+                     "n": int(m.sum()),
+                     "mae": float(np.abs(pred[m] - test[m]).mean())})
+    return pd.DataFrame(rows)
+
+
+def gap_stats(series: pd.Series, since: str = "2019-01-01",
+              ignore_runs_over: int = 30) -> Dict[str, float]:
+    """How far back must we look to find a reading?
+
+    Sets the raw-retention floor: the forecast reads one day, but only if one
+    is there. Runs longer than `ignore_runs_over` are excluded as outages
+    rather than normal behaviour -- the XKDR export is missing all of Q1 2025,
+    which would otherwise dominate the percentiles.
+    """
+    s = series[series.index >= since]
+    present = s.notna()
+    back, last = [], None
+    for ts, ok in present.items():
+        if ok:
+            last = ts
+        if last is not None:
+            back.append((ts - last).days)
+    normal = [b for b in back if b <= ignore_runs_over]
+    if not normal:
+        return {}
+    return {"p50": float(np.percentile(normal, 50)),
+            "p90": float(np.percentile(normal, 90)),
+            "p99": float(np.percentile(normal, 99)),
+            "p999": float(np.percentile(normal, 99.9)),
+            "missing_days": int((~present).sum()), "total_days": int(len(s))}
 
 
 # ─── NAQI bands ──────────────────────────────────────────────────────────────
