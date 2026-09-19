@@ -51,6 +51,11 @@ TARGET_CITIES: Dict[str, Tuple[float, float, float, float]] = {
     "Hyderabad": (17.20, 78.20, 17.60, 78.70),   # 18 / 13
     "Chennai":   (12.85, 80.05, 13.30, 80.35),   # 14 /  8
     "Kolkata":   (22.40, 88.20, 22.80, 88.50),   # 18 / 13  (includes Howrah)
+    # Added 2026-09-19. 19 stations in box / 14 reporting within 2 days.
+    # Spans Pune proper and Pimpri-Chinchwad, which is one contiguous metro and
+    # is how the app should present it. Stops short of Mahad (51 km out) and
+    # Kanchipuram-style satellites that would distort a city average.
+    "Pune":      (18.40, 73.70, 18.72, 73.98),   # 19 / 14
 }
 
 # Pollutants we ingest. Matches the CHECK constraint on measurements.pollutant

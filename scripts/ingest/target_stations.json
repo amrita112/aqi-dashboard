@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-18T18:17:09.051251+00:00",
+  "generated_at": "2026-09-19T18:07:16.753812+00:00",
   "source": "openaq",
   "pollutants": [
     "no2",
@@ -2449,6 +2449,50 @@
       "monitor_id": "cbc9907a-a39c-48b4-b403-5e8b42dd46e8"
     },
     {
+      "openaq_id": 11609,
+      "name": "Mhada Colony, Pune - IITM",
+      "latitude": 18.57304,
+      "longitude": 73.927715,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12236440,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236442,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236443,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "91c8dbfc-c6c5-4631-b352-8c3d6f429d51"
+    },
+    {
+      "openaq_id": 11610,
+      "name": "Transport Nagar-Nigdi, Pune - IITM",
+      "latitude": 18.664282,
+      "longitude": 73.763966,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12236454,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236456,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236457,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "08cca47b-f47c-4b58-b517-989637d42df2"
+    },
+    {
       "openaq_id": 11611,
       "name": "Malad West, Mumbai - IITM",
       "latitude": 19.19709,
@@ -2473,6 +2517,32 @@
         }
       ],
       "monitor_id": "ce1a2284-2e8a-405b-b753-a4a3504cb001"
+    },
+    {
+      "openaq_id": 11613,
+      "name": "Revenue Colony-Shivajinagar, Pune - IITM",
+      "latitude": 18.530085,
+      "longitude": 73.849598,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12236460,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236462,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236463,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236465,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "005663af-2428-4e1c-ad11-8d03bd45d500"
     },
     {
       "openaq_id": 12024,
@@ -2577,6 +2647,28 @@
         }
       ],
       "monitor_id": "b80b1e68-3d02-45b4-b546-34bae1a59bcb"
+    },
+    {
+      "openaq_id": 60658,
+      "name": "Hadapsar, Pune - IITM",
+      "latitude": 18.501793,
+      "longitude": 73.927532,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12236446,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236448,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236449,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "3ac668fa-f13a-4fbf-9571-8f75c11a9206"
     },
     {
       "openaq_id": 229473,
@@ -2945,6 +3037,28 @@
       "monitor_id": "e3136dde-d002-4114-a41a-25f5d6a793dd"
     },
     {
+      "openaq_id": 3409331,
+      "name": "Bhosari, Pune - IITM",
+      "latitude": 18.640051,
+      "longitude": 73.848956,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12304612,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12304614,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12304615,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "694b5f6c-190c-4a15-aa6a-2933574fb86a"
+    },
+    {
       "openaq_id": 3409385,
       "name": "RVCE-Mailasandra, Bengaluru - KSPCB",
       "latitude": 12.921418,
@@ -3021,6 +3135,136 @@
         }
       ],
       "monitor_id": "0c12c88d-7d78-402d-b96c-c568c36e2df2"
+    },
+    {
+      "openaq_id": 3409435,
+      "name": "Gavalinagar, Pimpri Chinchwad - MPCB",
+      "latitude": 18.63673,
+      "longitude": 73.82487,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12237984,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12237986,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12237987,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12237989,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "ec61de51-ba02-4563-9e90-fba7bd41b2c5"
+    },
+    {
+      "openaq_id": 3409436,
+      "name": "Park Street Wakad, Pimpri Chinchwad - MPCB",
+      "latitude": 18.59051,
+      "longitude": 73.77946,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12237993,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12237995,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12237996,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12237998,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "2a688d47-2d56-4f9f-ba62-2f7d05eae3f0"
+    },
+    {
+      "openaq_id": 3409437,
+      "name": "Thergaon, Pimpri Chinchwad - MPCB",
+      "latitude": 18.616318,
+      "longitude": 73.765797,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12243014,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12243016,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12243017,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12243019,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "435dcf6c-0f95-4fe5-9fba-00a32e0a7b16"
+    },
+    {
+      "openaq_id": 3409438,
+      "name": "Katraj Dairy, Pune - MPCB",
+      "latitude": 18.45445,
+      "longitude": 73.854155,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12248367,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12248369,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12248370,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12248372,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "45395f8d-b0bc-4e80-ab86-ace1048f627c"
+    },
+    {
+      "openaq_id": 3409439,
+      "name": "Savitribai Phule Pune University, Pune - MPCB",
+      "latitude": 18.547056,
+      "longitude": 73.826908,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12238002,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238004,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238005,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12238007,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "765eebd4-4ec7-4174-b177-cd8fd3083c71"
     },
     {
       "openaq_id": 3409469,
@@ -3439,6 +3683,28 @@
       "monitor_id": "4a897033-5af5-4e97-bdf7-d1c9e0d81385"
     },
     {
+      "openaq_id": 3409523,
+      "name": "Bhumkar Nagar, Pune - IITM",
+      "latitude": 18.60577,
+      "longitude": 73.749976,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12238673,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238675,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238676,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "4cd8f776-c163-479c-b307-72280b49675f"
+    },
+    {
       "openaq_id": 3409524,
       "name": "Botanical Garden, Howrah - WBPCB",
       "latitude": 22.554954,
@@ -3465,6 +3731,50 @@
       "monitor_id": "a49737c0-5076-435a-b1e9-08d5fece9f3c"
     },
     {
+      "openaq_id": 3409526,
+      "name": "Panchawati_Pashan, Pune - IITM",
+      "latitude": 18.536457,
+      "longitude": 73.805454,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12238690,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238692,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238693,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "e77bb94e-4e9f-46ee-a734-d4cb65155624"
+    },
+    {
+      "openaq_id": 3409528,
+      "name": "Savta Mali Nagar, Pimpri-Chinchwad - IITM",
+      "latitude": 18.614767,
+      "longitude": 73.799516,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12238707,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238709,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238710,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "7a7eee02-b0b7-467b-b43a-7b734591587b"
+    },
+    {
       "openaq_id": 3409530,
       "name": "Dasnagar, Howrah - WBPCB",
       "latitude": 22.6025571,
@@ -3489,6 +3799,28 @@
         }
       ],
       "monitor_id": "81dd8250-d385-4e8e-a8e3-a64172749306"
+    },
+    {
+      "openaq_id": 3410005,
+      "name": "Dhankawadi, Pune - IITM",
+      "latitude": 18.459883,
+      "longitude": 73.852193,
+      "city": "Pune",
+      "sensors": [
+        {
+          "sensor_id": 12238731,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12238733,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12238734,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "2e84be38-0b14-4307-9f3e-81a79da1230f"
     },
     {
       "openaq_id": 4663956,

@@ -44,10 +44,43 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 XKDR_GLOB = str(PROJECT_ROOT / "data" / "XKDR_data" / "data" / "v1"
                 / "measurements" / "*" / "*" / "data.parquet")
 
-# XKDR city spellings for our six target cities. Note these are XKDR's names,
-# which differ from TARGET_CITIES in config.py ("Bengaluru" vs "Bangalore",
-# "Delhi" vs "Delhi NCR") -- the app maps between them.
-CITIES = ["Delhi", "Mumbai", "Bengaluru", "Hyderabad", "Chennai", "Kolkata"]
+# Our target cities, named as the analysis refers to them. These differ from
+# TARGET_CITIES in config.py ("Bengaluru" vs "Bangalore", "Delhi" vs
+# "Delhi NCR") -- the app maps between them.
+CITIES = ["Delhi", "Mumbai", "Bengaluru", "Hyderabad", "Chennai", "Kolkata", "Pune"]
+
+# One of our cities can span several XKDR city_name values. Pune is the case
+# that forced this: our bounding box covers Pune proper and Pimpri-Chinchwad,
+# which is one contiguous metro on the ground but two names in XKDR. Merging
+# them matches what the app will serve.
+#
+# Caveat worth remembering when reading Pune's numbers: XKDR only starts
+# labelling Pimpri-Chinchwad in 2023, so the merged series gains stations
+# partway through. The two-step average (mean of station means, never a mean of
+# raw readings) limits the damage, but Pune's early years rest on fewer
+# monitors than its later ones.
+XKDR_CITY_ALIASES: Dict[str, List[str]] = {
+    "Pune": ["Pune", "Pimpri-Chinchwad"],
+}
+
+
+def xkdr_names(city: str) -> List[str]:
+    """XKDR city_name values that make up one of our cities."""
+    return XKDR_CITY_ALIASES.get(city, [city])
+
+
+def _city_sql_case() -> str:
+    """SQL fragment folding XKDR city names into our city names."""
+    whens = []
+    for city in CITIES:
+        names = ", ".join(f"'{n}'" for n in xkdr_names(city))
+        whens.append(f"WHEN city_name IN ({names}) THEN '{city}'")
+    return "CASE " + " ".join(whens) + " END"
+
+
+def _all_xkdr_names() -> str:
+    names = {n for c in CITIES for n in xkdr_names(c)}
+    return ", ".join(f"'{n}'" for n in sorted(names))
 
 # The months that motivate the whole product. Delhi's PM2.5 roughly quadruples
 # between its August low and its November peak; a forecast that only works in
@@ -72,14 +105,13 @@ def load_city_daily(min_readings_per_station_day: int = 12,
         f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
         f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
     )
-    city_list = ", ".join(f"'{c}'" for c in CITIES)
     df = con.sql(f"""
         WITH station_day AS (
-            SELECT city_name, station_id, CAST(collected_at AS DATE) AS d,
-                   avg(value) AS v
+            SELECT {_city_sql_case()} AS city_name, station_id,
+                   CAST(collected_at AS DATE) AS d, avg(value) AS v
             FROM m
             WHERE parameter_name = 'PM2.5'
-              AND city_name IN ({city_list})
+              AND city_name IN ({_all_xkdr_names()})
               AND value BETWEEN 0 AND 2000
             GROUP BY 1, 2, 3
             HAVING count(*) >= {min_readings_per_station_day}
@@ -288,15 +320,14 @@ def load_city_hourly(rebuild: bool = False, min_stations: int = 3,
             f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
             f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
         )
-        city_list = ", ".join(f"'{c}'" for c in CITIES)
         con.execute(f"""COPY (
-            SELECT city_name AS city, collected_at AS ts,
+            SELECT {_city_sql_case()} AS city, collected_at AS ts,
                    CAST(collected_at AS DATE) AS d,
                    EXTRACT(hour FROM collected_at)::INTEGER AS hr,
                    EXTRACT(month FROM collected_at)::INTEGER AS mo,
                    avg(value) AS pm25, count(*) AS n_st
             FROM m
-            WHERE parameter_name = 'PM2.5' AND city_name IN ({city_list})
+            WHERE parameter_name = 'PM2.5' AND city_name IN ({_all_xkdr_names()})
               AND value BETWEEN 0 AND 2000 AND collected_at >= '{since}'
             GROUP BY 1,2,3,4,5 HAVING count(*) >= {min_stations}
         ) TO '{CITY_HOURLY_CACHE}' (FORMAT PARQUET, COMPRESSION ZSTD)""")
@@ -537,12 +568,11 @@ def load_station_daily(rebuild: bool = False, min_readings_per_day: int = 12,
             f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
             f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
         )
-        city_list = ", ".join(f"'{c}'" for c in CITIES)
         con.execute(f"""COPY (
-            SELECT city_name AS city, station_id AS station,
+            SELECT {_city_sql_case()} AS city, station_id AS station,
                    CAST(collected_at AS DATE) AS d, avg(value) AS v
             FROM m
-            WHERE parameter_name = 'PM2.5' AND city_name IN ({city_list})
+            WHERE parameter_name = 'PM2.5' AND city_name IN ({_all_xkdr_names()})
               AND value BETWEEN 0 AND 2000 AND collected_at >= '{since}'
             GROUP BY 1,2,3 HAVING count(*) >= {min_readings_per_day}
         ) TO '{STATION_DAILY_CACHE}' (FORMAT PARQUET, COMPRESSION ZSTD)""")
