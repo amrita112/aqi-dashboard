@@ -33,7 +33,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -511,6 +511,186 @@ def gap_stats(series: pd.Series, since: str = "2019-01-01",
             "p99": float(np.percentile(normal, 99)),
             "p999": float(np.percentile(normal, 99.9)),
             "missing_days": int((~present).sum()), "total_days": int(len(s))}
+
+
+# ─── Station granularity ─────────────────────────────────────────────────────
+#
+# Every backtest above works on a CITY average over tens of stations. The app
+# serves whatever is near the user, which is a handful of stations at most.
+# These functions ask whether the skill survives that shrink -- and they exist
+# as functions rather than a one-off script because the answer decides what the
+# forecast service stores.
+
+STATION_DAILY_CACHE = PROJECT_ROOT / "data" / "xkdr_station_daily.parquet"
+
+
+def load_station_daily(rebuild: bool = False, min_readings_per_day: int = 12,
+                       since: str = "2019-01-01") -> pd.DataFrame:
+    """Daily mean PM2.5 per STATION (not per city), cached as parquet."""
+    import duckdb
+
+    if STATION_DAILY_CACHE.exists() and not rebuild:
+        df = pd.read_parquet(STATION_DAILY_CACHE)
+    else:
+        con = duckdb.connect()
+        con.execute(
+            f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
+            f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
+        )
+        city_list = ", ".join(f"'{c}'" for c in CITIES)
+        con.execute(f"""COPY (
+            SELECT city_name AS city, station_id AS station,
+                   CAST(collected_at AS DATE) AS d, avg(value) AS v
+            FROM m
+            WHERE parameter_name = 'PM2.5' AND city_name IN ({city_list})
+              AND value BETWEEN 0 AND 2000 AND collected_at >= '{since}'
+            GROUP BY 1,2,3 HAVING count(*) >= {min_readings_per_day}
+        ) TO '{STATION_DAILY_CACHE}' (FORMAT PARQUET, COMPRESSION ZSTD)""")
+        df = pd.read_parquet(STATION_DAILY_CACHE)
+
+    df["d"] = pd.to_datetime(df["d"])
+    return df
+
+
+def _as_series(df: pd.DataFrame, name: str = "") -> pd.Series:
+    """Collapse station-days to one daily series on an explicit calendar index."""
+    s = df.groupby("d")["v"].mean()
+    s = s.asfreq("D") if len(s) else s
+    s.name = name
+    return s
+
+
+def evaluate_series(s: pd.Series, test_year: int, min_train_days: int = 300,
+                    min_test_days: int = 40) -> Optional[Dict[str, Any]]:
+    """Fit and score the standalone +1-day model on any daily series.
+
+    Works the same whether `s` is a city average, a k-station aggregate or one
+    station, which is what makes the granularity comparison apples-to-apples.
+    Also reports how often the day the model depends on -- yesterday -- is
+    simply absent, because that is the failure mode that gets worse as the
+    aggregate shrinks.
+    """
+    train = s[s.index.year < test_year].dropna()
+    test = s[s.index.year == test_year].dropna()
+    test = test[test.index.month.isin(SEASON_MONTHS)]
+    if len(train) < min_train_days or len(test) < min_test_days:
+        return None
+
+    clim = climatology(train)
+    alpha = fit_alpha(train, clim, 1)
+    idx = test.index
+    prev = _lagged(s, idx, 1)
+    cl_now = pd.Series(clim.reindex(idx.dayofyear).values, index=idx)
+    cl_prev = pd.Series(clim.reindex((idx - pd.Timedelta(days=1)).dayofyear).values, index=idx)
+
+    out: Dict[str, Any] = {"name": s.name, "n_test": len(test), "alpha": alpha,
+                           "level": float(test.mean()),
+                           "pct_yesterday_missing": 100 * float(prev.isna().mean())}
+    for key, pred in (("blend", cl_now + alpha * (prev - cl_prev)),
+                      ("persist", prev), ("clim", cl_now)):
+        mask = pred.notna() & test.notna()
+        out["mae_" + key] = (float(np.abs(pred[mask] - test[mask]).mean())
+                             if mask.sum() > 20 else np.nan)
+    out["skill"] = (100 * (out["mae_clim"] - out["mae_blend"]) / out["mae_clim"]
+                    if out["mae_clim"] == out["mae_clim"] else np.nan)
+    return out
+
+
+def backtest_granularity(station_daily: pd.DataFrame, test_year: int,
+                         ks: Iterable[int] = (3, 5, 10), trials: int = 8,
+                         min_station_days: int = 500, seed: int = 0) -> pd.DataFrame:
+    """Score the same model at city, k-station and single-station granularity.
+
+    The k-station groups are RANDOM subsets rather than true geographic
+    neighbours. That is deliberate and conservative: real neighbours correlate
+    more with each other, so they average away slightly less noise than a
+    random set -- meaning the true k-nearest result should be no worse than
+    this. Geography would also make the subset more representative of the
+    user's own air, which this cannot measure.
+    """
+    rng = np.random.default_rng(seed)
+    rows: List[Dict[str, Any]] = []
+
+    for city, g in station_daily.groupby("city"):
+        city_row = evaluate_series(_as_series(g, f"{city} :: CITY"), test_year)
+        if city_row:
+            rows.append({**city_row, "city": city, "kind": "city", "k": np.inf})
+
+        counts = g.groupby("station").size()
+        stations = [st for st in counts.index if counts[st] >= min_station_days]
+
+        for st in stations:
+            r = evaluate_series(_as_series(g[g.station == st], f"{city} :: {st}"), test_year)
+            if r:
+                rows.append({**r, "city": city, "kind": "station", "k": 1})
+
+        for k in ks:
+            if len(stations) < k:
+                continue
+            for t in range(trials):
+                pick = rng.choice(stations, size=k, replace=False)
+                r = evaluate_series(
+                    _as_series(g[g.station.isin(pick)], f"{city} :: k={k} #{t}"), test_year)
+                if r:
+                    rows.append({**r, "city": city, "kind": f"k={k}", "k": k})
+    return pd.DataFrame(rows)
+
+
+def backtest_hierarchical(station_daily: pd.DataFrame, test_year: int,
+                          min_station_days: int = 500,
+                          min_overlap_days: int = 200) -> pd.DataFrame:
+    """Test `city_forecast x station_ratio(month)` against a standalone model.
+
+    The idea, by analogy with the diurnal shape: forecast the robust aggregate,
+    then distribute it with a cheap per-station ratio. It sounds right and it
+    does not work -- kept here so the rejection stays reproducible rather than
+    becoming folklore, and so nobody rebuilds it.
+    """
+    rows: List[Dict[str, Any]] = []
+
+    for city, g in station_daily.groupby("city"):
+        city_s = _as_series(g, city)
+        city_train = city_s[city_s.index.year < test_year].dropna()
+        if len(city_train) < 300:
+            continue
+        clim = climatology(city_train)
+        alpha = fit_alpha(city_train, clim, 1)
+
+        counts = g.groupby("station").size()
+        for st in [s for s in counts.index if counts[s] >= min_station_days]:
+            st_s = _as_series(g[g.station == st], f"{city} :: {st}")
+            standalone = evaluate_series(st_s, test_year)
+            if standalone is None:
+                continue
+            test = st_s[st_s.index.year == test_year].dropna()
+            test = test[test.index.month.isin(SEASON_MONTHS)]
+
+            joined = pd.DataFrame({"st": st_s, "city": city_s}).dropna()
+            joined = joined[(joined.index.year < test_year) & (joined["city"] > 1)]
+            if len(joined) < min_overlap_days:
+                continue
+            ratio = (joined["st"] / joined["city"]).groupby(joined.index.month).mean()
+
+            idx = test.index
+            prev = _lagged(city_s, idx, 1)
+            cl_now = pd.Series(clim.reindex(idx.dayofyear).values, index=idx)
+            cl_prev = pd.Series(
+                clim.reindex((idx - pd.Timedelta(days=1)).dayofyear).values, index=idx)
+            pred = (cl_now + alpha * (prev - cl_prev)) * pd.Series(
+                ratio.reindex(idx.month).values, index=idx)
+
+            mask = pred.notna() & test.notna()
+            if mask.sum() < 20:
+                continue
+            rows.append({"city": city, "station": st, "n": int(mask.sum()),
+                         "mae_hierarchical": float(np.abs(pred[mask] - test[mask]).mean()),
+                         "mae_standalone": standalone["mae_blend"]})
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df["pct_improvement"] = (100 * (df.mae_standalone - df.mae_hierarchical)
+                                 / df.mae_standalone)
+        df["hierarchical_better"] = df.mae_hierarchical < df.mae_standalone
+    return df
 
 
 # ─── NAQI bands ──────────────────────────────────────────────────────────────
