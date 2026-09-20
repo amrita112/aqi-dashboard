@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-18T18:17:09.051251+00:00",
+  "generated_at": "2026-09-20T09:29:37.906814+00:00",
   "source": "openaq",
   "pollutants": [
     "no2",
@@ -943,24 +943,6 @@
         }
       ],
       "monitor_id": "f2de683a-2f79-4474-94a0-a1cb3a9b554e"
-    },
-    {
-      "openaq_id": 6927,
-      "name": "Colaba, Mumbai - MPCB",
-      "latitude": 18.91,
-      "longitude": 72.82,
-      "city": "Mumbai",
-      "sensors": [
-        {
-          "sensor_id": 12235923,
-          "parameter": "no2"
-        },
-        {
-          "sensor_id": 12235926,
-          "parameter": "pm25"
-        }
-      ],
-      "monitor_id": "01f1fa42-d93b-412c-b1ea-8d9bc3e41352"
     },
     {
       "openaq_id": 6929,
