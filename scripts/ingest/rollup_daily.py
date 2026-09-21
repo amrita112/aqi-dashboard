@@ -30,6 +30,7 @@ Optional:
 from __future__ import annotations
 
 import os
+import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List
 
@@ -60,6 +61,34 @@ def target_dates() -> List[date]:
 # page against this rather than assuming a request returns everything.
 PAGE = 1000
 
+# Supabase sits behind Cloudflare, which intermittently returns a 502 HTML page
+# instead of JSON. One of those killed a 35-day re-roll partway through on
+# 2026-09-21, losing the remaining days. The failure is transient and a retry
+# clears it, so every read goes through this rather than calling .execute()
+# directly.
+QUERY_RETRIES = 4
+
+
+def _execute(build_query, what: str):
+    """Run a PostgREST query, retrying transient gateway failures.
+
+    `build_query` is a zero-arg callable returning a fresh query object --
+    fresh because a PostgREST builder cannot be re-executed once it has failed.
+    """
+    delay = 2.0
+    for attempt in range(QUERY_RETRIES):
+        try:
+            return build_query().execute()
+        except Exception as e:
+            transient = any(t in str(e) for t in ("502", "503", "504", "timeout",
+                                                  "Bad Gateway", "JSON could not be generated"))
+            if attempt == QUERY_RETRIES - 1 or not transient:
+                raise
+            print(f"  {what}: {type(e).__name__} (attempt {attempt + 1}/"
+                  f"{QUERY_RETRIES}); retrying in {delay:.0f}s")
+            time.sleep(delay)
+            delay *= 2
+
 # Reading ids per measurements query. Kept well under PAGE / measurements-per-
 # reading so most chunks resolve in a single request, but correctness no longer
 # depends on that -- the loop below pages until the chunk is exhausted.
@@ -78,13 +107,15 @@ def fetch_day_measurements(client, day: date) -> pd.DataFrame:
     r_rows = []
     offset, page = 0, PAGE
     while True:
-        r = (client.table("readings")
-                    .select("id, monitor_id, recorded_at")
-                    .eq("source", "openaq")
-                    .gte("recorded_at", day_start.isoformat())
-                    .lt("recorded_at", day_end.isoformat())
-                    .range(offset, offset + page - 1)
-                    .execute())
+        off = offset
+        r = _execute(
+            lambda: (client.table("readings")
+                           .select("id, monitor_id, recorded_at")
+                           .eq("source", "openaq")
+                           .gte("recorded_at", day_start.isoformat())
+                           .lt("recorded_at", day_end.isoformat())
+                           .range(off, off + page - 1)),
+            f"readings {day} offset {off}")
         r_rows.extend(r.data or [])
         if not r.data or len(r.data) < page:
             break
@@ -110,11 +141,13 @@ def fetch_day_measurements(client, day: date) -> pd.DataFrame:
         chunk = reading_ids[i:i + MEASUREMENT_CHUNK]
         offset = 0
         while True:
-            m = (client.table("measurements")
-                        .select("reading_id, pollutant, value")
-                        .in_("reading_id", chunk)
-                        .range(offset, offset + PAGE - 1)
-                        .execute())
+            off = offset
+            m = _execute(
+                lambda: (client.table("measurements")
+                               .select("reading_id, pollutant, value")
+                               .in_("reading_id", chunk)
+                               .range(off, off + PAGE - 1)),
+                f"measurements {day} chunk {i}")
             batch = m.data or []
             m_rows.extend(batch)
             if len(batch) < PAGE:
@@ -191,10 +224,18 @@ def main() -> None:
 
     grand_measurements = 0
     grand_rollup_rows  = 0
+    failed: List[date] = []
     for d in dates:
-        joined = fetch_day_measurements(client, d)
+        try:
+            joined = fetch_day_measurements(client, d)
+            rows = compute_rollup(joined, d)
+        except Exception as e:
+            # One unrecoverable day should not cost us the other 34. The job is
+            # idempotent, so a failed day is simply re-rolled next run.
+            print(f"  {d}: FAILED ({type(e).__name__}: {e}); continuing")
+            failed.append(d)
+            continue
         grand_measurements += len(joined)
-        rows = compute_rollup(joined, d)
         grand_rollup_rows += len(rows)
         print(f"  {d}: {len(joined):>6} measurements → {len(rows):>4} rollup rows")
 
@@ -204,6 +245,9 @@ def main() -> None:
     print()
     print(f"Total: {grand_measurements} measurements read, "
           f"{grand_rollup_rows} rollup rows {'would be' if dry_run else 'were'} written.")
+    if failed:
+        print(f"FAILED days ({len(failed)}), will be retried on the next run: "
+              f"{[d.isoformat() for d in failed]}")
 
 
 if __name__ == "__main__":
