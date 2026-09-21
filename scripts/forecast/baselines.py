@@ -723,6 +723,120 @@ def backtest_hierarchical(station_daily: pd.DataFrame, test_year: int,
     return df
 
 
+# ─── Serving-architecture checks ─────────────────────────────────────────────
+
+
+def backtest_precompute_equivalence(station_daily: pd.DataFrame, test_year: int,
+                                    k: int = 3, trials: int = 12,
+                                    min_station_days: int = 500,
+                                    seed: int = 0) -> pd.DataFrame:
+    """Can we precompute per station and average, instead of forecasting the mix?
+
+    This is the question the serving design rests on. The backtest validated
+    forecasting the k-station AGGREGATE, but a user's location is continuous --
+    we cannot precompute a forecast for every point someone might stand on. We
+    can precompute per station, then average the k nearest at request time.
+
+    Those are only the same thing if the model is linear in its inputs AND the
+    weight alpha is shared. It is linear, so the test is whether a shared
+    per-city alpha closes the gap. Reported both ways.
+    """
+    rng = np.random.default_rng(seed)
+    rows: List[Dict[str, Any]] = []
+
+    for city, g in station_daily.groupby("city"):
+        counts = g.groupby("station").size()
+        stations = [s for s in counts.index if counts[s] >= min_station_days]
+        if len(stations) < k:
+            continue
+        city_s = g.groupby("d")["v"].mean().asfreq("D")
+        city_train = city_s[city_s.index.year < test_year].dropna()
+        if len(city_train) < 300:
+            continue
+        city_alpha = fit_alpha(city_train, climatology(city_train), 1)
+
+        for _ in range(trials):
+            pick = list(rng.choice(stations, size=k, replace=False))
+            agg = g[g.station.isin(pick)].groupby("d")["v"].mean().asfreq("D")
+            agg_train = agg[agg.index.year < test_year].dropna()
+            if len(agg_train) < 300:
+                continue
+            test = agg[agg.index.year == test_year].dropna()
+            test = test[test.index.month.isin(SEASON_MONTHS)]
+            if len(test) < 40:
+                continue
+            idx = test.index
+
+            def forecast(series: pd.Series, clim: pd.Series, alpha: float) -> pd.Series:
+                prev = _lagged(series, idx, 1)
+                cl_now = pd.Series(clim.reindex(idx.dayofyear).values, index=idx)
+                cl_prev = pd.Series(
+                    clim.reindex((idx - pd.Timedelta(days=1)).dayofyear).values, index=idx)
+                return cl_now + alpha * (prev - cl_prev)
+
+            aggregate_fc = forecast(agg, climatology(agg_train), city_alpha)
+
+            shared, own = [], []
+            for st in pick:
+                ss = g[g.station == st].groupby("d")["v"].mean().asfreq("D")
+                st_train = ss[ss.index.year < test_year].dropna()
+                if len(st_train) < 300:
+                    continue
+                st_clim = climatology(st_train)
+                shared.append(forecast(ss, st_clim, city_alpha))
+                own.append(forecast(ss, st_clim, fit_alpha(st_train, st_clim, 1)))
+            if len(shared) < k:
+                continue
+
+            for label, parts in (("shared_alpha", shared), ("per_station_alpha", own)):
+                avg = pd.concat(parts, axis=1).mean(axis=1)
+                m = aggregate_fc.notna() & avg.notna()
+                if m.sum() < 20:
+                    continue
+                rows.append({
+                    "city": city, "k": k, "alpha_scheme": label,
+                    "mean_abs_diff": float(np.abs(aggregate_fc[m] - avg[m]).mean()),
+                    "forecast_level": float(test.mean()), "n": int(m.sum()),
+                })
+    return pd.DataFrame(rows)
+
+
+def residual_bands(series: pd.Series, test_year: int,
+                   horizons: Iterable[int] = (1, 2, 3),
+                   quantiles: Iterable[int] = (50, 80, 90)) -> pd.DataFrame:
+    """Uncertainty bands, as a RATIO of the forecast rather than a width.
+
+    A ratio because one number then serves Delhi at 200 ug/m3 and Bengaluru at
+    30; absolute widths would need a table per level and would look absurd on
+    whichever city they were not tuned for.
+    """
+    train = series[series.index.year < test_year].dropna()
+    test = series[series.index.year == test_year].dropna()
+    test = test[test.index.month.isin(SEASON_MONTHS)]
+    if len(train) < 300 or len(test) < 40:
+        return pd.DataFrame()
+
+    clim = climatology(train)
+    idx = test.index
+    rows: List[Dict[str, Any]] = []
+    for h in horizons:
+        alpha = fit_alpha(train, clim, h)
+        prev = _lagged(series, idx, h)
+        cl_now = pd.Series(clim.reindex(idx.dayofyear).values, index=idx)
+        cl_prev = pd.Series(clim.reindex((idx - pd.Timedelta(days=h)).dayofyear).values, index=idx)
+        pred = cl_now + alpha * (prev - cl_prev)
+        m = pred.notna() & test.notna() & (pred > 0)
+        if m.sum() < 20:
+            continue
+        rel = (np.abs(pred[m] - test[m]) / pred[m]).values
+        row = {"city": series.name, "horizon": h, "n": int(m.sum()),
+               "mae": float(np.abs(pred[m] - test[m]).mean())}
+        for q in quantiles:
+            row[f"p{q}"] = float(np.percentile(rel, q))
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
 # ─── NAQI bands ──────────────────────────────────────────────────────────────
 # What a user acts on is the category, not the number. A forecast that says
 # 190 when the truth is 210 is numerically off by 20 but lands in the right
