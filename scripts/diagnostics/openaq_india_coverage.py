@@ -1,20 +1,12 @@
 """
 Measure and plot recent data availability for India CPCB stations on OpenAQ.
 
-Standalone and self-contained: paste it into an issue, or run it as-is. Needs
+Standalone and self-contained. Needs
 only `requests`, `pandas`, `matplotlib` and an OpenAQ API key in OPENAQ_API_KEY.
 
-    python3 scripts/diagnostics/openaq_india_coverage.py
-
-It asks one question: for a sample of Indian CPCB reference stations, how many
-measurements does /v3/sensors/{id}/measurements return for each of the last N
-days, against the 96 a 15-minute feed should produce?
-
-EFFICIENCY NOTE. The obvious implementation -- loop over stations AND days,
-one request per station-day -- is what runs into the rate limit: 20 stations
-over 30 days is 600 requests. Asking for the whole window in one call per
-sensor and binning locally is 20 requests plus pagination, roughly 30x fewer.
-Same data. That is the only reason this script is fast enough to run.
+In a sample of Indian CPCB reference stations, how many measurements does 
+/v3/sensors/{id}/measurements return for each of the last N days, 
+against the 96 a 15-minute feed should produce?
 """
 
 from __future__ import annotations
@@ -36,17 +28,13 @@ HEADERS = {"X-API-Key": KEY}
 COUNTRY_ID_INDIA = 9
 PARAMETER = "pm25"
 DAYS_BACK = 30
-MAX_STATIONS = 20
+MAX_STATIONS = 50
 EXPECTED_PER_DAY = 96          # CPCB publishes at 15-minute resolution
-# Matches the ingest pipeline's throttle (openaq_client.py). An earlier version
-# of this script drew 429s at this spacing, but that was self-inflicted: it
-# paginated with `offset`, which v3 ignores, so it re-requested page 1 without
-# bound and blew through the quota. The spacing was never the problem.
-THROTTLE_S = 1.2
+THROTTLE_S = 1.2               # seconds between requests to avoid 429s
 PAGE_LIMIT = 1000              # v3 maximum
 MAX_PAGES = 6                  # 6000 readings covers 60+ days at 15-min spacing
 
-# City bounding boxes, so the sample spans the country rather than one metro.
+# City bounding boxes
 CITY_BOXES = {
     "Delhi":     (28.40, 76.80, 28.90, 77.50),
     "Mumbai":    (18.85, 72.75, 19.30, 73.05),
@@ -86,8 +74,8 @@ def pick_stations():
         cands = []
         for loc in js.get("results", []):
             name = loc.get("name") or ""
-            # CPCB reference stations carry the agency in the name; this also
-            # filters out low-cost private sensors, which have a different
+            # CPCB reference stations carry the agency in the name; this
+            # filters out private sensors, which have a different
             # publication path and would muddy the picture.
             if not any(a in name for a in ("CPCB", "DPCC", "MPCB", "KSPCB",
                                            "WBPCB", "TSPCB", "UPPCB")):
@@ -108,11 +96,6 @@ def pick_stations():
 
 def daily_counts(sensor_id: int, since: datetime):
     """Measurements per UTC day for one sensor, paginating the whole window.
-
-    v3 paginates with `page`, NOT `offset` -- offset is a v2 parameter and v3
-    silently ignores it, so an offset loop re-requests page 1 forever and never
-    terminates. MAX_PAGES is a belt-and-braces stop in case a future change
-    makes `page` behave the same way.
     """
     counts = defaultdict(int)
     newest = None
@@ -126,7 +109,6 @@ def daily_counts(sensor_id: int, since: datetime):
         stamps = [(r.get("period") or {}).get("datetimeTo", {}).get("utc") for r in rows]
         stamps = [s for s in stamps if s]
         # If a page repeats the previous one, pagination is not working; stop
-        # rather than spin.
         if stamps and stamps[0] == seen_first:
             print("    pagination returned a repeated page; stopping", flush=True)
             break
