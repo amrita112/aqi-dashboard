@@ -1,0 +1,62 @@
+name: Prune raw readings past the retention window
+
+# Deletes raw readings (and, by cascade, their measurements) older than
+# RETENTION_DAYS, but ONLY for days that verify: readings_daily must account
+# for exactly as many measurements as the raw rows contain. A day that does not
+# reconcile is skipped and reported, never deleted.
+#
+# Deliberately weekly, not daily. This is the only job in the repo that destroys
+# data, there is no rush to reclaim space we are not short of (~167 MB of 500),
+# and a weekly cadence leaves a week to notice a problem before the next run.
+#
+# DELETION IS OFF BY DEFAULT. The scheduled run is a dry run: it reports what it
+# WOULD delete and writes a summary. To actually delete, trigger it by hand from
+# the Actions tab with confirm_delete = yes. That makes destruction a deliberate
+# act rather than something that happens quietly at 3am.
+
+on:
+  schedule:
+    # Sundays 03:30 UTC — after the weekly bootstrap (04:30) has not yet run and
+    # well clear of the 6-hourly ingest.
+    - cron: '30 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      confirm_delete:
+        description: 'Type yes to actually delete. Anything else is a dry run.'
+        required: false
+        default: 'no'
+      retention_days:
+        description: 'Keep raw readings this recent (minimum 14)'
+        required: false
+        default: '30'
+      prune_orphans:
+        description: 'Also delete readings that have no measurements at all'
+        required: false
+        default: 'no'
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scripts/ingest/requirements.txt'
+
+      - run: pip install -r scripts/ingest/requirements.txt
+
+      - name: Prune raw readings
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RETENTION_DAYS:            ${{ github.event.inputs.retention_days || '30' }}
+          # Scheduled runs pass an empty string here, so they can only ever be a
+          # dry run. Only a manual dispatch can set this to yes.
+          CONFIRM_DELETE:            ${{ github.event.inputs.confirm_delete }}
+          PRUNE_ORPHANS:             ${{ github.event.inputs.prune_orphans }}
+          PYTHONUNBUFFERED:          '1'
+        run: python -m scripts.ingest.prune_raw
