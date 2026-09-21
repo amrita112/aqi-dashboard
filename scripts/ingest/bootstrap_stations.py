@@ -172,6 +172,30 @@ def filter_to_target(locations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return kept
 
 
+def backfill_monitor_locations(client, stations: List[Dict[str, Any]]) -> int:
+    """Write each station's coordinates and city onto its monitors row.
+
+    monitors carried no position until migration 13; coordinates only existed
+    on individual readings. That made a station's location unfindable exactly
+    when it mattered most -- a station with no recent readings still has to
+    appear on the map, greyed out, rather than vanishing.
+
+    Runs on every bootstrap so a relocated or renamed station stays correct.
+    """
+    updated = 0
+    for st in stations:
+        try:
+            client.table("monitors").update({
+                "latitude":  st["latitude"],
+                "longitude": st["longitude"],
+                "city":      st["city"],
+            }).eq("serial_number", f"openaq:{st['openaq_id']}").execute()
+            updated += 1
+        except Exception as e:
+            print(f"  monitor {st['openaq_id']}: location update failed ({e})")
+    return updated
+
+
 def sync_monitors_table(client, stations: List[Dict[str, Any]]) -> Dict[int, str]:
     """Ensure a row exists in `monitors` for each station.
 
@@ -256,6 +280,8 @@ def main() -> None:
 
     print("Syncing monitors table in Supabase...")
     openaq_to_monitor = sync_monitors_table(supabase, stations)
+    n_loc = backfill_monitor_locations(supabase, stations)
+    print(f"  wrote coordinates + city onto {n_loc} monitor rows")
 
     print("Writing target_stations.json...")
     write_manifest(stations, openaq_to_monitor)

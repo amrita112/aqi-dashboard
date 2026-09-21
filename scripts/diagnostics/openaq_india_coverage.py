@@ -162,7 +162,9 @@ def main():
         except Exception as e:
             print(f"  [{i}/{len(stations)}] {st['name']}: {e}")
             continue
-        label = f"{st['city']} · {st['name']}"
+        # Sensor id in the label keeps stations with the same (truncated)
+        # name from overwriting each other in the dicts below.
+        label = f"{st['city']} · {st['name']} [{st['sensor']}]"
         grid[label] = counts
         lags[label] = (now - newest).total_seconds() / 3600 if newest else float("nan")
         print(f"  [{i}/{len(stations)}] {label}: {sum(counts.values())} readings, "

@@ -1,0 +1,44 @@
+name: Nightly forecast
+
+# Writes 7 days ahead per station into forecast_daily. Cheap -- no model
+# fitting, just lookups against the precomputed curves and arithmetic.
+#
+# Timed after the daily rollup (05:00 UTC), because it reads readings_daily and
+# a stale rollup would mean forecasting from yesterday's freshest day rather
+# than today's.
+
+on:
+  schedule:
+    - cron: '30 5 * * *'      # 05:30 UTC, half an hour after the rollup
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Log what would be written without writing (true/false)'
+        required: false
+        default: 'false'
+      pollutants:
+        description: 'Space-separated, e.g. "pm25 aqi"'
+        required: false
+        default: 'pm25 aqi'
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scripts/ingest/requirements.txt'
+      - run: pip install -r scripts/ingest/requirements.txt
+      - name: Run nightly forecast
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHONUNBUFFERED:          '1'
+        run: |
+          ARGS="--pollutants ${{ github.event.inputs.pollutants || 'pm25 aqi' }}"
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          python -m scripts.forecast.nightly_forecast $ARGS

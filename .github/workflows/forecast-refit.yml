@@ -1,0 +1,55 @@
+name: Monthly forecast refit
+
+# Rebuilds climatology curves, anomaly-carry weights, the diurnal shape and the
+# data-age mode tables from the full history.
+#
+# Monthly, not nightly: these rest on years of data, so one more month barely
+# moves them, and it is the only expensive job in the set. It reads the local
+# XKDR parquet export, so it needs that checked out or rebuilt -- see the note
+# below before relying on the schedule.
+
+on:
+  schedule:
+    - cron: '0 2 1 * *'       # 02:00 UTC on the 1st
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Fit and report without writing (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  refit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scripts/ingest/requirements.txt'
+      - run: pip install -r scripts/ingest/requirements.txt duckdb pyarrow
+
+      # KNOWN GAP: the refit reads data/XKDR_data/, which is gitignored and
+      # therefore absent on a fresh runner. Until that is resolved -- either by
+      # fetching the XKDR export here or by rebuilding climatology from
+      # readings_daily -- the scheduled run will fail and the refit must be run
+      # locally. Deliberately left visible rather than silently skipped.
+      - name: Check history is available
+        run: |
+          if [ ! -d data/XKDR_data ]; then
+            echo "::error::data/XKDR_data is not present on the runner."
+            echo "Run the refit locally, or wire up the XKDR download first."
+            exit 1
+          fi
+
+      - name: Run refit
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHONUNBUFFERED:          '1'
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="--dry-run"; fi
+          python -m scripts.forecast.refit_params $ARGS

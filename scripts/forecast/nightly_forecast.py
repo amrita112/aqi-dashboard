@@ -91,14 +91,28 @@ def load_modes(client) -> Dict[Tuple[str, str, int, int], Dict[str, Any]]:
             for r in rows}
 
 
+# readings_daily stores the four measured pollutants. Composite AQI is not a
+# measurement, so it is never in there -- and without this it is never found,
+# which silently pins every AQI forecast to seasonal_normal forever.
+MEASURED_POLLUTANTS = ("pm25", "pm10", "no2", "so2")
+
+
 def latest_observations(client, pollutants: List[str],
                         since: date) -> Dict[Tuple[str, str], Tuple[date, float]]:
-    """(monitor_id, pollutant) -> (date, mean) of the most recent day seen."""
+    """(monitor_id, pollutant) -> (date, value) of the most recent day seen.
+
+    For measured pollutants this is the stored daily mean. For 'aqi' it is
+    derived the way CPCB defines NAQI: convert each pollutant's daily mean to
+    its sub-index and take the max over the pollutants that station reported
+    that day.
+    """
+    from scripts.ingest.lib.aqi_utils import compute_subindex
+
     rows, offset = [], 0
     while True:
         r = (client.table("readings_daily")
                    .select("monitor_id, pollutant, date, mean")
-                   .in_("pollutant", pollutants)
+                   .in_("pollutant", list(MEASURED_POLLUTANTS))
                    .gte("date", since.isoformat())
                    .range(offset, offset + 999).execute())
         rows += r.data or []
@@ -112,6 +126,23 @@ def latest_observations(client, pollutants: List[str],
         d = date.fromisoformat(row["date"])
         if key not in latest or d > latest[key][0]:
             latest[key] = (d, float(row["mean"]))
+
+    if "aqi" in pollutants:
+        # Group by (monitor, day) so the max is taken across pollutants
+        # measured on the SAME day -- mixing days would invent an AQI that
+        # never occurred.
+        by_day: Dict[Tuple[str, date], List[float]] = {}
+        for row in rows:
+            sub = compute_subindex(row["pollutant"], float(row["mean"]))
+            if sub is None:
+                continue
+            by_day.setdefault((row["monitor_id"], date.fromisoformat(row["date"])),
+                              []).append(float(sub))
+        for (monitor_id, d), subs in by_day.items():
+            key = (monitor_id, "aqi")
+            if key not in latest or d > latest[key][0]:
+                latest[key] = (d, max(subs))
+
     return latest
 
 
