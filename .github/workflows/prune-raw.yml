@@ -9,10 +9,28 @@ name: Prune raw readings past the retention window
 # data, there is no rush to reclaim space we are not short of (~167 MB of 500),
 # and a weekly cadence leaves a week to notice a problem before the next run.
 #
-# DELETION IS OFF BY DEFAULT. The scheduled run is a dry run: it reports what it
-# WOULD delete and writes a summary. To actually delete, trigger it by hand from
-# the Actions tab with confirm_delete = yes. That makes destruction a deliberate
-# act rather than something that happens quietly at 3am.
+# DELETION IS OFF UNTIL YOU TURN IT ON, then it is automatic.
+#
+#   Repository variable PRUNE_AUTO_DELETE (Settings -> Secrets and variables ->
+#   Actions -> Variables):
+#     unset / anything else  scheduled runs are DRY RUNS -- they report what
+#                            they would delete and change nothing
+#     yes                    scheduled runs delete for real, every week, with
+#                            no human in the loop
+#
+# A manual dispatch always wins over the variable, so you can force a dry run
+# even once auto-delete is on, or delete once before switching it on.
+#
+# It ships unset on purpose. This is the only job that destroys data and it has
+# never run against production, so the first few weeks should be dry runs you
+# read. Once the reports look right, set the variable once and it is automatic
+# from then on -- no code change, and the setting is visible in repo settings
+# rather than buried in a workflow file.
+#
+# Note that the variable controls WHETHER deletion is attempted, not whether it
+# is safe. The real protection is the per-day verification in prune_raw.py: a
+# day whose rollup does not reconcile with its raw measurements is skipped and
+# reported no matter how this is configured.
 
 on:
   schedule:
@@ -54,9 +72,10 @@ jobs:
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RETENTION_DAYS:            ${{ github.event.inputs.retention_days || '30' }}
-          # Scheduled runs pass an empty string here, so they can only ever be a
-          # dry run. Only a manual dispatch can set this to yes.
-          CONFIRM_DELETE:            ${{ github.event.inputs.confirm_delete }}
-          PRUNE_ORPHANS:             ${{ github.event.inputs.prune_orphans }}
+          # Manual dispatch input wins; otherwise the repository variable
+          # decides. Scheduled runs supply no input, so they follow
+          # PRUNE_AUTO_DELETE -- unset means dry run.
+          CONFIRM_DELETE:            ${{ github.event.inputs.confirm_delete || vars.PRUNE_AUTO_DELETE }}
+          PRUNE_ORPHANS:             ${{ github.event.inputs.prune_orphans || vars.PRUNE_AUTO_ORPHANS }}
           PYTHONUNBUFFERED:          '1'
         run: python -m scripts.ingest.prune_raw

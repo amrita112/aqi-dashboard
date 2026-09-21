@@ -163,8 +163,9 @@ def main() -> None:
 
     today = datetime.now(timezone.utc).date()
     cutoff = today - timedelta(days=retention)
-    print(f"Retention: keep raw readings on or after {cutoff} "
-          f"({retention} days). confirm_delete={confirm}")
+    mode = "DELETING" if confirm else "DRY RUN (set CONFIRM_DELETE=yes to delete)"
+    print(f"Retention: keep raw readings on or after {cutoff} ({retention} days)")
+    print(f"Mode: {mode}")
 
     oldest = (client_ := make_client()).table("readings").select("recorded_at") \
         .order("recorded_at").limit(1).execute().data
