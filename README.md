@@ -24,8 +24,38 @@ Create a free project at [supabase.com](https://supabase.com). Then run the SQL 
 | `05-add-monitors-table.sql` | Adds a `monitors` table and links readings to physical devices | Yes |
 | `06-integrity-fixes.sql` | Adds validation constraints, tightened RLS policies, and missing indexes | Yes |
 | `07-add-measurements-table.sql` | Adds a `measurements` table for per-pollutant data (PM2.5, PM10, O3, etc.) | Yes |
+| `08-ingest-uniqueness.sql` | Uniqueness constraints so re-running an ingest is a no-op rather than a duplicate | Yes |
+| `09-fix-readings-uniqueness-index.sql` | Makes the readings index full rather than partial — PostgREST cannot attach a `WHERE` to `ON CONFLICT` | Yes |
+| `10-add-readings-daily-rollup.sql` | Adds `readings_daily`: one row per monitor/pollutant/day, ~40× smaller than raw | Yes |
+| `11-rollup-tied-timestamps.sql` | Stores *every* timestamp at the daily min and max, not one picked arbitrarily | Yes |
+| `12-forecast-tables.sql` | Adds `forecast_params`, `diurnal_shape`, `forecast_daily`, `forecast_modes` | Yes |
+| `13-monitor-locations.sql` | Gives `monitors` a name, coordinates and city; adds nearest-station lookup and `alert_defaults` | Yes |
 
-Files 1, 2, 5, 6, and 7 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
+Files 1, 2, 5–13 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
+
+A few of these are worth a sentence, because the reason is not obvious from the name:
+
+- **11** exists because `min_ts`/`max_ts` were single timestamps chosen by whichever matching
+  row came back first, and row order is not guaranteed — so re-rolling a day could change the
+  answer. About 42% of station-days have a *tied* minimum, and those columns exist to support
+  "when is the air cleanest here", so keeping one arbitrary member of the tie threw away most
+  of the answer.
+- **12** stores the forecast as four small tables (under 14k rows total). Climatology is a
+  366-element array on one row per station rather than 366 rows — same information, roughly a
+  fifteenth of the space, and it is always read whole.
+- **13** adds a `name` column to `monitors`, which never had one: station names lived only in
+  `scripts/ingest/target_stations.json`, so the database could not answer "what is this station
+  called". It also seeds `alert_defaults` — per-city notification thresholds set to the median
+  daily maximum over October–February, so a user who keeps the default hears from the app on
+  roughly half the days of the season.
+
+After running the migrations, populate the derived tables:
+
+```bash
+python3 -m scripts.forecast.refit_params      # climatology, alphas, diurnal shape, modes
+python3 -m scripts.forecast.alert_defaults    # per-city notification thresholds
+python3 -m scripts.forecast.nightly_forecast  # 7 days ahead per station
+```
 
 ### 2. Configure environment variables
 

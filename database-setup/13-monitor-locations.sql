@@ -14,7 +14,12 @@
 --      average over the nearest few rather than a single station.
 -- =============================================================================
 
+-- `name` is here because monitors never had one. The station name existed only
+-- in scripts/ingest/target_stations.json, so the database could not answer
+-- "what is this station called" -- which the picker, the map and every AI
+-- answer need. `notes` was the closest thing and is free-form.
 ALTER TABLE monitors
+  ADD COLUMN IF NOT EXISTS name       TEXT,
   ADD COLUMN IF NOT EXISTS latitude   DOUBLE PRECISION,
   ADD COLUMN IF NOT EXISTS longitude  DOUBLE PRECISION,
   ADD COLUMN IF NOT EXISTS city       TEXT,
@@ -96,3 +101,30 @@ RETURNS TABLE (
   WHERE m.location IS NOT NULL
   ORDER BY m.city, m.name;
 $$ LANGUAGE sql STABLE;
+
+-- ─── Default alert thresholds, per city and pollutant ───────────────────────
+-- Seeded from history rather than invented: the MEDIAN of the daily maximum
+-- over October-February, rounded down to the nearest 10 so the number reads as
+-- a choice rather than a computation.
+--
+-- The median has a property worth explaining in the settings screen: a user who
+-- keeps the default is notified on roughly half the days of the season. That
+-- makes the default self-describing -- "typical for a bad-season day here" --
+-- and gives an obvious direction to move it in.
+--
+-- Rounded DOWN rather than to nearest, so the default is never quietly less
+-- sensitive than the number it came from.
+CREATE TABLE IF NOT EXISTS alert_defaults (
+  city       TEXT             NOT NULL,
+  pollutant  TEXT             NOT NULL CHECK (pollutant IN ('pm25', 'aqi')),
+  threshold  DOUBLE PRECISION NOT NULL,
+  -- Kept so the settings screen can say where the number came from, and so a
+  -- later refresh can be compared against it.
+  source     TEXT             NOT NULL DEFAULT 'median daily max, Oct-Feb',
+  n_days     INTEGER,
+  fitted_at  TIMESTAMPTZ      NOT NULL DEFAULT now(),
+  PRIMARY KEY (city, pollutant)
+);
+
+ALTER TABLE alert_defaults ENABLE ROW LEVEL SECURITY;
+CREATE POLICY alert_defaults_public_read ON alert_defaults FOR SELECT USING (true);

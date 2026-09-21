@@ -173,7 +173,7 @@ def filter_to_target(locations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def backfill_monitor_locations(client, stations: List[Dict[str, Any]]) -> int:
-    """Write each station's coordinates and city onto its monitors row.
+    """Write each station's name, coordinates and city onto its monitors row.
 
     monitors carried no position until migration 13; coordinates only existed
     on individual readings. That made a station's location unfindable exactly
@@ -186,6 +186,7 @@ def backfill_monitor_locations(client, stations: List[Dict[str, Any]]) -> int:
     for st in stations:
         try:
             client.table("monitors").update({
+                "name":      st["name"],
                 "latitude":  st["latitude"],
                 "longitude": st["longitude"],
                 "city":      st["city"],
@@ -281,7 +282,7 @@ def main() -> None:
     print("Syncing monitors table in Supabase...")
     openaq_to_monitor = sync_monitors_table(supabase, stations)
     n_loc = backfill_monitor_locations(supabase, stations)
-    print(f"  wrote coordinates + city onto {n_loc} monitor rows")
+    print(f"  wrote name + coordinates + city onto {n_loc} monitor rows")
 
     print("Writing target_stations.json...")
     write_manifest(stations, openaq_to_monitor)
