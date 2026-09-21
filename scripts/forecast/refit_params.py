@@ -49,7 +49,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.forecast.baselines import (  # noqa: E402
     CITIES, SEASON_MONTHS, aqi_series, city_series, climatology, complete_days,
     diurnal_shape, fit_alpha, forecast_mode_table, load_city_daily,
-    load_city_daily_aqi, load_city_hourly, load_station_daily, xkdr_names,
+    load_city_daily_aqi, load_city_hourly, load_history_from_db,
+    load_station_daily, xkdr_names,
     backtest,
 )
 from scripts.forecast.station_map import build_monitor_to_xkdr  # noqa: E402
@@ -119,7 +120,7 @@ def fit_city(analysis_city: str, pollutant: str,
             model = str(mean_mae.idxmin())
 
     shape_rows: List[Dict[str, Any]] = []
-    if pollutant != "aqi":
+    if pollutant != "aqi" and hourly is not None:
         g = complete_days(hourly[hourly.city == analysis_city])
         if not g.empty:
             shape = diurnal_shape(g)
@@ -177,6 +178,20 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--pollutants", nargs="+", default=["pm25", "aqi"])
+    ap.add_argument(
+        "--source", choices=("parquet", "db"), default="parquet",
+        help="Where history comes from. 'parquet' is the local XKDR export "
+             "(full fidelity, including the hourly series behind the diurnal "
+             "shape). 'db' reads readings_daily out of Supabase, which is the "
+             "only option on a CI runner -- it refits everything except the "
+             "diurnal shape, and leaves the existing shape rows untouched.")
+    ap.add_argument(
+        "--prune-orphans", action="store_true",
+        help="Delete forecast_params rows for monitors that are no longer in "
+             "the manifest. Off by default: a monitor usually leaves the "
+             "manifest because its sensors went stale, and if it comes back "
+             "its fitted curve is still there. Orphans are reported either "
+             "way, so this is a decision rather than a surprise.")
     args = ap.parse_args()
 
     print(f"Refit: pollutants={args.pollutants} dry_run={args.dry_run}")
@@ -186,9 +201,14 @@ def main() -> None:
     # Map each of our monitors to the XKDR station_id that holds its history.
     # Without this every station silently falls back to the city curve, which
     # throws away the whole point of fitting per station.
-    monitor_to_xkdr = build_monitor_to_xkdr(manifest)
-    matched = sum(1 for v in monitor_to_xkdr.values() if v)
-    print(f"  station history matched: {matched}/{len(manifest['stations'])}")
+    # Only the parquet path needs this: it keys history by XKDR station id, so
+    # each monitor has to be matched to one by name. The DB path is already
+    # keyed by monitor_id (see below) and skips the matching entirely.
+    monitor_to_xkdr: Dict[str, Optional[str]] = {}
+    if args.source == "parquet":
+        monitor_to_xkdr = build_monitor_to_xkdr(manifest)
+        matched = sum(1 for v in monitor_to_xkdr.values() if v)
+        print(f"  station history matched: {matched}/{len(manifest['stations'])}")
 
     by_city: Dict[str, List[Dict[str, Any]]] = {}
     for st in manifest["stations"]:
@@ -198,11 +218,26 @@ def main() -> None:
                 {"monitor_id": st["monitor_id"], "name": st["name"],
                  "xkdr_station": monitor_to_xkdr.get(st["monitor_id"])})
 
-    print("Loading history ...")
-    daily = load_city_daily()
-    daily_aqi = load_city_daily_aqi()
-    hourly = load_city_hourly()
-    station_daily = load_station_daily()
+    print(f"Loading history from {args.source} ...")
+    if args.source == "db":
+        hist = load_history_from_db()
+        daily, daily_aqi = hist["daily"], hist["daily_aqi"]
+        station_daily = hist["station_daily"]
+        # readings_daily is daily, so there is no hourly series to refit the
+        # diurnal shape from. Passing None makes fit_city skip it rather than
+        # overwrite good shape rows with nothing.
+        hourly = None
+        # Station history from the DB is keyed by monitor_id -- load_history.py
+        # already did the XKDR name matching when it wrote those rows, so the
+        # station's own id is the join key here.
+        for monitors in by_city.values():
+            for mon in monitors:
+                mon["xkdr_station"] = mon["monitor_id"]
+    else:
+        daily = load_city_daily()
+        daily_aqi = load_city_daily_aqi()
+        hourly = load_city_hourly()
+        station_daily = load_station_daily()
 
     params_rows: List[Dict[str, Any]] = []
     shape_rows: List[Dict[str, Any]] = []
@@ -260,6 +295,22 @@ def main() -> None:
             client.table(table).upsert(chunk, on_conflict=conflict).execute()
             written += len(chunk)
         print(f"  {table}: {written} rows upserted")
+
+    # Monitors drop out of the manifest when their sensors go stale, which
+    # leaves their fitted rows behind. Harmless -- nightly_forecast iterates
+    # the manifest, not this table -- but worth surfacing so the count does
+    # not quietly drift away from the station list.
+    live = {st["monitor_id"] for st in manifest["stations"]}
+    existing = client.table("forecast_params").select("monitor_id").execute().data or []
+    orphans = sorted({r["monitor_id"] for r in existing if r["monitor_id"] not in live})
+    if orphans:
+        print(f"  forecast_params: {len(orphans)} monitor(s) no longer in the "
+              f"manifest still have fitted rows")
+        if args.prune_orphans:
+            client.table("forecast_params").delete().in_("monitor_id", orphans).execute()
+            print(f"    pruned (--prune-orphans)")
+        else:
+            print(f"    left in place; re-run with --prune-orphans to remove")
 
 
 if __name__ == "__main__":

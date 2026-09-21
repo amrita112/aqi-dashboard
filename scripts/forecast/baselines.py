@@ -296,6 +296,156 @@ def predictions_for(series: pd.Series, test_year: int, h: int) -> pd.DataFrame:
     }, index=idx)
 
 
+# ─── Reading history back from Supabase ──────────────────────────────────────
+#
+# The loaders above read the local XKDR parquet export, which is gitignored and
+# therefore absent on a CI runner -- that is why the monthly refit workflow
+# cannot run. Once load_history.py has put the same aggregates into
+# readings_daily, these read them back from Supabase instead, and the refit
+# becomes an ordinary scheduled job.
+#
+# Same shape out as load_city_daily(), so callers do not care which source they
+# got.
+
+
+# The four pollutants CPCB's NAQI is actually driven by in our data. O3 and CO
+# are part of the standard but absent from both our sources, so asking for them
+# only costs a round trip.
+MEASURED_POLLUTANTS = ("pm25", "pm10", "no2", "so2")
+
+
+def _fetch_readings_daily(client, since: str, until: str) -> pd.DataFrame:
+    """Page the whole readings_daily table out of Supabase.
+
+    PostgREST caps a response at 1000 rows, and a plain offset walk over a
+    million rows gets slower the deeper it goes (Postgres still has to count
+    past everything it skips) -- deep enough that the query times out. So the
+    walk is restarted inside each calendar year, which keeps every offset small.
+    """
+    frames = []
+    y0, y1 = int(since[:4]), int(until[:4])
+    for year in range(y0, y1 + 1):
+        lo = max(since, f"{year}-01-01")
+        hi = min(until, f"{year}-12-31")
+        rows, offset = [], 0
+        while True:
+            r = (client.table("readings_daily")
+                       .select("monitor_id, date, pollutant, mean")
+                       .in_("pollutant", list(MEASURED_POLLUTANTS))
+                       .gte("date", lo).lte("date", hi)
+                       .order("date").order("monitor_id").order("pollutant")
+                       .range(offset, offset + 999).execute())
+            batch = r.data or []
+            rows += batch
+            if len(batch) < 1000:
+                break
+            offset += 1000
+        if rows:
+            frames.append(pd.DataFrame(rows))
+        print(f"    {year}: {len(rows):,} rows")
+    if not frames:
+        return pd.DataFrame(columns=["monitor_id", "date", "pollutant", "mean"])
+    return pd.concat(frames, ignore_index=True)
+
+
+def load_history_from_db(client=None, min_stations: int = 3,
+                         since: str = "2009-01-01",
+                         until: Optional[str] = None) -> Dict[str, pd.DataFrame]:
+    """Everything the refit needs, read back from Supabase instead of parquet.
+
+    The parquet loaders above read the local XKDR export, which is gitignored
+    and so absent on a CI runner -- that is why the monthly refit workflow
+    could not run. Once load_history.py has put the same daily aggregates into
+    readings_daily, this reads them back and the refit becomes an ordinary
+    scheduled job.
+
+    Returns the same three frames, with the same column names, that
+    load_city_daily / load_city_daily_aqi / load_station_daily produce, so the
+    fitting code does not care which source it got. The one thing that cannot
+    come back this way is the HOURLY series behind the diurnal shape:
+    readings_daily is daily by definition. The shape is a month x hour
+    multiplier fitted on a decade of history, so it barely moves between
+    refits; the DB path leaves the existing shape rows alone rather than
+    inventing worse ones.
+
+    Station history is keyed by monitor_id here, not by XKDR station id. That
+    is strictly better: load_history.py already resolved the name matching when
+    it wrote the rows, so nothing has to be matched by name a second time.
+    """
+    if client is None:
+        from scripts.ingest.lib.supabase_client import make_client
+        client = make_client()
+    if until is None:
+        until = str(pd.Timestamp.utcnow().date())
+
+    monitors, offset = [], 0
+    while True:
+        r = (client.table("monitors").select("id, city")
+                   .range(offset, offset + 999).execute())
+        batch = r.data or []
+        monitors += batch
+        if len(batch) < 1000:
+            break
+        offset += 1000
+    # Monitors carry the app's city names; the analysis uses XKDR's.
+    city_of = {m["id"]: APP_TO_ANALYSIS_CITY.get(m.get("city"), m.get("city"))
+               for m in monitors}
+
+    print(f"  reading readings_daily {since} -> {until} ...")
+    df = _fetch_readings_daily(client, since, until)
+    if df.empty:
+        raise RuntimeError(
+            "readings_daily returned no rows -- has load_history.py been run?")
+
+    df["city"] = df.monitor_id.map(city_of)
+    df = df.dropna(subset=["city", "mean"])
+    df["d"] = pd.to_datetime(df["date"])
+
+    # Per-station daily PM2.5, the input both the city series and the
+    # per-station climatologies are built from.
+    pm = df[df.pollutant == "pm25"]
+    station_daily = (pm.rename(columns={"monitor_id": "station", "mean": "v"})
+                       [["city", "station", "d", "v"]]
+                       .groupby(["city", "station", "d"], as_index=False)["v"].mean())
+
+    # Two-step average, as everywhere else: the stored per-station daily mean,
+    # then the mean across stations. Averaging raw readings instead would let
+    # the busiest station set the city's number.
+    daily = (station_daily.groupby(["city", "d"], as_index=False)
+                          .agg(pm25=("v", "mean"), n_stations=("station", "nunique")))
+    daily = daily[daily.n_stations >= min_stations].rename(columns={"city": "city_name"})
+
+    # Composite NAQI, built the way CPCB defines it: each pollutant's daily
+    # mean at a station -> its sub-index -> the max across pollutants. Station
+    # sub-indices are then averaged across the city, consistent with PM2.5.
+    from scripts.ingest.lib.aqi_utils import compute_subindex
+    sub = df[df["mean"] >= 0].copy()   # compute_subindex raises on negatives
+    sub["si"] = [compute_subindex(p, v)
+                 for p, v in zip(sub.pollutant, sub["mean"])]
+    idx = sub.groupby(["city", "monitor_id", "d"])["si"].idxmax()
+    station_aqi = sub.loc[idx, ["city", "monitor_id", "d", "si", "pollutant"]]
+    daily_aqi = (station_aqi.groupby(["city", "d"], as_index=False)
+                            .agg(aqi=("si", "mean"),
+                                 n_stations=("monitor_id", "nunique"),
+                                 dominant=("pollutant",
+                                           lambda s: s.value_counts().idxmax())))
+    daily_aqi = daily_aqi[daily_aqi.n_stations >= min_stations]
+
+    print(f"  city-days: pm25={len(daily):,}  aqi={len(daily_aqi):,}  "
+          f"station-days={len(station_daily):,}")
+    return {"daily": daily, "daily_aqi": daily_aqi,
+            "station_daily": station_daily}
+
+
+# The manifest and the monitors table use the app's city names; the analysis
+# uses XKDR's. Kept here rather than imported from refit_params to avoid a
+# circular import, since refit_params imports this module.
+APP_TO_ANALYSIS_CITY = {
+    "Delhi NCR": "Delhi",
+    "Bangalore": "Bengaluru",
+}
+
+
 # ─── Hourly series and the diurnal shape ─────────────────────────────────────
 
 CITY_HOURLY_CACHE = PROJECT_ROOT / "data" / "xkdr_city_hourly.parquet"
