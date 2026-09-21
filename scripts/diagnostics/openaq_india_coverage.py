@@ -38,10 +38,11 @@ PARAMETER = "pm25"
 DAYS_BACK = 30
 MAX_STATIONS = 20
 EXPECTED_PER_DAY = 96          # CPCB publishes at 15-minute resolution
-# OpenAQ's documented limit is 60/min, but sustained 1.2s spacing still drew
-# 429s in practice, so this backs well off. Raise DAYS_BACK at your peril: the
-# run time is dominated by this, not by the network.
-THROTTLE_S = 2.5
+# Matches the ingest pipeline's throttle (openaq_client.py). An earlier version
+# of this script drew 429s at this spacing, but that was self-inflicted: it
+# paginated with `offset`, which v3 ignores, so it re-requested page 1 without
+# bound and blew through the quota. The spacing was never the problem.
+THROTTLE_S = 1.2
 PAGE_LIMIT = 1000              # v3 maximum
 MAX_PAGES = 6                  # 6000 readings covers 60+ days at 15-min spacing
 

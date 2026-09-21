@@ -837,6 +837,182 @@ def residual_bands(series: pd.Series, test_year: int,
     return pd.DataFrame(rows)
 
 
+# ─── Serving mode: what to show given how old the data is ────────────────────
+#
+# OpenAQ's publication lag is not a constant. It has been measured at 17h, 28h
+# and 83h on different days, and a station can go quiet for a week. So the app
+# cannot decide once whether it is "showing a forecast" -- it has to decide per
+# station, per request, from the age of that station's freshest reading.
+#
+# The rule is not a guess: the tables below come from the same backtest as
+# everything else, scoring the forecast at every combination of input age and
+# horizon, and comparing it to climatology -- which needs no recent data at all
+# and is therefore the thing to fall back to.
+
+# Skill below this is not worth calling a forecast. At 0% the model is exactly
+# the seasonal average computed the long way round; a few points above that is
+# within the noise of the backtest itself.
+MIN_USEFUL_SKILL_PCT = 5.0
+
+
+def forecast_mode_table(series: pd.Series, test_year: int,
+                        data_ages: Iterable[int] = (0, 1, 2, 3, 4, 5, 7),
+                        horizons: Iterable[int] = (1, 2, 3),
+                        quantiles: Iterable[int] = (50, 80)) -> pd.DataFrame:
+    """Expected error and serving mode for each (data age, horizon) pair.
+
+    Returns one row per combination with the mode the app should use:
+
+      forecast         - beats climatology comfortably; show it as a forecast
+      outlook          - still beats climatology, but show a wide band and
+                         softer language
+      seasonal_normal  - no better than the long-run average, so say that
+                         instead of dressing an average up as a prediction
+
+    The band columns are RATIOS of the forecast, so one number works at Delhi's
+    200 ug/m3 and Bengaluru's 30.
+    """
+    train = series[series.index.year < test_year].dropna()
+    test = series[series.index.year == test_year].dropna()
+    test = test[test.index.month.isin(SEASON_MONTHS)]
+    if len(train) < 300 or len(test) < 40:
+        return pd.DataFrame()
+
+    clim = climatology(train)
+    idx = test.index
+    cl_now = pd.Series(clim.reindex(idx.dayofyear).values, index=idx)
+    mask_clim = cl_now.notna() & test.notna()
+    clim_mae = float(np.abs(cl_now[mask_clim] - test[mask_clim]).mean())
+
+    rows: List[Dict[str, Any]] = []
+    for age in data_ages:
+        for h in horizons:
+            # The model's information is `age + h` days old by the time the
+            # forecast lands, because the anomaly it carries forward was
+            # measured `age` days ago.
+            effective = age + h
+            alpha = fit_alpha(train, clim, effective)
+            prev = _lagged(series, idx, effective)
+            cl_prev = pd.Series(
+                clim.reindex((idx - pd.Timedelta(days=effective)).dayofyear).values, index=idx)
+            pred = cl_now + alpha * (prev - cl_prev)
+            m = pred.notna() & test.notna()
+            if m.sum() < 20:
+                continue
+            err = np.abs(pred[m] - test[m])
+            mae = float(err.mean())
+            skill = 100 * (clim_mae - mae) / clim_mae
+
+            if skill >= 20:
+                mode = "forecast"
+            elif skill >= MIN_USEFUL_SKILL_PCT:
+                mode = "outlook"
+            else:
+                mode = "seasonal_normal"
+
+            row = {"city": series.name, "data_age_days": age, "horizon_days": h,
+                   "effective_horizon": effective, "alpha": alpha,
+                   "mae": mae, "clim_mae": clim_mae, "skill_pct": skill,
+                   "mode": mode, "n": int(m.sum())}
+            # Band as a fraction of the prediction, guarding against the
+            # near-zero predictions that would otherwise produce absurd ratios.
+            safe = pred[m] > 1
+            if safe.sum() > 20:
+                rel = (err[safe] / pred[m][safe]).values
+                for q in quantiles:
+                    row[f"band_p{q}"] = float(np.percentile(rel, q))
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def max_useful_age(mode_table: pd.DataFrame, horizon: int = 1) -> Optional[int]:
+    """Oldest input age at which `horizon` is still worth calling a forecast."""
+    d = mode_table[(mode_table.horizon_days == horizon)
+                   & (mode_table["mode"] != "seasonal_normal")]
+    return int(d.data_age_days.max()) if len(d) else None
+
+
+# ─── Composite AQI ───────────────────────────────────────────────────────────
+#
+# Everything above forecasts PM2.5. The app shows NAQI, which is the MAX of the
+# per-pollutant sub-indices -- a non-linear function of four series rather than
+# one. PM2.5 usually dominates in Indian cities, so AQI should mostly track it,
+# but "mostly" is an assumption worth measuring: a max is a different animal
+# from a mean, and it can jump between pollutants day to day.
+
+CITY_AQI_CACHE = PROJECT_ROOT / "data" / "xkdr_city_daily_aqi.parquet"
+
+
+def load_city_daily_aqi(rebuild: bool = False, min_stations: int = 3,
+                        since: str = "2019-01-01") -> pd.DataFrame:
+    """Daily city-level composite NAQI, and the pollutant that drove it.
+
+    Built the way CPCB defines it: average each pollutant over the day at each
+    station, convert each to its sub-index, take the max. Station sub-indices
+    are then averaged across the city, consistent with how the PM2.5 series is
+    built -- averaging the raw AQI values instead would let one station's spike
+    set the whole city's number.
+
+    Keeps `dominant` (which pollutant produced the max) because how often that
+    switches decides whether a single-pollutant model can stand in for AQI.
+    """
+    import duckdb
+    from scripts.ingest.lib.aqi_utils import compute_subindex
+
+    if CITY_AQI_CACHE.exists() and not rebuild:
+        df = pd.read_parquet(CITY_AQI_CACHE)
+        df["d"] = pd.to_datetime(df["d"])
+        return df
+
+    con = duckdb.connect()
+    con.execute(
+        f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
+        f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
+    )
+    # Station x pollutant x day means -- the input NAQI is defined on.
+    sd = con.sql(f"""
+        SELECT {_city_sql_case()} AS city, station_id AS station,
+               CAST(collected_at AS DATE) AS d,
+               CASE parameter_name WHEN 'PM2.5' THEN 'pm25' WHEN 'PM10' THEN 'pm10'
+                    WHEN 'NO2' THEN 'no2' WHEN 'SO2' THEN 'so2' END AS pollutant,
+               avg(value) AS v
+        FROM m
+        WHERE parameter_name IN ('PM2.5','PM10','NO2','SO2')
+          AND city_name IN ({_all_xkdr_names()})
+          AND value BETWEEN 0 AND 2000 AND collected_at >= '{since}'
+        GROUP BY 1,2,3,4
+        HAVING count(*) >= 12
+    """).df()
+
+    sd["subindex"] = [compute_subindex(p, v) for p, v in zip(sd.pollutant, sd.v)]
+    sd = sd.dropna(subset=["subindex"])
+
+    # Per station-day: the max sub-index is the AQI, and the pollutant that
+    # produced it is the dominant one.
+    idx = sd.groupby(["city", "station", "d"])["subindex"].idxmax()
+    station_aqi = sd.loc[idx, ["city", "station", "d", "subindex", "pollutant"]]
+    station_aqi = station_aqi.rename(columns={"subindex": "aqi", "pollutant": "dominant"})
+
+    # Across stations, as for PM2.5.
+    out = (station_aqi.groupby(["city", "d"])
+                      .agg(aqi=("aqi", "mean"),
+                           n_stations=("station", "nunique"),
+                           dominant=("dominant", lambda s: s.value_counts().idxmax()))
+                      .reset_index())
+    out = out[out.n_stations >= min_stations]
+    out["d"] = pd.to_datetime(out["d"])
+    CITY_AQI_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    out.to_parquet(CITY_AQI_CACHE, index=False)
+    return out
+
+
+def aqi_series(daily_aqi: pd.DataFrame, city: str) -> pd.Series:
+    """One city's daily composite AQI on an explicit calendar index."""
+    x = daily_aqi[daily_aqi.city == city]
+    s = pd.Series(x.aqi.values, index=pd.DatetimeIndex(x.d), name=city)
+    return s.asfreq("D")
+
+
 # ─── NAQI bands ──────────────────────────────────────────────────────────────
 # What a user acts on is the category, not the number. A forecast that says
 # 190 when the truth is 210 is numerically off by 20 but lands in the right
