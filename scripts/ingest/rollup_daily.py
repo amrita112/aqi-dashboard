@@ -175,26 +175,56 @@ def fetch_day_measurements(client, day: date) -> pd.DataFrame:
     return joined[["monitor_id", "pollutant", "value", "recorded_at"]]
 
 
+# Cap on how many tied timestamps to store per extreme. The tie count is kept
+# separately, so a capped array is visibly capped. Sized from the observed
+# distribution on 2026-09-12 (median 1, p90 4, p99 32): 24 keeps essentially
+# every real tie while stopping a stuck sensor -- one reported the same value
+# for all 96 intervals -- from bloating the row.
+MAX_TIED_TIMESTAMPS = 24
+
+
 def compute_rollup(joined: pd.DataFrame, target_date: date) -> List[Dict[str, Any]]:
-    """Group by (monitor, pollutant) and compute distribution stats +
-    timestamps of the daily min/max."""
+    """Group by (monitor, pollutant) and compute distribution stats.
+
+    Records EVERY timestamp at the daily minimum and maximum, not one of them.
+    These columns exist to answer "when is the air cleanest here", and ties are
+    not rare: on 2026-09-12, 42% of station-pollutant series had a tied minimum
+    and 41% a tied maximum. Picking one arbitrarily also made the rollup
+    non-deterministic, because idxmin() returns whichever matching row came
+    first and PostgREST does not guarantee row order -- re-rolling the same day
+    could change the answer.
+    """
     if joined.empty:
         return []
     rows = []
     for (monitor_id, pollutant), g in joined.groupby(["monitor_id", "pollutant"]):
         values = g["value"].values
-        min_idx = g["value"].idxmin()
-        max_idx = g["value"].idxmax()
+        vmin, vmax = float(np.min(values)), float(np.max(values))
+
+        # Sorted so the stored order is deterministic regardless of the order
+        # rows arrived in -- that non-determinism is what this replaces.
+        min_ts = sorted(g.loc[g["value"] == vmin, "recorded_at"])
+        max_ts = sorted(g.loc[g["value"] == vmax, "recorded_at"])
+
         rows.append({
             "monitor_id": monitor_id,
             "pollutant":  pollutant,
             "date":       target_date.isoformat(),
             "count":      int(len(values)),
             "mean":       float(np.mean(values)),
-            "min":        float(np.min(values)),
-            "min_ts":     g.loc[min_idx, "recorded_at"].isoformat(),
-            "max":        float(np.max(values)),
-            "max_ts":     g.loc[max_idx, "recorded_at"].isoformat(),
+            "min":        vmin,
+            "max":        vmax,
+            # Kept as the EARLIEST of the tie so the legacy columns are at
+            # least deterministic while anything still reads them.
+            "min_ts":     min_ts[0].isoformat(),
+            "max_ts":     max_ts[0].isoformat(),
+            "min_ts_all": [t.isoformat() for t in min_ts[:MAX_TIED_TIMESTAMPS]],
+            "max_ts_all": [t.isoformat() for t in max_ts[:MAX_TIED_TIMESTAMPS]],
+            "min_tie_count": len(min_ts),
+            "max_tie_count": len(max_ts),
+            # Every reading identical: the sensor is stuck and "cleanest time"
+            # is undefined. Worth flagging rather than silently averaging.
+            "is_flat":    bool(vmin == vmax),
             "p10":        float(np.percentile(values, 10)),
             "p50":        float(np.percentile(values, 50)),
             "p90":        float(np.percentile(values, 90)),

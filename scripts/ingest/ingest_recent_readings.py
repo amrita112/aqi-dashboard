@@ -275,6 +275,8 @@ def main() -> None:
 
     total_readings = 0
     total_measurements = 0
+    new_readings = 0
+    new_measurements = 0
 
     for i, station in enumerate(stations):
         # Fetch every target sensor on this station. openaq.get() throttles
@@ -295,20 +297,34 @@ def main() -> None:
             total_readings += len(readings)
             total_measurements += len(meas_placeholder)
         else:
-            upsert_readings(supabase, readings)
+            r_inserted = upsert_readings(supabase, readings)
             all_readings = fetch_existing_reading_ids(supabase, [station["monitor_id"]], since_iso)
             linked = link_measurements(meas_placeholder, all_readings)
             m_inserted = upsert_measurements(supabase, linked)
-            total_readings += len(readings)   # upserted; may include no-op skips
-            total_measurements += len(m_inserted)
+            # Count attempts and actual inserts separately. The old log added
+            # ATTEMPTED readings to INSERTED measurements, which made a healthy
+            # run look broken: re-seen readings counted, re-seen measurements
+            # did not, so a 48h window that had mostly been ingested already
+            # printed things like "363 reading rows and 20 measurement rows".
+            # Both numbers were right; comparing them was meaningless.
+            total_readings += len(readings)
+            total_measurements += len(linked)
+            new_readings += len(r_inserted)
+            new_measurements += len(m_inserted)
 
         if (i + 1) % 25 == 0:
             print(f"  ... {i+1}/{len(stations)} stations, "
-                  f"{total_readings} readings, {total_measurements} measurements")
+                  f"{total_readings} readings ({new_readings} new), "
+                  f"{total_measurements} measurements ({new_measurements} new)")
 
+    verb = "would be" if dry_run else "were"
+    ratio = (total_measurements / total_readings) if total_readings else 0
     print(
-        f"\nDone. {total_readings} reading rows and {total_measurements} measurement rows "
-        f"{'would be' if dry_run else 'were'} touched."
+        f"\nDone. {total_readings:,} readings and {total_measurements:,} measurements "
+        f"{verb} sent ({ratio:.2f} measurements per reading; 4 pollutants would be 4.0).\n"
+        f"      Of those, {new_readings:,} readings and {new_measurements:,} measurements "
+        f"were NEW -- the rest already existed, which is expected because the "
+        f"{window_hours}h window overlaps previous runs."
     )
     openaq.print_stats()
 
