@@ -30,6 +30,7 @@ Create a free project at [supabase.com](https://supabase.com). Then run the SQL 
 | `11-rollup-tied-timestamps.sql` | Stores *every* timestamp at the daily min and max, not one picked arbitrarily | Yes |
 | `12-forecast-tables.sql` | Adds `forecast_params`, `diurnal_shape`, `forecast_daily`, `forecast_modes` | Yes |
 | `13-monitor-locations.sql` | Gives `monitors` a name, coordinates and city; adds nearest-station lookup and `alert_defaults` | Yes |
+| `14-readings-daily-source.sql` | Marks whether a daily row was rolled up from our raw readings or loaded from the XKDR history | Yes |
 
 Files 1, 2, 5–13 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
 
@@ -43,6 +44,11 @@ A few of these are worth a sentence, because the reason is not obvious from the 
 - **12** stores the forecast as four small tables (under 14k rows total). Climatology is a
   366-element array on one row per station rather than 366 rows — same information, roughly a
   fifteenth of the space, and it is always read whole.
+- **14** matters more than it sounds. `readings_daily` ends up holding two populations that
+  look identical: rows rolled up from our own 15-minute readings (a complete day is ~96
+  readings) and rows loaded from the XKDR historical export, which is hourly (~24). The daily
+  means are directly comparable; the counts are not, and without the column any completeness
+  check reads every historical row as three-quarters missing.
 - **13** adds a `name` column to `monitors`, which never had one: station names lived only in
   `scripts/ingest/target_stations.json`, so the database could not answer "what is this station
   called". It also seeds `alert_defaults` — per-city notification thresholds set to the median
@@ -52,6 +58,7 @@ A few of these are worth a sentence, because the reason is not obvious from the 
 After running the migrations, populate the derived tables:
 
 ```bash
+python3 -m scripts.forecast.load_history      # ~991k historical daily rows (~99 MB, one-off)
 python3 -m scripts.forecast.refit_params      # climatology, alphas, diurnal shape, modes
 python3 -m scripts.forecast.alert_defaults    # per-city notification thresholds
 python3 -m scripts.forecast.nightly_forecast  # 7 days ahead per station
