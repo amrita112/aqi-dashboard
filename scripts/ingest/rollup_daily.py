@@ -56,6 +56,16 @@ def target_dates() -> List[date]:
     return [today - timedelta(days=i) for i in range(1, lookback + 1)]
 
 
+# PostgREST's default response cap. Both the reading and measurement queries
+# page against this rather than assuming a request returns everything.
+PAGE = 1000
+
+# Reading ids per measurements query. Kept well under PAGE / measurements-per-
+# reading so most chunks resolve in a single request, but correctness no longer
+# depends on that -- the loop below pages until the chunk is exhausted.
+MEASUREMENT_CHUNK = 200
+
+
 def fetch_day_measurements(client, day: date) -> pd.DataFrame:
     """All measurements whose parent reading has recorded_at on this UTC day.
 
@@ -66,7 +76,7 @@ def fetch_day_measurements(client, day: date) -> pd.DataFrame:
     day_end   = day_start + timedelta(days=1)
 
     r_rows = []
-    offset, page = 0, 1000
+    offset, page = 0, PAGE
     while True:
         r = (client.table("readings")
                     .select("id, monitor_id, recorded_at")
@@ -85,16 +95,43 @@ def fetch_day_measurements(client, day: date) -> pd.DataFrame:
     readings = pd.DataFrame(r_rows)
     reading_ids = readings["id"].tolist()
 
+    # PostgREST caps a response at 1000 rows by default, and each reading
+    # carries 3-4 measurements. The original code asked for 500 reading_ids at
+    # a time WITHOUT paginating, so every chunk came back truncated at exactly
+    # 1000 rows and the readings past that point silently contributed nothing.
+    # Measured on 2026-09-20: a 500-id chunk returned 1000 rows covering only
+    # 278 readings -- 44% of the day's measurements missing from the rollup,
+    # with no error anywhere.
+    #
+    # Paginating inside each chunk fixes it regardless of chunk size or how
+    # many pollutants a station reports.
     m_rows = []
-    for i in range(0, len(reading_ids), 500):
-        chunk = reading_ids[i:i + 500]
-        m = (client.table("measurements")
-                    .select("reading_id, pollutant, value")
-                    .in_("reading_id", chunk)
-                    .execute())
-        m_rows.extend(m.data or [])
+    for i in range(0, len(reading_ids), MEASUREMENT_CHUNK):
+        chunk = reading_ids[i:i + MEASUREMENT_CHUNK]
+        offset = 0
+        while True:
+            m = (client.table("measurements")
+                        .select("reading_id, pollutant, value")
+                        .in_("reading_id", chunk)
+                        .range(offset, offset + PAGE - 1)
+                        .execute())
+            batch = m.data or []
+            m_rows.extend(batch)
+            if len(batch) < PAGE:
+                break
+            offset += PAGE
     if not m_rows:
         return pd.DataFrame()
+
+    # Guard against this class of bug returning silently. Every reading in the
+    # day should contribute at least one measurement; a shortfall means rows
+    # were dropped somewhere between the query and here.
+    covered = {row["reading_id"] for row in m_rows}
+    missing = len(reading_ids) - len(covered)
+    if missing:
+        print(f"  WARNING {day}: {missing} of {len(reading_ids)} readings "
+              f"returned no measurements ({missing / len(reading_ids):.1%}). "
+              f"Expect ~{len(reading_ids) * 3:,}+ rows, got {len(m_rows):,}.")
 
     measurements = pd.DataFrame(m_rows)
     joined = measurements.merge(
