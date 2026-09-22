@@ -25,10 +25,9 @@ Two availability branches, run side by side:
 
 The gap between the two is the value of the 48h window.
 
-Everything is on UTC day boundaries, matching rollup_daily.py. A "day" is
-therefore not an Indian calendar day; it is shifted 5h30m. This is the
-production convention and the simulation follows it rather than inventing a
-second one.
+Everything is on IST day boundaries and IST hours, matching rollup_daily.py
+and the XKDR-fitted climatology, alphas and diurnal shape. Raw timestamps stay
+UTC in the database and are converted once here.
 """
 
 from __future__ import annotations
@@ -46,6 +45,7 @@ CACHE = REPO / "data" / "simulation-cache"
 sys.path.insert(0, str(REPO))
 
 from scripts.ingest.lib.aqi_utils import compute_subindex  # noqa: E402
+from scripts.ingest.lib.config import IST as IST_TZ  # noqa: E402
 
 # The nightly forecast workflow runs at 05:30 UTC (forecast-nightly.yml), half
 # an hour after the rollup. That instant, not midnight, is what a station's
@@ -63,13 +63,11 @@ MEASURED_POLLUTANTS = ("pm25", "pm10", "no2", "so2")
 BRANCHES = ("honest", "fixed48")
 FIXED_LAG_HOURS = 48
 
-# diurnal_shape is indexed by IST hour, not UTC. It is fitted from the XKDR
-# export, whose `collected_at` is a naive timestamp in Indian Standard Time
-# (that is how CPCB publishes), while readings.recorded_at is explicitly UTC.
-# Looking the shape up by UTC hour therefore rotates the whole daily profile by
-# 5h30m: measured 2026-09-22, the XKDR shape peaks at hour 21 while our own
-# readings peak at UTC hour 16 -- the same physical moment, 21:30 IST.
-IST_OFFSET_HOURS = 5.5
+# Everything calendar-shaped here is IST: the day a reading belongs to, the
+# hour within it, and the diurnal_shape row looked up for that hour. Storage
+# stays UTC (recorded_at is an instant); the conversion happens once, on read,
+# in build_observation_frame. See the time-base note in
+# scripts/ingest/lib/config.py.
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -110,8 +108,10 @@ def build_observation_frame(data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     # compute_subindex refuses them outright.
     obs = obs[obs["value"] >= 0].copy()
 
-    obs["date"] = obs["recorded_at"].dt.floor("D").dt.tz_localize(None)
-    obs["hour"] = obs["recorded_at"].dt.hour
+    # Convert once, here. Everything downstream is IST.
+    local = obs["recorded_at"].dt.tz_convert(IST_TZ)
+    obs["date"] = local.dt.floor("D").dt.tz_localize(None)
+    obs["hour"] = local.dt.hour
     return obs[["monitor_id", "station", "city_label", "pollutant", "value",
                 "recorded_at", "created_at", "date", "hour"]]
 
@@ -264,41 +264,22 @@ def forecast_one(params_row: dict, city: str, pollutant: str,
             "based_on_date": based_on, "climatology": base}
 
 
-def _shape_at_utc_hours(ratios_ist: np.ndarray) -> np.ndarray:
-    """Re-index an IST-hour shape onto UTC hours.
-
-    IST is UTC+5:30, so a UTC hour does not line up with an IST hour -- it
-    straddles two of them. The ratio is therefore linearly interpolated at the
-    fractional IST hour, rather than rounded to 5 or 6, which would leave a
-    half-hour phase error in every hourly number.
-    """
-    out = np.empty(24, dtype=float)
-    for h in range(24):
-        pos = (h + IST_OFFSET_HOURS) % 24
-        lo = int(np.floor(pos)) % 24
-        hi = (lo + 1) % 24
-        frac = pos - np.floor(pos)
-        out[h] = ratios_ist[lo] * (1 - frac) + ratios_ist[hi] * frac
-    return out
-
-
 def hourly_from_daily(daily_value: float, shape_idx: Dict,
                       city: str, pollutant: str, target: date) -> np.ndarray:
-    """Spread a daily forecast across 24 UTC hours using the diurnal ratio table.
+    """Spread a daily forecast across 24 IST hours using the diurnal ratio table.
 
     forecast(day, hour) = daily_forecast(day) x shape(city, month, hour).
     The shape is a ratio, so it scales with the level: a shape learned in a
     clean month still applies in a dirty one. Missing city-months fall back to
     a flat day rather than dropping the station.
 
-    The returned array is indexed by UTC hour, to match readings.recorded_at.
-    The stored shape is indexed by IST hour, so it is rotated on the way out --
-    see IST_OFFSET_HOURS.
+    Both the returned array and the stored shape are indexed by IST hour, so
+    no rotation is needed -- observations were converted to IST on read.
     """
     ratios = shape_idx.get((city, pollutant, target.month))
     if ratios is None:
         return np.full(24, daily_value, dtype=float)
-    return daily_value * _shape_at_utc_hours(ratios)
+    return daily_value * ratios
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -47,6 +47,7 @@ from typing import Any, Dict, List, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.ingest.lib.config import ist_day_bounds_utc, ist_today, to_ist_day  # noqa: E402
 from scripts.ingest.lib.supabase_client import make_client  # noqa: E402
 
 DEFAULT_RETENTION_DAYS = 30
@@ -76,9 +77,14 @@ def verify_day(client, day: date) -> Tuple[bool, str, Dict[str, int]]:
     Safe means readings_daily accounts for every raw measurement on that day.
     Comparing COUNTS rather than merely checking that rollup rows exist is the
     point: a rollup can be present and wrong.
+
+    `day` is an IST calendar day, matching readings_daily.date. The bounds must
+    be the same ones rollup_daily used, or the counts compare two different
+    sets of readings and every day fails verification -- safely, since a
+    failed day is skipped rather than deleted, but nothing would ever prune.
     """
-    start = f"{day.isoformat()}T00:00:00+00:00"
-    end = f"{(day + timedelta(days=1)).isoformat()}T00:00:00+00:00"
+    _start, _end = ist_day_bounds_utc(day)
+    start, end = _start.isoformat(), _end.isoformat()
 
     readings = _page_all(lambda off: (
         client.table("readings").select("id")
@@ -135,9 +141,12 @@ def verify_day(client, day: date) -> Tuple[bool, str, Dict[str, int]]:
 
 
 def delete_day(client, day: date) -> int:
-    """Delete one day's readings. Measurements cascade."""
-    start = f"{day.isoformat()}T00:00:00+00:00"
-    end = f"{(day + timedelta(days=1)).isoformat()}T00:00:00+00:00"
+    """Delete one IST day's readings. Measurements cascade.
+
+    Same bounds as verify_day, so what was verified is exactly what is deleted.
+    """
+    _start, _end = ist_day_bounds_utc(day)
+    start, end = _start.isoformat(), _end.isoformat()
     deleted = 0
     while True:
         ids = [r["id"] for r in (
@@ -161,7 +170,7 @@ def main() -> None:
     confirm = os.environ.get("CONFIRM_DELETE", "").lower() == "yes"
     max_days = int(os.environ.get("MAX_DAYS_PER_RUN", DEFAULT_MAX_DAYS_PER_RUN))
 
-    today = datetime.now(timezone.utc).date()
+    today = ist_today()
     cutoff = today - timedelta(days=retention)
     mode = "DELETING" if confirm else "DRY RUN (set CONFIRM_DELETE=yes to delete)"
     print(f"Retention: keep raw readings on or after {cutoff} ({retention} days)")
@@ -172,7 +181,7 @@ def main() -> None:
     if not oldest:
         print("No readings at all; nothing to do.")
         return
-    oldest_day = datetime.fromisoformat(oldest[0]["recorded_at"]).date()
+    oldest_day = to_ist_day(datetime.fromisoformat(oldest[0]["recorded_at"]))
     if oldest_day >= cutoff:
         print(f"Oldest reading is {oldest_day}, already inside the window. Nothing to prune.")
         return

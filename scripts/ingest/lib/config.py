@@ -10,6 +10,7 @@ this is the one place to edit.
 from __future__ import annotations
 
 import os
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -114,3 +115,58 @@ def which_city(lat: float, lng: float) -> str | None:
         if la_min <= lat <= la_max and ln_min <= lng <= ln_max:
             return city
     return None
+
+
+# ─── Time base ──────────────────────────────────────────────────────────────
+#
+# The pipeline has two clocks and they must never be confused again. What
+# follows is the convention; everything else in the codebase defers to it.
+#
+#   STORED AS UTC          readings.recorded_at, readings.created_at,
+#                          readings_daily.min_ts / max_ts and their _all arrays.
+#                          These are INSTANTS. An instant has no timezone
+#                          problem -- it converts losslessly whenever it is
+#                          read, so storage stays UTC exactly as OpenAQ sends it.
+#
+#   GROUPED BY IST         readings_daily.date, forecast_daily.target_date,
+#                          diurnal_shape.hour, the day-of-year a climatology is
+#                          indexed by. These are CALENDAR LABELS, not instants.
+#                          A calendar label cannot be converted after the fact:
+#                          once a daily mean has been averaged over the wrong
+#                          24 hours, no downstream timezone conversion recovers
+#                          it, and raw readings are pruned at 30 days.
+#
+# This is an India-only product, so the calendar is India's. It is also what
+# the XKDR history already uses -- its `collected_at` is a naive local
+# timestamp, so every climatology, alpha and diurnal shape fitted from it is on
+# IST days and IST hours. Rolling our own readings up on UTC days put a
+# 7.6%-of-level artefact (2.26 ug/m3 PM2.5, against a 5.4 ug/m3 median
+# day-to-day change) between the climatology and the observation it is
+# subtracted from. Measured 2026-09-22.
+#
+# The one deliberate exception is which S3 FILES to fetch: OpenAQ partitions
+# its archive by UTC date, so daily_backfill_s3.py asks for UTC days. That is
+# reading the source's filing system, not choosing our own calendar.
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def ist_today() -> date:
+    """Today's date in India, regardless of where the job is running."""
+    return datetime.now(IST).date()
+
+
+def ist_day_bounds_utc(day: date) -> Tuple[datetime, datetime]:
+    """The UTC instants bounding one IST calendar day, half-open [start, end).
+
+    IST day D runs 00:00-24:00 IST, which is 18:30 UTC on D-1 to 18:30 UTC on
+    D. Queries against recorded_at (UTC) use these bounds; they must never be
+    built from UTC midnight.
+    """
+    start = datetime.combine(day, datetime.min.time(), tzinfo=IST)
+    return start.astimezone(timezone.utc), (start + timedelta(days=1)).astimezone(timezone.utc)
+
+
+def to_ist_day(ts: datetime) -> date:
+    """The IST calendar day a UTC instant belongs to."""
+    return ts.astimezone(IST).date()

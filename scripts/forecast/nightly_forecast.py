@@ -48,7 +48,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.forecast.refit_params import APP_TO_ANALYSIS, MIN_HISTORY_DAYS  # noqa: E402
-from scripts.ingest.lib.config import TARGET_STATIONS_PATH  # noqa: E402
+from scripts.ingest.lib.config import TARGET_STATIONS_PATH, ist_today  # noqa: E402
 from scripts.ingest.lib.supabase_client import make_client  # noqa: E402
 
 DEFAULT_HORIZON_DAYS = 7
@@ -251,8 +251,13 @@ def main() -> None:
     ap.add_argument("--horizon", type=int, default=DEFAULT_HORIZON_DAYS)
     args = ap.parse_args()
 
-    today = datetime.now(timezone.utc).date()
-    print(f"Nightly forecast for {today} (+1..+{args.horizon}), "
+    # IST, not UTC. target_date, readings_daily.date and the day-of-year the
+    # climatology is indexed by are all Indian calendar days -- see the
+    # time-base note in scripts/ingest/lib/config.py. This happened to give the
+    # right answer while the cron ran at 05:30 UTC (11:00 IST, same date), and
+    # would have silently gone a day out if it were ever moved past 18:30 UTC.
+    today = ist_today()
+    print(f"Nightly forecast for {today} IST (+1..+{args.horizon}), "
           f"pollutants={args.pollutants}, dry_run={args.dry_run}")
 
     client = make_client()

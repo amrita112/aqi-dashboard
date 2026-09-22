@@ -207,6 +207,11 @@ def fetch_existing_readings_for_lookup(
     """
     if not monitor_ids:
         return []
+    # UTC deliberately, and the only place in the pipeline that stays UTC.
+    # OpenAQ partitions its S3 archive by UTC date, so this is reading the
+    # source's filing system, not choosing our calendar. The readings it
+    # writes carry their own recorded_at; rollup_daily regroups them onto IST
+    # days afterwards. See the time-base note in scripts/ingest/lib/config.py.
     day_start = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc)
     day_end   = day_start + timedelta(days=1)
     result = (

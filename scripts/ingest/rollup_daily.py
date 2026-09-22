@@ -37,6 +37,7 @@ from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
 
+from scripts.ingest.lib.config import ist_day_bounds_utc, ist_today  # noqa: E402
 from scripts.ingest.lib.supabase_client import make_client
 
 ROLLUP_TABLE = "readings_daily"
@@ -44,7 +45,15 @@ DEFAULT_LOOKBACK_DAYS = 5
 
 
 def target_dates() -> List[date]:
-    """Which UTC dates to roll up on this run."""
+    """Which IST dates to roll up on this run.
+
+    IST, not UTC. readings_daily.date is an Indian calendar day -- see the
+    time-base note in scripts/ingest/lib/config.py. The XKDR history in the
+    same table has always been on IST days, so rolling our own readings up on
+    UTC days meant one column carried two different meanings depending on
+    `source`, and put a 7.6%-of-level artefact between the climatology and the
+    observation it gets subtracted from.
+    """
     override = os.environ.get("ROLLUP_DATE", "").strip()
     if override:
         return [datetime.strptime(override, "%Y-%m-%d").date()]
@@ -52,8 +61,10 @@ def target_dates() -> List[date]:
     # against int("") crashing when the user leaves the input blank.
     lookback_raw = os.environ.get("ROLLUP_LOOKBACK_DAYS", "").strip()
     lookback = int(lookback_raw) if lookback_raw else DEFAULT_LOOKBACK_DAYS
-    today = datetime.now(timezone.utc).date()
-    # Skip today itself (partial day), roll up yesterday and back.
+    today = ist_today()
+    # Skip today itself (partial day), roll up yesterday and back. An IST day
+    # closes at 18:30 UTC, so the 05:00 UTC cron always runs well after the
+    # day it starts from has ended.
     return [today - timedelta(days=i) for i in range(1, lookback + 1)]
 
 
@@ -96,13 +107,16 @@ MEASUREMENT_CHUNK = 200
 
 
 def fetch_day_measurements(client, day: date) -> pd.DataFrame:
-    """All measurements whose parent reading has recorded_at on this UTC day.
+    """All measurements whose parent reading falls on this IST calendar day.
+
+    recorded_at is stored in UTC, so the IST day is expressed as the pair of
+    UTC instants bounding it: 18:30 UTC the previous day to 18:30 UTC on it.
+    Building these from UTC midnight is the bug this replaced.
 
     Paginated so >1000 rows are handled. Returns columns:
     monitor_id, pollutant, value, recorded_at (as pandas Timestamp).
     """
-    day_start = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc)
-    day_end   = day_start + timedelta(days=1)
+    day_start, day_end = ist_day_bounds_utc(day)
 
     r_rows = []
     offset, page = 0, PAGE
