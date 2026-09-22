@@ -50,7 +50,7 @@ from scripts.forecast.baselines import (  # noqa: E402
     CITIES, SEASON_MONTHS, aqi_series, city_series, climatology, complete_days,
     diurnal_shape, fit_alpha, forecast_mode_table, load_city_daily,
     load_city_daily_aqi, load_city_hourly, load_history_from_db,
-    load_station_daily, xkdr_names,
+    load_station_daily, load_station_daily_aqi, xkdr_names,
     backtest,
 )
 from scripts.forecast.station_map import build_monitor_to_xkdr  # noqa: E402
@@ -223,6 +223,7 @@ def main() -> None:
         hist = load_history_from_db()
         daily, daily_aqi = hist["daily"], hist["daily_aqi"]
         station_daily = hist["station_daily"]
+        station_aqi = hist["station_aqi"]
         # readings_daily is daily, so there is no hourly series to refit the
         # diurnal shape from. Passing None makes fit_city skip it rather than
         # overwrite good shape rows with nothing.
@@ -238,6 +239,7 @@ def main() -> None:
         daily_aqi = load_city_daily_aqi()
         hourly = load_city_hourly()
         station_daily = load_station_daily()
+        station_aqi = load_station_daily_aqi()
 
     params_rows: List[Dict[str, Any]] = []
     shape_rows: List[Dict[str, Any]] = []
@@ -248,8 +250,21 @@ def main() -> None:
             fit = fit_city(analysis_city, pollutant, daily, daily_aqi, hourly)
             if fit is None:
                 continue
+            # The per-station climatology must be fitted on the SAME quantity
+            # the forecast serves. AQI is the max of four sub-indices, not a
+            # function of PM2.5, so handing station_daily (PM2.5) to an AQI fit
+            # silently stores a PM2.5 curve as the station's AQI climatology --
+            # which understated Delhi's September AQI by roughly half until
+            # 2026-09-22.
+            station_hist = station_aqi if pollutant == "aqi" else station_daily
+            if station_hist is None or station_hist.empty:
+                # Fall back to the city curve, but say so. Silent fallback is
+                # how the original bug stayed invisible.
+                print(f"  {analysis_city}/{pollutant}: no per-station history; "
+                      f"every station falls back to the city curve")
+                station_hist = pd.DataFrame(columns=["city", "station", "d", "v"])
             params_rows += fit_stations(analysis_city, pollutant, fit,
-                                        station_daily, monitors)
+                                        station_hist, monitors)
             for r in fit["shape_rows"]:
                 shape_rows.append({"city": analysis_city, **r})
             for _, m in fit["modes"].iterrows():

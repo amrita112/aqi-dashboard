@@ -423,18 +423,29 @@ def load_history_from_db(client=None, min_stations: int = 3,
     sub["si"] = [compute_subindex(p, v)
                  for p, v in zip(sub.pollutant, sub["mean"])]
     idx = sub.groupby(["city", "monitor_id", "d"])["si"].idxmax()
-    station_aqi = sub.loc[idx, ["city", "monitor_id", "d", "si", "pollutant"]]
-    daily_aqi = (station_aqi.groupby(["city", "d"], as_index=False)
-                            .agg(aqi=("si", "mean"),
-                                 n_stations=("monitor_id", "nunique"),
-                                 dominant=("pollutant",
-                                           lambda s: s.value_counts().idxmax())))
+    station_aqi_rows = sub.loc[idx, ["city", "monitor_id", "d", "si", "pollutant"]]
+    daily_aqi = (station_aqi_rows.groupby(["city", "d"], as_index=False)
+                                 .agg(aqi=("si", "mean"),
+                                      n_stations=("monitor_id", "nunique"),
+                                      dominant=("pollutant",
+                                                lambda s: s.value_counts().idxmax())))
     daily_aqi = daily_aqi[daily_aqi.n_stations >= min_stations]
 
+    # Per-STATION daily AQI. This is the input the per-station AQI climatology
+    # must be fitted on. Without it, fit_stations() reuses station_daily --
+    # which is PM2.5 -- and every station with its own history ends up with a
+    # PM2.5 curve stored as its AQI climatology, roughly halving the forecast.
+    # Same columns as station_daily so the caller can hand either to
+    # fit_stations() unchanged.
+    station_aqi = (station_aqi_rows
+                   .rename(columns={"monitor_id": "station", "si": "v"})
+                   [["city", "station", "d", "v"]]
+                   .groupby(["city", "station", "d"], as_index=False)["v"].mean())
+
     print(f"  city-days: pm25={len(daily):,}  aqi={len(daily_aqi):,}  "
-          f"station-days={len(station_daily):,}")
+          f"station-days: pm25={len(station_daily):,} aqi={len(station_aqi):,}")
     return {"daily": daily, "daily_aqi": daily_aqi,
-            "station_daily": station_daily}
+            "station_daily": station_daily, "station_aqi": station_aqi}
 
 
 # The manifest and the monitors table use the app's city names; the analysis
@@ -730,6 +741,63 @@ def load_station_daily(rebuild: bool = False, min_readings_per_day: int = 12,
 
     df["d"] = pd.to_datetime(df["d"])
     return df
+
+
+STATION_AQI_CACHE = PROJECT_ROOT / "data" / "xkdr_station_daily_aqi.parquet"
+
+
+def load_station_daily_aqi(rebuild: bool = False, min_readings_per_day: int = 12,
+                           since: str = "2019-01-01") -> pd.DataFrame:
+    """Daily composite NAQI per STATION, cached as parquet.
+
+    The parquet twin of the `station_aqi` frame load_history_from_db returns,
+    and the AQI counterpart of load_station_daily. Columns are deliberately
+    identical to that function's (city, station, d, v) so fit_stations() can
+    take either without knowing which pollutant it is fitting.
+
+    Why this has to exist separately: AQI is the MAX of four sub-indices, not a
+    mean of one series, so it cannot be derived from the PM2.5 station frame
+    after the fact. Fitting a station's AQI climatology on its PM2.5 history --
+    which is what happened before this function existed -- understates Delhi's
+    September climatology by roughly half (57 fitted against 95-107 observed).
+    """
+    import duckdb
+    from scripts.ingest.lib.aqi_utils import compute_subindex
+
+    if STATION_AQI_CACHE.exists() and not rebuild:
+        df = pd.read_parquet(STATION_AQI_CACHE)
+        df["d"] = pd.to_datetime(df["d"])
+        return df
+
+    con = duckdb.connect()
+    con.execute(
+        f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
+        f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
+    )
+    sd = con.sql(f"""
+        SELECT {_city_sql_case()} AS city, station_id AS station,
+               CAST(collected_at AS DATE) AS d,
+               CASE parameter_name WHEN 'PM2.5' THEN 'pm25' WHEN 'PM10' THEN 'pm10'
+                    WHEN 'NO2' THEN 'no2' WHEN 'SO2' THEN 'so2' END AS pollutant,
+               avg(value) AS v
+        FROM m
+        WHERE parameter_name IN ('PM2.5','PM10','NO2','SO2')
+          AND city_name IN ({_all_xkdr_names()})
+          AND value BETWEEN 0 AND 2000 AND collected_at >= '{since}'
+        GROUP BY 1,2,3,4
+        HAVING count(*) >= {min_readings_per_day}
+    """).df()
+
+    sd["subindex"] = [compute_subindex(p, v) for p, v in zip(sd.pollutant, sd.v)]
+    sd = sd.dropna(subset=["subindex"])
+
+    # CPCB's definition: per station-day, the max sub-index across pollutants.
+    out = (sd.groupby(["city", "station", "d"], as_index=False)["subindex"]
+             .max().rename(columns={"subindex": "v"}))
+    out["d"] = pd.to_datetime(out["d"])
+    STATION_AQI_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    out.to_parquet(STATION_AQI_CACHE, index=False)
+    return out
 
 
 def _as_series(df: pd.DataFrame, name: str = "") -> pd.Series:

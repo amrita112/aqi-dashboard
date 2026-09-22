@@ -1,0 +1,57 @@
+{
+  "generated_at": "2026-09-22T21:07:26.743763+00:00",
+  "run_dates": [
+    "2026-08-23",
+    "2026-08-24",
+    "2026-08-25",
+    "2026-08-26",
+    "2026-08-27",
+    "2026-08-28",
+    "2026-08-29",
+    "2026-08-30",
+    "2026-08-31",
+    "2026-09-01",
+    "2026-09-02",
+    "2026-09-03",
+    "2026-09-04",
+    "2026-09-05",
+    "2026-09-06",
+    "2026-09-07",
+    "2026-09-08",
+    "2026-09-09",
+    "2026-09-10",
+    "2026-09-11",
+    "2026-09-12",
+    "2026-09-13",
+    "2026-09-14",
+    "2026-09-15",
+    "2026-09-16",
+    "2026-09-17",
+    "2026-09-18",
+    "2026-09-19",
+    "2026-09-20"
+  ],
+  "collapsed_nights": [
+    "2026-08-28",
+    "2026-08-29",
+    "2026-08-30",
+    "2026-08-31",
+    "2026-09-14"
+  ],
+  "branches": [
+    "honest",
+    "fixed48"
+  ],
+  "horizon_days": 1,
+  "pollutants": [
+    "pm25",
+    "aqi"
+  ],
+  "run_cutoff_utc": "05:30",
+  "note": "Regenerate with notebooks/forecast_simulation.ipynb. Golden values encode CURRENT forecast behaviour, bugs included; a deliberate improvement is expected to change them.",
+  "aqi_climatology_fix": "Generated AFTER the 2026-09-22 fix: per-station aqi climatology is now fitted on per-station AQI history, not PM2.5. Delhi median September climatology 41.9 -> 102.7. These params were computed locally from readings_daily; Supabase forecast_params must be refitted (refit_params --source db) for production to match.",
+  "known_defects_frozen_into_this_golden": [
+    "alpha and forecast_modes are fitted on the CITY-MEAN series in fit_city() and applied per station. City-mean AQI is far smoother than station AQI (Delhi lag-3 anomaly autocorrelation 0.680 vs 0.290), so alpha over-carries per-station anomalies and fixed48/aqi in Delhi and Bengaluru lands WORSE than climatology. Recorded as xfail in KNOWN_NO_SKILL.",
+    "diurnal_shape has no aqi rows (fit_city skips shape fitting for aqi), so hourly aqi forecasts are the daily value repeated 24 times. Adding an aqi shape SHOULD change every aqi row in the golden file."
+  ]
+}
