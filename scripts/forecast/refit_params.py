@@ -48,9 +48,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.forecast.baselines import (  # noqa: E402
     CITIES, SEASON_MONTHS, aqi_series, city_series, climatology, complete_days,
-    diurnal_shape, fit_alpha, forecast_mode_table, load_city_daily,
+    diurnal_shape, fit_alpha, forecast_mode_table, station_mode_table, load_city_daily,
     load_city_daily_aqi, load_city_hourly, load_history_from_db,
-    load_station_daily, load_station_daily_aqi, xkdr_names,
+    load_station_daily, load_station_daily_aqi, load_city_hourly_aqi, xkdr_names,
     backtest,
 )
 from scripts.forecast.station_map import build_monitor_to_xkdr  # noqa: E402
@@ -93,7 +93,8 @@ def _clim_array(clim: pd.Series) -> List[float]:
 
 def fit_city(analysis_city: str, pollutant: str,
              daily: pd.DataFrame, daily_aqi: pd.DataFrame,
-             hourly: pd.DataFrame) -> Optional[Dict[str, Any]]:
+             hourly: pd.DataFrame,
+             station_hist: Optional[pd.DataFrame] = None) -> Optional[Dict[str, Any]]:
     """Fit the city-level pieces: alpha, best model, modes, diurnal shape."""
     series = (aqi_series(daily_aqi, analysis_city) if pollutant == "aqi"
               else city_series(daily, analysis_city))
@@ -110,7 +111,15 @@ def fit_city(analysis_city: str, pollutant: str,
     # with a shallow seasonal swing, because anchoring on a seasonal average
     # drags the forecast away from the truth. Measured on 2024, persistence
     # wins in Mumbai, Hyderabad and Pune; the blend everywhere else.
-    modes = forecast_mode_table(series, SKILL_TEST_YEAR)
+    # Measured on stations when we have their history, because the mode is
+    # SERVED per station. Falls back to the city series only when there is no
+    # station history to measure -- a city-fitted table claims skill at data
+    # ages where no individual monitor still has any.
+    modes = pd.DataFrame()
+    if station_hist is not None and not station_hist.empty:
+        modes = station_mode_table(station_hist, analysis_city, SKILL_TEST_YEAR)
+    if modes.empty:
+        modes = forecast_mode_table(series, SKILL_TEST_YEAR)
     bt = backtest(series, SKILL_TEST_YEAR, [1, 2, 3])
     model = "blend"
     if not bt.empty:
@@ -120,10 +129,15 @@ def fit_city(analysis_city: str, pollutant: str,
             model = str(mean_mae.idxmin())
 
     shape_rows: List[Dict[str, Any]] = []
-    if pollutant != "aqi" and hourly is not None:
-        g = complete_days(hourly[hourly.city == analysis_city])
+    # AQI gets its own shape rather than being skipped. The pollutant driving
+    # the max can change with the hour, so AQI's daily profile is not PM2.5's;
+    # skipping it left every hourly AQI forecast as the daily number repeated
+    # 24 times.
+    value_col = "aqi" if pollutant == "aqi" else "pm25"
+    if hourly is not None and value_col in hourly.columns:
+        g = complete_days(hourly[hourly.city == analysis_city], value_col=value_col)
         if not g.empty:
-            shape = diurnal_shape(g)
+            shape = diurnal_shape(g, value_col=value_col)
             n_days = g.groupby(["mo", "hr"])["d"].nunique()
             for (month, hour), ratio in shape.items():
                 shape_rows.append({
@@ -141,13 +155,28 @@ def fit_city(analysis_city: str, pollutant: str,
 def fit_stations(analysis_city: str, pollutant: str, city_fit: Dict[str, Any],
                  station_daily: pd.DataFrame,
                  monitors: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Per-station climatology, sharing the city's alpha and model."""
+    """Per-station climatology AND per-station alpha, sharing the city's model.
+
+    Alpha decides how much of today's departure from normal is carried into
+    tomorrow. It has to be fitted at the granularity it is SERVED at. A city
+    average is much smoother than any single station -- averaging ~70 Delhi
+    monitors cancels local noise, and for AQI it also cancels the jitter of the
+    max-over-pollutants operator switching between pollutants. Measured lag-3
+    anomaly autocorrelation in Delhi: city-mean AQI 0.68, per-station AQI 0.29.
+
+    Fitting on the city and serving per station therefore over-carried each
+    station's anomaly by more than double, and the day+1 AQI forecast landed
+    WORSE than the seasonal average it started from in Delhi and Bengaluru.
+    Stations without enough history of their own still inherit the city alpha,
+    which is the best available answer for them.
+    """
     rows: List[Dict[str, Any]] = []
     g = station_daily[station_daily.city == analysis_city]
 
     for mon in monitors:
         # XKDR keys stations by its own ids, so match on name via the manifest.
         sub = g[g.station == mon["xkdr_station"]] if mon.get("xkdr_station") else pd.DataFrame()
+        alphas = city_fit["alphas"]
         if sub.empty:
             # No history under this station's XKDR id: fall back to the city
             # curve so the station still forecasts, with history_days = 0
@@ -159,14 +188,17 @@ def fit_stations(analysis_city: str, pollutant: str, city_fit: Dict[str, Any],
                 clim, hist = city_fit["clim"], len(s)
             else:
                 clim, hist = climatology(s), len(s)
+                if len(s) >= MIN_HISTORY_DAYS:
+                    # Enough of its own history to fit its own carry weights.
+                    alphas = {h: fit_alpha(s, clim, h) for h in (1, 2, 3)}
 
         rows.append({
             "monitor_id": mon["monitor_id"],
             "pollutant": pollutant,
             "climatology": _clim_array(clim),
-            "alpha_h1": city_fit["alphas"][1],
-            "alpha_h2": city_fit["alphas"][2],
-            "alpha_h3": city_fit["alphas"][3],
+            "alpha_h1": alphas[1],
+            "alpha_h2": alphas[2],
+            "alpha_h3": alphas[3],
             "model": city_fit["model"],
             "history_days": hist,
             "fitted_at": datetime.now(timezone.utc).isoformat(),
@@ -226,8 +258,10 @@ def main() -> None:
         station_aqi = hist["station_aqi"]
         # readings_daily is daily, so there is no hourly series to refit the
         # diurnal shape from. Passing None makes fit_city skip it rather than
-        # overwrite good shape rows with nothing.
+        # overwrite good shape rows with nothing. This applies to AQI too: its
+        # shape can only be fitted from the local XKDR parquet.
         hourly = None
+        hourly_aqi = None
         # Station history from the DB is keyed by monitor_id -- load_history.py
         # already did the XKDR name matching when it wrote those rows, so the
         # station's own id is the join key here.
@@ -238,6 +272,7 @@ def main() -> None:
         daily = load_city_daily()
         daily_aqi = load_city_daily_aqi()
         hourly = load_city_hourly()
+        hourly_aqi = load_city_hourly_aqi()
         station_daily = load_station_daily()
         station_aqi = load_station_daily_aqi()
 
@@ -247,7 +282,10 @@ def main() -> None:
 
     for analysis_city, monitors in sorted(by_city.items()):
         for pollutant in args.pollutants:
-            fit = fit_city(analysis_city, pollutant, daily, daily_aqi, hourly)
+            hourly_for = hourly_aqi if pollutant == "aqi" else hourly
+            station_hist = station_aqi if pollutant == "aqi" else station_daily
+            fit = fit_city(analysis_city, pollutant, daily, daily_aqi, hourly_for,
+                           station_hist=station_hist)
             if fit is None:
                 continue
             # The per-station climatology must be fitted on the SAME quantity
@@ -256,7 +294,6 @@ def main() -> None:
             # silently stores a PM2.5 curve as the station's AQI climatology --
             # which understated Delhi's September AQI by roughly half until
             # 2026-09-22.
-            station_hist = station_aqi if pollutant == "aqi" else station_daily
             if station_hist is None or station_hist.empty:
                 # Fall back to the city curve, but say so. Silent fallback is
                 # how the original bug stayed invisible.

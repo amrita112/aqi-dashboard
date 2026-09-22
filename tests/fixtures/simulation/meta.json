@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-22T21:07:26.743763+00:00",
+  "generated_at": "2026-09-22T21:28:14.686463+00:00",
   "run_dates": [
     "2026-08-23",
     "2026-08-24",
@@ -49,9 +49,13 @@
   ],
   "run_cutoff_utc": "05:30",
   "note": "Regenerate with notebooks/forecast_simulation.ipynb. Golden values encode CURRENT forecast behaviour, bugs included; a deliberate improvement is expected to change them.",
-  "aqi_climatology_fix": "Generated AFTER the 2026-09-22 fix: per-station aqi climatology is now fitted on per-station AQI history, not PM2.5. Delhi median September climatology 41.9 -> 102.7. These params were computed locally from readings_daily; Supabase forecast_params must be refitted (refit_params --source db) for production to match.",
-  "known_defects_frozen_into_this_golden": [
-    "alpha and forecast_modes are fitted on the CITY-MEAN series in fit_city() and applied per station. City-mean AQI is far smoother than station AQI (Delhi lag-3 anomaly autocorrelation 0.680 vs 0.290), so alpha over-carries per-station anomalies and fixed48/aqi in Delhi and Bengaluru lands WORSE than climatology. Recorded as xfail in KNOWN_NO_SKILL.",
-    "diurnal_shape has no aqi rows (fit_city skips shape fitting for aqi), so hourly aqi forecasts are the daily value repeated 24 times. Adding an aqi shape SHOULD change every aqi row in the golden file."
-  ]
+  "params_provenance": "forecast_params and forecast_modes were computed locally from readings_daily history; diurnal_shape from the local XKDR parquet. Supabase must be refitted (refit_params --source db, then a parquet run for the shape) for production to match.",
+  "fixes_applied_2026_09_22": [
+    "per-station aqi climatology fitted on aqi history, not pm25",
+    "alpha fitted per station instead of on the city mean",
+    "forecast_modes measured per station (station_mode_table)",
+    "diurnal_shape fitted for aqi, and rotated IST->UTC at lookup"
+  ],
+  "known_defects_frozen_into_this_golden": [],
+  "out_of_season": "23 Aug - 21 Sep falls outside SEASON_MONTHS (10,11,12,1), which is what forecast_modes is fitted on and what the product exists for. Skill here is out-of-season skill; re-freeze once a November window is available."
 }

@@ -499,21 +499,86 @@ def load_city_hourly(rebuild: bool = False, min_stations: int = 3,
     return df
 
 
-def complete_days(g: pd.DataFrame, min_hours: int = 20) -> pd.DataFrame:
+CITY_HOURLY_AQI_CACHE = PROJECT_ROOT / "data" / "xkdr_city_hourly_aqi.parquet"
+
+
+def load_city_hourly_aqi(rebuild: bool = False, min_stations: int = 3,
+                         since: str = "2019-01-01") -> pd.DataFrame:
+    """Hourly city-mean composite NAQI, cached as parquet.
+
+    The AQI twin of load_city_hourly, and the input the AQI diurnal shape is
+    fitted on. Built the same way NAQI is defined everywhere else in this
+    module: average each pollutant over the HOUR at each station, convert each
+    to its sub-index, take the max across pollutants, then average those
+    station sub-indices across the city.
+
+    Taking the max per station-hour before averaging matters. Averaging the
+    pollutants across stations first and taking the max afterwards would be a
+    different number, and a smoother one -- the max is where AQI gets its
+    character.
+    """
+    import duckdb
+    from scripts.ingest.lib.aqi_utils import compute_subindex
+
+    if CITY_HOURLY_AQI_CACHE.exists() and not rebuild:
+        df = pd.read_parquet(CITY_HOURLY_AQI_CACHE)
+        df["d"] = pd.to_datetime(df["d"])
+        return df
+
+    con = duckdb.connect()
+    con.execute(
+        f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
+        f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
+    )
+    sh = con.sql(f"""
+        SELECT {_city_sql_case()} AS city, station_id AS station,
+               CAST(collected_at AS DATE) AS d,
+               EXTRACT(hour FROM collected_at)::INTEGER AS hr,
+               EXTRACT(month FROM collected_at)::INTEGER AS mo,
+               CASE parameter_name WHEN 'PM2.5' THEN 'pm25' WHEN 'PM10' THEN 'pm10'
+                    WHEN 'NO2' THEN 'no2' WHEN 'SO2' THEN 'so2' END AS pollutant,
+               avg(value) AS v
+        FROM m
+        WHERE parameter_name IN ('PM2.5','PM10','NO2','SO2')
+          AND city_name IN ({_all_xkdr_names()})
+          AND value BETWEEN 0 AND 2000 AND collected_at >= '{since}'
+        GROUP BY 1,2,3,4,5,6
+    """).df()
+
+    sh["si"] = [compute_subindex(p, v) for p, v in zip(sh.pollutant, sh.v)]
+    station_hour = (sh.groupby(["city", "station", "d", "hr", "mo"], as_index=False)["si"]
+                      .max())
+    out = (station_hour.groupby(["city", "d", "hr", "mo"], as_index=False)
+                       .agg(aqi=("si", "mean"), n_st=("station", "nunique")))
+    out = out[out.n_st >= min_stations]
+    out["d"] = pd.to_datetime(out["d"])
+    CITY_HOURLY_AQI_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    out.to_parquet(CITY_HOURLY_AQI_CACHE, index=False)
+    return out
+
+
+def complete_days(g: pd.DataFrame, min_hours: int = 20,
+                  value_col: str = "pm25") -> pd.DataFrame:
     """Keep only days with enough hours for a daily mean to mean anything."""
-    return g[g.groupby("d")["pm25"].transform("size") >= min_hours]
+    return g[g.groupby("d")[value_col].transform("size") >= min_hours]
 
 
-def diurnal_shape(train: pd.DataFrame) -> pd.Series:
+def diurnal_shape(train: pd.DataFrame, value_col: str = "pm25") -> pd.Series:
     """Mean ratio of hourly value to that day's mean, per (month, hour).
 
     A RATIO rather than an absolute profile, so the shape scales with the
     level: one learned in a clean month still applies in a dirty one. Indexed
     by (month, hour); multiply a daily forecast by it to get an hourly one.
+
+    `value_col` exists because AQI needs its own shape. AQI is the max of four
+    sub-indices, and the pollutant that wins can change with the hour, so its
+    daily profile is not PM2.5's. Before this was parametrised, fit_city simply
+    skipped shape fitting for AQI and every hourly AQI forecast was the daily
+    number repeated 24 times.
     """
-    day_mean = train.groupby("d")["pm25"].transform("mean")
+    day_mean = train.groupby("d")[value_col].transform("mean")
     ok = day_mean > 1                      # avoid dividing by ~0 on clean days
-    t = train[ok].assign(ratio=train.loc[ok, "pm25"] / day_mean[ok])
+    t = train[ok].assign(ratio=train.loc[ok, value_col] / day_mean[ok])
     return t.groupby(["mo", "hr"])["ratio"].mean()
 
 
@@ -1141,6 +1206,55 @@ def forecast_mode_table(series: pd.Series, test_year: int,
                     row[f"band_p{q}"] = float(np.percentile(rel, q))
             rows.append(row)
     return pd.DataFrame(rows)
+
+
+def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
+                       min_history: int = 365,
+                       data_ages: Iterable[int] = (0, 1, 2, 3, 4, 5, 7),
+                       horizons: Iterable[int] = (1, 2, 3)) -> pd.DataFrame:
+    """forecast_mode_table, but measured on STATIONS rather than the city mean.
+
+    The mode decides whether the app calls a number a forecast or admits it is
+    the seasonal average. It is served per station, so it has to be measured
+    per station. A city mean is far more predictable than any monitor in it --
+    averaging ~70 Delhi stations cancels local noise, and for AQI it also
+    cancels the max-over-pollutants operator jumping between pollutants -- so a
+    city-fitted table says "forecast" at data ages where no individual station
+    has any skill left.
+
+    Each station gets its own table; the city's row is the MEDIAN skill across
+    stations, with the mode re-derived from that median. Median rather than
+    mean so one erratic monitor cannot drag a whole city's labelling.
+    """
+    per_station = []
+    for st, sub in station_daily[station_daily.city == city].groupby("station"):
+        s = sub.groupby("d")["v"].mean().asfreq("D")
+        if s.dropna().shape[0] < min_history:
+            continue
+        s.name = city
+        t = forecast_mode_table(s, test_year, data_ages=data_ages, horizons=horizons)
+        if not t.empty:
+            per_station.append(t)
+
+    if not per_station:
+        return pd.DataFrame()
+
+    allt = pd.concat(per_station, ignore_index=True)
+    agg = (allt.groupby(["data_age_days", "horizon_days"], as_index=False)
+               .agg(effective_horizon=("effective_horizon", "first"),
+                    alpha=("alpha", "median"),
+                    mae=("mae", "median"),
+                    clim_mae=("clim_mae", "median"),
+                    skill_pct=("skill_pct", "median"),
+                    band_p50=("band_p50", "median"),
+                    band_p80=("band_p80", "median"),
+                    n=("n", "sum"),
+                    n_stations=("mae", "size")))
+    agg["city"] = city
+    agg["mode"] = np.where(agg.skill_pct >= 20, "forecast",
+                  np.where(agg.skill_pct >= MIN_USEFUL_SKILL_PCT, "outlook",
+                           "seasonal_normal"))
+    return agg
 
 
 def max_useful_age(mode_table: pd.DataFrame, horizon: int = 1) -> Optional[int]:
