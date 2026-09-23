@@ -23,13 +23,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { ok, fail, notFound, badRequest, parseMonitorId, parseNumber } from "@/lib/api/respond";
 import { istToday } from "@/lib/api/time";
-import {
-  indexShape,
-  expandDay,
-  bestHour,
-  type ForecastDailyRow,
-  type ShapeRow,
-} from "@/lib/api/forecast";
+import { bestHour } from "@/lib/api/forecast";
+import { getForecast } from "@/lib/api/data";
 
 export const revalidate = 300;
 
@@ -55,7 +50,8 @@ export async function GET(request: Request) {
   const supabase = createClient();
 
   // The station's city decides which diurnal shape applies; the shape is
-  // regional, not per-station.
+  // regional, not per-station. APP_TO_ANALYSIS maps the app's spelling to the
+  // analysis one (Bangalore -> Bengaluru) inside getForecast.
   const { data: monitor, error: monErr } = await supabase
     .from("monitors")
     .select("id, name, city, latitude, longitude")
@@ -67,40 +63,16 @@ export async function GET(request: Request) {
 
   const today = istToday();
 
-  const { data: rows, error: fErr } = await supabase
-    .from("forecast_daily")
-    .select(
-      "monitor_id, pollutant, target_date, horizon_days, value, band_p50, band_p80, mode, model, based_on_date, data_age_days",
-    )
-    .eq("monitor_id", monitorId)
-    .eq("pollutant", pollutant)
-    .gt("target_date", today)
-    .order("target_date", { ascending: true })
-    .limit(days);
-
-  if (fErr) return fail("Could not load the forecast", 502, fErr.message);
-  if (!rows?.length) {
+  // Shared with the `forecast` AI tool via lib/api/data.ts, so the question
+  // "what is tomorrow's forecast" has exactly one implementation and the two
+  // surfaces cannot drift into answering it differently.
+  const forecast = await getForecast(supabase, monitor, pollutant, days);
+  if (!forecast.length) {
     return notFound(
       "No forecast stored for this station and pollutant. The nightly job may not have run since it was added.",
     );
   }
-
-  // monitors.city is the app's spelling; diurnal_shape uses the analysis
-  // spelling. Bangalore/Bengaluru is the one that differs.
-  const analysisCity = APP_TO_ANALYSIS[monitor.city] ?? monitor.city;
-
-  const { data: shapeRows, error: sErr } = await supabase
-    .from("diurnal_shape")
-    .select("city, pollutant, month, hour, ratio")
-    .eq("city", analysisCity)
-    .eq("pollutant", pollutant);
-
-  if (sErr) return fail("Could not load the diurnal shape", 502, sErr.message);
-
-  const shape = indexShape((shapeRows ?? []) as ShapeRow[]);
-  const forecast = (rows as ForecastDailyRow[]).map((r) =>
-    expandDay(r, analysisCity, shape, { hourly: wantHourly }),
-  );
+  if (!wantHourly) forecast.forEach((d) => (d.hourly = null));
 
   const tomorrow = forecast[0];
   return ok(
@@ -128,7 +100,3 @@ export async function GET(request: Request) {
   );
 }
 
-const APP_TO_ANALYSIS: Record<string, string> = {
-  "Delhi NCR": "Delhi",
-  Bangalore: "Bengaluru",
-};
