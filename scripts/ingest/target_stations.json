@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-21T22:24:40.805402+00:00",
+  "generated_at": "2026-09-27T10:14:20.092704+00:00",
   "source": "openaq",
   "pollutants": [
     "no2",
@@ -1669,6 +1669,34 @@
       "monitor_id": "0855ec67-02ea-4c97-ad93-b0b1f67d3074"
     },
     {
+      "openaq_id": 8039,
+      "name": "Mumbai",
+      "latitude": 19.07283,
+      "longitude": 72.88261,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 23320,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "8bbc695d-3dc7-45b2-92d1-c52a2e4ff24e"
+    },
+    {
+      "openaq_id": 8118,
+      "name": "New Delhi",
+      "latitude": 28.63576,
+      "longitude": 77.22445,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 23534,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "d386fed1-9fb1-4d84-9bc3-9a2f55ae56b7"
+    },
+    {
       "openaq_id": 8235,
       "name": "Jahangirpuri, Delhi - DPCC",
       "latitude": 28.73282,
@@ -1797,6 +1825,20 @@
         }
       ],
       "monitor_id": "6317c5c8-39ea-42f4-84cc-39383e716048"
+    },
+    {
+      "openaq_id": 8558,
+      "name": "Chennai",
+      "latitude": 13.08784,
+      "longitude": 80.278475,
+      "city": "Chennai",
+      "sensors": [
+        {
+          "sensor_id": 5077812,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "351404ca-28ff-4d50-aadf-f3aeb836c649"
     },
     {
       "openaq_id": 8915,
@@ -2845,32 +2887,6 @@
         }
       ],
       "monitor_id": "ad376eed-4241-4792-95b7-b9d199b3a3a6"
-    },
-    {
-      "openaq_id": 3409319,
-      "name": "Alandur Bus Depot, Chennai - CPCB",
-      "latitude": 12.9099161,
-      "longitude": 80.1076538,
-      "city": "Chennai",
-      "sensors": [
-        {
-          "sensor_id": 12235546,
-          "parameter": "no2"
-        },
-        {
-          "sensor_id": 12235548,
-          "parameter": "pm10"
-        },
-        {
-          "sensor_id": 12235549,
-          "parameter": "pm25"
-        },
-        {
-          "sensor_id": 12235550,
-          "parameter": "so2"
-        }
-      ],
-      "monitor_id": "a37f6249-464f-404b-891d-58a81bfa3f19"
     },
     {
       "openaq_id": 3409320,
