@@ -223,3 +223,243 @@ export function meanAcross(values: number[]): number | null {
 
 /** Cap how many stations a city-level question fans out to. */
 export const MAX_STATIONS_PER_CITY_QUERY = 8;
+
+// ─── Averaging over the stations nearest a place ────────────────────────────
+//
+// A person is at a place, not at a monitor. Answering from whichever single
+// station happens to be first alphabetically is arbitrary, and answering from
+// the city mean throws away the fact that Anand Vihar and Lodhi Road are
+// genuinely different air. Averaging the few nearest stations to the point
+// they chose is the honest middle.
+//
+// It also rescues thin stations. A monitor with 37 days of history can only
+// ever serve the seasonal normal, but its neighbours 3 km away may have years
+// of it -- so a location answered from its neighbourhood gets a real forecast
+// where that one station could not give one.
+//
+// PLAIN MEAN, NOT INVERSE-DISTANCE WEIGHTED. Every city figure in this project
+// is a plain mean across stations, and staying consistent matters more than
+// the marginal gain from weighting three stations inside a 25 km cap.
+
+export const DEFAULT_NEAREST_K = 3;
+export const DEFAULT_MAX_KM = 25;
+
+export interface NearbyMonitor extends MonitorRow {
+  distance_km: number;
+}
+
+/**
+ * The k nearest stations to a point, nearest first.
+ *
+ * `max_km` is not optional in spirit: without it a user in a city with three
+ * working stations silently gets a fourth from 200 km away averaged in as
+ * though it described their air.
+ */
+export async function nearestMonitors(
+  supabase: SupabaseClient,
+  lat: number,
+  lng: number,
+  k = DEFAULT_NEAREST_K,
+  maxKm = DEFAULT_MAX_KM,
+  city: string | null = null,
+): Promise<NearbyMonitor[]> {
+  const { data, error } = await supabase.rpc("nearest_monitors", {
+    lat,
+    lng,
+    k,
+    max_km: maxKm,
+    want_city: city,
+  });
+  if (error || !data) return [];
+  return (data as { monitor_id: string; name: string; city: string; latitude: number; longitude: number; distance_km: number }[])
+    .map((r) => ({
+      id: r.monitor_id,
+      name: r.name,
+      city: r.city,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      distance_km: Math.round(r.distance_km * 100) / 100,
+    }));
+}
+
+export interface Averaged<T> {
+  value: T;
+  stations: { monitor_id: string; name: string; distance_km: number }[];
+}
+
+function describe(monitors: NearbyMonitor[]) {
+  return monitors.map((m) => ({
+    monitor_id: m.id,
+    name: m.name,
+    distance_km: m.distance_km,
+  }));
+}
+
+/**
+ * Average the day+N forecast across nearby stations.
+ *
+ * Stations serving `seasonal_normal` are EXCLUDED whenever at least one
+ * neighbour has a real forecast. A seasonal_normal row carries no information
+ * about tomorrow -- it is the long-run average -- so blending it in would drag
+ * the anomaly toward zero, which is the same over-smoothing this pipeline
+ * spent a week removing. When nobody nearby has a real forecast, the seasonal
+ * normals are averaged and the result is honestly labelled as such.
+ */
+export function averageForecastDays(
+  perStation: { monitor: NearbyMonitor; days: ForecastDay[] }[],
+  horizonCount: number,
+): Averaged<ForecastDay[]> | null {
+  const withData = perStation.filter((p) => p.days.length);
+  if (!withData.length) return null;
+
+  const out: ForecastDay[] = [];
+  const used = new Map<string, NearbyMonitor>();
+
+  for (let i = 0; i < horizonCount; i++) {
+    const slice = withData
+      .map((p) => ({ monitor: p.monitor, day: p.days[i] }))
+      .filter((x) => x.day);
+    if (!slice.length) continue;
+
+    const real = slice.filter((x) => x.day.mode !== "seasonal_normal");
+    const contributing = real.length ? real : slice;
+    for (const c of contributing) used.set(c.monitor.id, c.monitor);
+
+    const base = contributing[0].day;
+    const mean = (pick: (d: ForecastDay) => number | null) =>
+      meanAcross(contributing.map((c) => pick(c.day) ?? NaN));
+
+    const hourly = base.hourly
+      ? base.hourly.map((h, hour) => ({
+          ...h,
+          value: mean((d) => d.hourly?.[hour]?.value ?? null) ?? h.value,
+          band_low: mean((d) => d.hourly?.[hour]?.band_low ?? null),
+          band_high: mean((d) => d.hourly?.[hour]?.band_high ?? null),
+        }))
+      : null;
+
+    out.push({
+      ...base,
+      value: mean((d) => d.value) ?? base.value,
+      band_low: mean((d) => d.band_low),
+      band_high: mean((d) => d.band_high),
+      // Honest label: only a real forecast if the rows behind it were.
+      mode: real.length ? base.mode : "seasonal_normal",
+      data_age_days: mean((d) => d.data_age_days) ?? base.data_age_days,
+      hourly,
+      hourly_is_flat: contributing.every((c) => c.day.hourly_is_flat),
+    });
+  }
+
+  if (!out.length) return null;
+  const ordered = Array.from(used.values()).sort((a, b) => a.distance_km - b.distance_km);
+  return { value: out, stations: describe(ordered) };
+}
+
+/**
+ * Average the freshest reading across nearby stations.
+ *
+ * Age is reported as the OLDEST contributor, not the average: a blend is only
+ * as current as its stalest input, and rounding that down would overstate how
+ * fresh the answer is.
+ */
+export function averageCurrent(
+  perStation: { monitor: NearbyMonitor; reading: CurrentReading | null }[],
+): Averaged<{
+  aqi: number;
+  dominant_pollutant: string;
+  age_hours: number;
+  pollutants: { pollutant: string; value: number }[];
+}> | null {
+  const withData = perStation.filter(
+    (p): p is { monitor: NearbyMonitor; reading: CurrentReading } => p.reading !== null,
+  );
+  if (!withData.length) return null;
+
+  const aqi = meanAcross(withData.map((p) => p.reading.aqi));
+  if (aqi === null) return null;
+
+  // Per-pollutant means across whichever stations reported each one.
+  const byPollutant = new Map<string, number[]>();
+  for (const p of withData) {
+    for (const m of p.reading.pollutants) {
+      byPollutant.set(m.pollutant, [...(byPollutant.get(m.pollutant) ?? []), m.value]);
+    }
+  }
+  const pollutants = Array.from(byPollutant.entries())
+    .map(([pollutant, values]) => ({ pollutant, value: meanAcross(values) ?? 0 }))
+    .sort((a, b) => a.pollutant.localeCompare(b.pollutant));
+
+  // The pollutant driving the index most often across the contributors.
+  const votes = new Map<string, number>();
+  for (const p of withData) {
+    votes.set(p.reading.dominant_pollutant, (votes.get(p.reading.dominant_pollutant) ?? 0) + 1);
+  }
+  const dominant = Array.from(votes.entries()).sort((a, b) => b[1] - a[1])[0][0];
+
+  return {
+    value: {
+      aqi: Math.round(aqi),
+      dominant_pollutant: dominant,
+      age_hours: Math.max(...withData.map((p) => p.reading.age_hours)),
+      pollutants,
+    },
+    stations: describe(withData.map((p) => p.monitor)),
+  };
+}
+
+export interface AveragedHistoryPoint {
+  date: string;
+  mean: number;
+  min: number;
+  max: number;
+  stations: number;
+  count: number;
+  source: string;
+}
+
+/**
+ * Average the daily history across nearby stations, date by date.
+ *
+ * `stations` is per-day on purpose: coverage is uneven, monitors go quiet, and
+ * a day backed by one station is a different claim from one backed by three.
+ * A chart that hides that draws a smooth line through a gap.
+ */
+export function averageHistory(
+  perStation: { monitor: NearbyMonitor; series: HistoryPoint[] }[],
+): Averaged<AveragedHistoryPoint[]> {
+  const byDate = new Map<string, { points: HistoryPoint[]; monitors: NearbyMonitor[] }>();
+  for (const p of perStation) {
+    for (const row of p.series) {
+      const slot = byDate.get(row.date) ?? { points: [], monitors: [] };
+      slot.points.push(row);
+      slot.monitors.push(p.monitor);
+      byDate.set(row.date, slot);
+    }
+  }
+
+  const dates = Array.from(byDate.keys()).sort();
+  const series: AveragedHistoryPoint[] = [];
+  const used = new Map<string, NearbyMonitor>();
+
+  for (const date of dates) {
+    const { points, monitors } = byDate.get(date)!;
+    for (const m of monitors) used.set(m.id, m);
+    const mean = meanAcross(points.map((p) => p.mean));
+    if (mean === null) continue;
+    series.push({
+      date,
+      mean,
+      // Min and max are the extremes seen anywhere in the neighbourhood, not
+      // an average of extremes, which would understate both.
+      min: Math.min(...points.map((p) => p.min)),
+      max: Math.max(...points.map((p) => p.max)),
+      stations: points.length,
+      count: points.reduce((s, p) => s + p.count, 0),
+      source: points[0].source,
+    });
+  }
+
+  const ordered = Array.from(used.values()).sort((a, b) => a.distance_km - b.distance_km);
+  return { value: series, stations: describe(ordered) };
+}

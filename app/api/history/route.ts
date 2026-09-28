@@ -1,17 +1,24 @@
 /**
- * GET /api/history?monitor_id=&pollutant=&days=&from=&to=
+ * GET /api/history?lat=&lng=&k=&pollutant=&days=   — averaged over a location
+ * GET /api/history?monitor_id=...                   — one station
  *
- * The time-course screen. Daily statistics from `readings_daily`, which is the
+ * The time-course screen. Daily statistics from `readings_daily`, the
  * compressed table — roughly 1/40th the size of the raw readings behind it and
- * the only place that reaches back past the 30-day raw retention.
+ * the only place that reaches past the 30-day raw retention.
  *
- * Two things this returns that a naive daily mean would hide:
+ * Averaged over the nearest stations so the chart describes the person's
+ * neighbourhood rather than whichever monitor happened to be picked.
  *
- *   `count` and `source` together. A day's `count` means different things by
- *   source — OpenAQ carries CPCB at 15-minute resolution so a complete day is
- *   ~96, while the XKDR historical export is HOURLY so a complete day is ~24.
- *   Reading `count` without `source` makes every historical day look
- *   three-quarters missing. `completeness` below does that arithmetic.
+ * Three things this returns that a naive daily mean would hide:
+ *
+ *   `stations` per day. Coverage is uneven — monitors go quiet, the archive
+ *   thins out — and a day backed by one station is a different claim from one
+ *   backed by three. A chart that hides that draws a smooth line through a gap.
+ *
+ *   `completeness` against the station's OWN cadence. Migration 14 assumed
+ *   OpenAQ always means 15-minute data (96/day); measured on 2026-09-28 most
+ *   stations top out at 84 and nine report hourly, so a fixed denominator made
+ *   complete days look broken.
  *
  *   `min_ts` / `max_ts` converted to IST. They are stored as UTC instants and
  *   answer "when is the air cleanest here", which is a question about the
@@ -20,7 +27,9 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
-import { ok, fail, badRequest, parseMonitorId, parseNumber } from "@/lib/api/respond";
+import { ok, fail, badRequest, parseNumber } from "@/lib/api/respond";
+import { resolvePlace, placeMeta } from "@/lib/api/place";
+import { getHistory, averageHistory } from "@/lib/api/data";
 import { istToday, toIstClock, toIstLocalString } from "@/lib/api/time";
 
 export const revalidate = 600;
@@ -29,14 +38,7 @@ const ALLOWED_POLLUTANTS = new Set(["pm25", "pm10", "no2", "so2"]);
 
 /**
  * Fallback readings-per-complete-day, by source, used only when a station has
- * too few days in the window to speak for itself.
- *
- * Migration 14 assumed OpenAQ always means 15-minute CPCB data, i.e. 96 a day.
- * Measured 2026-09-28, that is not what the stations do: 101 of ~150 top out at
- * exactly 84, nine report hourly (24), and the rest are scattered between. A
- * fixed denominator therefore reported complete days as 87% or 25% complete.
- * The station's own observed maximum is used instead, which self-calibrates to
- * whatever cadence it actually reports at.
+ * too few days in the window to speak for itself. See the note above.
  */
 const FALLBACK_PER_DAY: Record<string, number> = { openaq: 84, xkdr: 24 };
 
@@ -47,9 +49,6 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
-
-  const monitorId = parseMonitorId(params);
-  if (!monitorId) return badRequest("monitor_id is required and must be a UUID");
 
   const pollutant = params.get("pollutant") ?? "pm25";
   if (!ALLOWED_POLLUTANTS.has(pollutant)) {
@@ -73,61 +72,71 @@ export async function GET(request: Request) {
   if (from > to) return badRequest("from must not be after to");
 
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("readings_daily")
-    .select("date, count, mean, min, min_ts, max, max_ts, p10, p50, p90, source")
-    .eq("monitor_id", monitorId)
-    .eq("pollutant", pollutant)
-    .gte("date", from)
-    .lte("date", to)
-    .order("date", { ascending: true });
+  const resolved = await resolvePlace(supabase, params);
+  if ("error" in resolved) return fail(resolved.error.message, resolved.error.status);
+  const { place } = resolved;
 
-  if (error) return fail("Could not load history", 502, error.message);
+  const perStation = await Promise.all(
+    place.monitors.map(async (monitor) => ({
+      monitor,
+      series: await getHistory(supabase, monitor, pollutant, from!, to),
+    })),
+  );
 
-  // A complete day is whatever this station manages at its best in the window.
-  const rows = data ?? [];
-  const bestBySource = new Map<string, number>();
-  const daysBySource = new Map<string, number>();
-  for (const d of rows) {
-    bestBySource.set(d.source, Math.max(bestBySource.get(d.source) ?? 0, d.count));
-    daysBySource.set(d.source, (daysBySource.get(d.source) ?? 0) + 1);
-  }
+  const averaged = averageHistory(perStation);
 
-  const series = rows.map((d) => {
-    const observed = bestBySource.get(d.source) ?? 0;
-    const enoughDays = (daysBySource.get(d.source) ?? 0) >= MIN_DAYS_TO_INFER_CADENCE;
-    const expected = enoughDays && observed > 0 ? observed : FALLBACK_PER_DAY[d.source] ?? 84;
+  // A complete day is whatever the neighbourhood manages at its best, summed
+  // across however many stations contributed to that day.
+  const perDayPerStation = averaged.value.map((d) => d.count / Math.max(1, d.stations));
+  const observed = perDayPerStation.length ? Math.max(...perDayPerStation) : 0;
+  const source = averaged.value[0]?.source ?? "openaq";
+  const enoughDays = averaged.value.length >= MIN_DAYS_TO_INFER_CADENCE;
+  const expectedPerStation =
+    enoughDays && observed > 0 ? Math.round(observed) : FALLBACK_PER_DAY[source] ?? 84;
+
+  // Per-station extremes and their timestamps are only meaningful for a single
+  // station; across a neighbourhood the clock times would be from different
+  // monitors on different days.
+  const single = place.kind === "station" ? perStation[0]?.series ?? [] : [];
+  const tsByDate = new Map(single.map((d) => [d.date, d]));
+
+  const series = averaged.value.map((d) => {
+    const raw = tsByDate.get(d.date) as
+      | { min_ts?: string | null; max_ts?: string | null }
+      | undefined;
     return {
       date: d.date, // already an IST calendar day — see migration 15
       mean: d.mean,
       min: d.min,
       max: d.max,
-      p10: d.p10,
-      p50: d.p50,
-      p90: d.p90,
+      stations: d.stations,
       count: d.count,
       source: d.source,
-      completeness: Math.min(1, Math.round((d.count / expected) * 100) / 100),
-      readings_expected: expected,
-      min_at: d.min_ts ? toIstLocalString(d.min_ts) : null,
-      min_clock: d.min_ts ? toIstClock(d.min_ts) : null,
-      max_at: d.max_ts ? toIstLocalString(d.max_ts) : null,
-      max_clock: d.max_ts ? toIstClock(d.max_ts) : null,
+      readings_expected: expectedPerStation * d.stations,
+      completeness: Math.min(
+        1,
+        Math.round((d.count / Math.max(1, expectedPerStation * d.stations)) * 100) / 100,
+      ),
+      min_at: raw?.min_ts ? toIstLocalString(raw.min_ts) : null,
+      min_clock: raw?.min_ts ? toIstClock(raw.min_ts) : null,
+      max_at: raw?.max_ts ? toIstLocalString(raw.max_ts) : null,
+      max_clock: raw?.max_ts ? toIstClock(raw.max_ts) : null,
     };
   });
 
   return ok(series, {
-    monitor_id: monitorId,
+    ...placeMeta(place, averaged.stations),
     pollutant,
     from,
     to,
     days_returned: series.length,
-    // How the completeness denominator was arrived at, so a screen showing
-    // "90% complete" can say what it is 90% of.
-    cadence_per_day: Object.fromEntries(bestBySource),
-    // Gaps are normal — a station goes quiet, or the archive thins out — and a
-    // screen should draw a break rather than a straight line through nothing.
     days_requested:
       Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1,
+    // How the completeness denominator was arrived at, so a screen showing
+    // "90% complete" can say what it is 90% of.
+    cadence_per_station_per_day: expectedPerStation,
+    // Extreme timestamps are single-station only; across a neighbourhood they
+    // would come from different monitors and mean nothing together.
+    extremes_available: place.kind === "station",
   });
 }
