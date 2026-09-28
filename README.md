@@ -31,8 +31,10 @@ Create a free project at [supabase.com](https://supabase.com). Then run the SQL 
 | `12-forecast-tables.sql` | Adds `forecast_params`, `diurnal_shape`, `forecast_daily`, `forecast_modes` | Yes |
 | `13-monitor-locations.sql` | Gives `monitors` a name, coordinates and city; adds nearest-station lookup and `alert_defaults` | Yes |
 | `14-readings-daily-source.sql` | Marks whether a daily row was rolled up from our raw readings or loaded from the XKDR history | Yes |
+| `15-timezone-conventions.sql` | Column comments recording which columns are UTC instants and which are IST calendar labels. Changes no data | Yes |
+| `16-petition-signatures.sql` | Adds `petition_signatures` — the only table holding personal data, and the only one nobody can read through the app | Yes |
 
-Files 1, 2, 5–13 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
+Files 1, 2, 5–16 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
 
 A few of these are worth a sentence, because the reason is not obvious from the name:
 
@@ -54,6 +56,19 @@ A few of these are worth a sentence, because the reason is not obvious from the 
   called". It also seeds `alert_defaults` — per-city notification thresholds set to the median
   daily maximum over October–February, so a user who keeps the default hears from the app on
   roughly half the days of the season.
+- **15** changes no data at all. It writes down, as column comments, which columns are UTC
+  *instants* and which are IST *calendar labels* — a distinction that was never documented and
+  cost two bugs: `readings_daily.date` meant an IST day for XKDR rows and a UTC day for ours,
+  and `diurnal_shape.hour` is an IST hour that the forecast code was reading as UTC, rotating
+  every hourly profile by five and a half hours.
+- **16** is the only table in this project that holds personal data, so its row-level security
+  is deliberately the inverse of every other table's. Everything else is `SELECT USING (true)`
+  because air quality is public and the anon key ships to the browser. A list of named people
+  is not public: this table has an INSERT policy and **no SELECT policy at all**, so it is
+  unreadable through the app under any circumstances, and only `service_role` can see it. The
+  public signature count comes from a `SECURITY DEFINER` function that returns an integer.
+  Withdrawal *deletes* the row rather than flagging it, and retention is two years enforced by
+  `purge_expired_signatures()`.
 
 After running the migrations, populate the derived tables:
 
