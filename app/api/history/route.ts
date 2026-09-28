@@ -27,8 +27,21 @@ export const revalidate = 600;
 
 const ALLOWED_POLLUTANTS = new Set(["pm25", "pm10", "no2", "so2"]);
 
-/** Readings per complete day, by source. See migration 14. */
-const EXPECTED_PER_DAY: Record<string, number> = { openaq: 96, xkdr: 24 };
+/**
+ * Fallback readings-per-complete-day, by source, used only when a station has
+ * too few days in the window to speak for itself.
+ *
+ * Migration 14 assumed OpenAQ always means 15-minute CPCB data, i.e. 96 a day.
+ * Measured 2026-09-28, that is not what the stations do: 101 of ~150 top out at
+ * exactly 84, nine report hourly (24), and the rest are scattered between. A
+ * fixed denominator therefore reported complete days as 87% or 25% complete.
+ * The station's own observed maximum is used instead, which self-calibrates to
+ * whatever cadence it actually reports at.
+ */
+const FALLBACK_PER_DAY: Record<string, number> = { openaq: 84, xkdr: 24 };
+
+/** Too few days to infer a cadence from; trust the source default instead. */
+const MIN_DAYS_TO_INFER_CADENCE = 3;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -71,8 +84,19 @@ export async function GET(request: Request) {
 
   if (error) return fail("Could not load history", 502, error.message);
 
-  const series = (data ?? []).map((d) => {
-    const expected = EXPECTED_PER_DAY[d.source] ?? 96;
+  // A complete day is whatever this station manages at its best in the window.
+  const rows = data ?? [];
+  const bestBySource = new Map<string, number>();
+  const daysBySource = new Map<string, number>();
+  for (const d of rows) {
+    bestBySource.set(d.source, Math.max(bestBySource.get(d.source) ?? 0, d.count));
+    daysBySource.set(d.source, (daysBySource.get(d.source) ?? 0) + 1);
+  }
+
+  const series = rows.map((d) => {
+    const observed = bestBySource.get(d.source) ?? 0;
+    const enoughDays = (daysBySource.get(d.source) ?? 0) >= MIN_DAYS_TO_INFER_CADENCE;
+    const expected = enoughDays && observed > 0 ? observed : FALLBACK_PER_DAY[d.source] ?? 84;
     return {
       date: d.date, // already an IST calendar day — see migration 15
       mean: d.mean,
@@ -84,6 +108,7 @@ export async function GET(request: Request) {
       count: d.count,
       source: d.source,
       completeness: Math.min(1, Math.round((d.count / expected) * 100) / 100),
+      readings_expected: expected,
       min_at: d.min_ts ? toIstLocalString(d.min_ts) : null,
       min_clock: d.min_ts ? toIstClock(d.min_ts) : null,
       max_at: d.max_ts ? toIstLocalString(d.max_ts) : null,
@@ -97,6 +122,9 @@ export async function GET(request: Request) {
     from,
     to,
     days_returned: series.length,
+    // How the completeness denominator was arrived at, so a screen showing
+    // "90% complete" can say what it is 90% of.
+    cadence_per_day: Object.fromEntries(bestBySource),
     // Gaps are normal — a station goes quiet, or the archive thins out — and a
     // screen should draw a break rather than a straight line through nothing.
     days_requested:
