@@ -33,6 +33,7 @@ import { resolvePlace, placeMeta } from "@/lib/api/place";
 import { getForecast, averageForecastDays } from "@/lib/api/data";
 import { bestHour } from "@/lib/api/forecast";
 import { istToday } from "@/lib/api/time";
+import { assessDataQuality } from "@/lib/api/data-quality";
 
 export const revalidate = 300;
 
@@ -77,6 +78,15 @@ export async function GET(request: Request) {
   if (!wantHourly) forecast.forEach((d) => (d.hourly = null));
 
   const tomorrow = forecast[0];
+
+  // Staleness is WHY a day falls back to the seasonal average, so the two are
+  // reported together. A user told "typical for this time of year" deserves to
+  // know that it is because the nearest monitors last reported days ago — and
+  // to be offered something to do about it.
+  const servingSeasonalNormal = tomorrow?.mode === "seasonal_normal";
+  const ageHours =
+    tomorrow?.data_age_days != null ? tomorrow.data_age_days * 24 : null;
+
   return ok(
     {
       place: {
@@ -90,6 +100,10 @@ export async function GET(request: Request) {
       // Pulled out because it is what the home screen leads with.
       tomorrow: tomorrow ?? null,
       best_hour: tomorrow ? bestHour(tomorrow) : null,
+      data_quality: assessDataQuality(ageHours, {
+        servingSeasonalNormal,
+        stationCount: averaged.stations.length,
+      }),
     },
     {
       ...placeMeta(place, averaged.stations),

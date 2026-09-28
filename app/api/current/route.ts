@@ -20,13 +20,11 @@ import { ok, fail } from "@/lib/api/respond";
 import { resolvePlace, placeMeta } from "@/lib/api/place";
 import { getCurrent, averageCurrent } from "@/lib/api/data";
 import { toIstLocalString, toIstClock, dataAgeDays } from "@/lib/api/time";
+import { assessDataQuality, STALE_AFTER_HOURS } from "@/lib/api/data-quality";
 import { getAqiCategory, getAqiTextColor } from "@/lib/aqi-utils";
 import { DEFAULT_SCALE } from "@/lib/types";
 
 export const dynamic = "force-dynamic"; // freshness is the whole point
-
-/** Past this, "current" is not an honest word for it. */
-const STALE_AFTER_HOURS = 24;
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
@@ -80,6 +78,12 @@ export async function GET(request: Request) {
       age_hours,
       age_days: dataAgeDays(freshest.recorded_at),
       stale: age_hours > STALE_AFTER_HOURS,
+      // How good this answer actually is, and what the user can do about it.
+      // Structural, not a disclaimer: measured 2026-09-28, ZERO government
+      // stations in Delhi, Mumbai or Bengaluru had reported within 48 hours.
+      data_quality: assessDataQuality(age_hours, {
+        stationCount: averaged.stations.length,
+      }),
     },
     {
       ...placeMeta(place, averaged.stations),
