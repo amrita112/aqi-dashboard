@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-27T10:14:20.092704+00:00",
+  "generated_at": "2026-10-04T10:48:33.916711+00:00",
   "source": "openaq",
   "pollutants": [
     "no2",
@@ -3752,6 +3752,10 @@
         {
           "sensor_id": 12238710,
           "parameter": "pm25"
+        },
+        {
+          "sensor_id": 17766245,
+          "parameter": "so2"
         }
       ],
       "monitor_id": "7a7eee02-b0b7-467b-b43a-7b734591587b"
