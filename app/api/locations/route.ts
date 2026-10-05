@@ -24,11 +24,30 @@ interface LocationRow {
 
 export async function GET() {
   const supabase = createClient();
-  const { data, error } = await supabase.rpc("list_locations");
+  const [locations, defaults] = await Promise.all([
+    supabase.rpc("list_locations"),
+    // Shipped alongside so the first-run setup is a single round trip: the
+    // threshold step needs a sensible number for the city the user just
+    // picked, and it would be absurd to make them wait again for it.
+    supabase.from("alert_defaults").select("city, pollutant, threshold, source"),
+  ]);
 
-  if (error) return fail("Could not load locations", 502, error.message);
+  if (locations.error) return fail("Could not load locations", 502, locations.error.message);
 
-  const rows = (data ?? []) as LocationRow[];
+  // Keyed per pollutant, including the provenance string. Flattening `source`
+  // onto the city would let whichever pollutant was read last describe both —
+  // so Delhi's PM2.5 threshold of 290 would cite the AQI figure of 383.
+  const thresholds = new Map<
+    string,
+    { aqi?: { threshold: number; source: string }; pm25?: { threshold: number; source: string } }
+  >();
+  for (const row of defaults.data ?? []) {
+    const entry = thresholds.get(row.city) ?? {};
+    entry[row.pollutant as "aqi" | "pm25"] = { threshold: row.threshold, source: row.source };
+    thresholds.set(row.city, entry);
+  }
+
+  const rows = (locations.data ?? []) as LocationRow[];
   const byCity = new Map<string, LocationRow[]>();
   for (const r of rows) {
     if (!r.city) continue; // a monitor with no city cannot be offered as a choice
@@ -41,6 +60,12 @@ export async function GET() {
     .map(([city, stations]) => ({
       city,
       station_count: stations.length,
+      // Prefilled notification threshold: the median daily maximum over
+      // October–February, so someone who keeps the default hears from the app
+      // on roughly half the days of the bad season. That makes the number
+      // self-describing — "a typical bad-season day here" — and gives an
+      // obvious direction to move it in.
+      alert_default: thresholds.get(city) ?? null,
       stations: stations
         .map((s: LocationRow) => ({
           monitor_id: s.monitor_id,
