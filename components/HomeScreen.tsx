@@ -16,6 +16,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { loadPrefs, placeQuery, MEASUREMENT_COPY, type Prefs } from "@/lib/prefs";
+import { decideAlert } from "@/lib/alerts";
+import { assessDataQuality } from "@/lib/api/data-quality";
 
 interface Band {
   label: string;
@@ -68,6 +70,12 @@ export default function HomeScreen() {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [forecast, setForecast] = useState<ForecastBody | null>(null);
   const [current, setCurrent] = useState<CurrentBody | null>(null);
+  // Fetched separately from the forecast. The likeliest reason the forecast
+  // fails is that there is no stored forecast for this place -- exactly when
+  // the user most needs to see which stations are near them and why there is
+  // nothing to show. Hanging the station list off the forecast response meant
+  // it disappeared at the only moment it mattered.
+  const [nearby, setNearby] = useState<StationRef[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -82,11 +90,21 @@ export default function HomeScreen() {
     Promise.all([
       fetch(`/api/forecast?${q}`).then((r) => r.json()),
       fetch(`/api/current?${placeQuery(p)}`).then((r) => r.json()),
+      fetch(`/api/nearest?${placeQuery(p)}`).then((r) => r.json()),
     ])
-      .then(([f, c]) => {
+      .then(([f, c, n]) => {
         if (f?.error) setError(f.error.message);
         else setForecast(f);
         if (!c?.error) setCurrent(c);
+        if (!n?.error && Array.isArray(n.data)) {
+          setNearby(
+            n.data.map((m: { monitor_id: string; name: string; distance_km: number }) => ({
+              monitor_id: m.monitor_id,
+              name: m.name,
+              distance_km: m.distance_km,
+            })),
+          );
+        }
       })
       .catch(() => setError("Could not reach the server."));
   }, [router]);
@@ -96,8 +114,19 @@ export default function HomeScreen() {
   const unit = MEASUREMENT_COPY[prefs.measurement].unit;
   const short = MEASUREMENT_COPY[prefs.measurement].short;
   const tomorrow = forecast?.data.tomorrow ?? null;
-  const quality = forecast?.data.data_quality ?? null;
-  const stations = forecast?.meta.stations ?? [];
+  const stations = forecast?.meta.stations ?? nearby;
+  const alert = decideAlert(tomorrow, prefs.threshold, prefs.measurement);
+
+  // When the forecast call fails there is no data_quality block to show, but
+  // the explanation is more useful then, not less: assess it from the latest
+  // reading instead so the user still learns why there is nothing to forecast.
+  const quality =
+    forecast?.data.data_quality ??
+    (current
+      ? assessDataQuality(current.data.age_hours, { servingSeasonalNormal: true })
+      : error
+        ? assessDataQuality(null, { servingSeasonalNormal: true })
+        : null);
 
   return (
     <div className="space-y-6">
@@ -113,6 +142,33 @@ export default function HomeScreen() {
 
       {error && (
         <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
+      )}
+
+      {/* The banner sits above the forecast, because for someone who set a
+          threshold this is the thing they opened the app to find out. */}
+      {alert && (
+        <section
+          className={`rounded-lg border p-4 ${
+            alert.level === "alert"
+              ? "border-red-300 bg-red-50"
+              : "border-gray-300 bg-gray-50"
+          }`}
+        >
+          <h2
+            className={`font-semibold ${
+              alert.level === "alert" ? "text-red-900" : "text-gray-900"
+            }`}
+          >
+            {alert.headline}
+          </h2>
+          <p
+            className={`mt-1 text-sm ${
+              alert.level === "alert" ? "text-red-900/90" : "text-gray-700"
+            }`}
+          >
+            {alert.body}
+          </p>
+        </section>
       )}
 
       {/* The forecast leads. */}
