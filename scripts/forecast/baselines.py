@@ -1381,3 +1381,161 @@ def naqi_band_aqi(values) -> pd.Categorical:
     cut = pd.cut(pd.Series(values).reset_index(drop=True), bins=NAQI_AQI_BANDS,
                  labels=NAQI_LABELS, right=False)
     return pd.Categorical(cut, categories=NAQI_LABELS, ordered=True)
+
+# ─── Per-station backtesting ─────────────────────────────────────────────────
+#
+# Everything above fits and scores the CITY AVERAGE. That is not the problem the
+# app has. The app serves a place -- a few stations around a point the user
+# picked -- and it is never going to serve a forecast trained on a 70-station
+# mean, so a number measured that way overstates what anyone actually gets.
+#
+# The two are not merely different in practice; one bounds the other. For truth
+# y_i and prediction yhat_i at station i:
+#
+#     |mean(yhat) - mean(y)|  <=  mean(|yhat_i - y_i|)
+#
+# by the triangle inequality. Averaging before taking the absolute value lets
+# errors at different stations cancel, so the city-average MAE can never be the
+# larger of the two, however bad the model is.
+#
+# Measured on composite AQI, Oct-Jan 2024, day+1: the city-average figure is
+# 40.4 against 49.3 per station in Delhi, 15.3 against 21.5 in Mumbai, 12.5
+# against 16.4 in Bengaluru -- roughly 71-82% of the honest number. Band
+# agreement is distorted further, because banding is a threshold and
+# cancellation helps it more: Mumbai reads 85% city-wide and 72% per station.
+#
+# These functions return exactly the shapes their city-level counterparts do, so
+# a caller swaps one for the other and every downstream table and figure keeps
+# working.
+
+STATION_MIN_HISTORY_DAYS = 365
+STATION_MIN_TEST_DAYS = 30
+
+
+def _station_series(frame: pd.DataFrame, city: str) -> Dict[str, pd.Series]:
+    """One daily series per station in a city, on an explicit calendar index."""
+    out: Dict[str, pd.Series] = {}
+    g = frame[frame.city == city]
+    for station, sub in g.groupby("station"):
+        s = sub.groupby("d")["v"].mean().asfreq("D")
+        s.name = city
+        out[str(station)] = s
+    return out
+
+
+def backtest_stations(frame: pd.DataFrame, city: str, test_year: int,
+                      horizons: Iterable[int] = (1, 2, 3, 4, 5, 6, 7),
+                      min_history: int = STATION_MIN_HISTORY_DAYS) -> pd.DataFrame:
+    """backtest(), fitted and scored per station, then averaged across stations.
+
+    `frame` is a station-level daily table (city, station, d, v) -- either
+    load_station_daily() for PM2.5 or load_station_daily_aqi() for composite
+    AQI.
+
+    Each station gets its OWN climatology and its own alpha, because both are
+    served per station. The reported MAE is the unweighted mean of the stations'
+    MAEs: every station counts once, so a monitor that reports twice as often
+    does not get twice the say in how good the forecast is.
+
+    `alpha` comes back as the MEDIAN across stations, since there is no longer
+    one of them. `n` is the total station-days behind the figure and
+    `n_stations` how many stations contributed -- both needed to read the row
+    honestly.
+    """
+    per_station: List[pd.DataFrame] = []
+    for station, s in _station_series(frame, city).items():
+        if s[s.index.year < test_year].notna().sum() < min_history:
+            continue
+        got = backtest(s, test_year, horizons)
+        if got.empty:
+            continue
+        got = got[got.n >= STATION_MIN_TEST_DAYS]
+        if got.empty:
+            continue
+        per_station.append(got.assign(station=station))
+
+    if not per_station:
+        return pd.DataFrame()
+
+    allrows = pd.concat(per_station, ignore_index=True)
+    agg = (allrows.groupby(["test_year", "horizon", "model", "subset"], as_index=False)
+                  .agg(mae=("mae", "mean"),
+                       rmse=("rmse", "mean"),
+                       bias=("bias", "mean"),
+                       alpha=("alpha", "median"),
+                       n=("n", "sum"),
+                       n_stations=("station", "nunique")))
+    agg["city"] = city
+    # Same column order as backtest(), so callers cannot tell them apart.
+    return agg[["city", "test_year", "horizon", "model", "subset", "n",
+                "mae", "rmse", "bias", "alpha", "n_stations"]]
+
+
+def predictions_for_stations(frame: pd.DataFrame, city: str, test_year: int,
+                             h: int,
+                             min_history: int = STATION_MIN_HISTORY_DAYS) -> pd.DataFrame:
+    """predictions_for(), per station, stacked long with a `station` column.
+
+    Use for anything scored per station and then averaged -- band agreement,
+    for instance. Collapsing this to a city mean before scoring would reinstate
+    exactly the cancellation these functions exist to avoid.
+    """
+    frames: List[pd.DataFrame] = []
+    for station, s in _station_series(frame, city).items():
+        if s[s.index.year < test_year].notna().sum() < min_history:
+            continue
+        if s[s.index.year == test_year].notna().sum() < STATION_MIN_TEST_DAYS:
+            continue
+        got = predictions_for(s, test_year, h)
+        frames.append(got.assign(station=station, city=city))
+    return pd.concat(frames) if frames else pd.DataFrame()
+
+
+def per_station_table(frame: pd.DataFrame, city: str, fn, *args,
+                      min_history: int = STATION_MIN_HISTORY_DAYS,
+                      **kwargs) -> pd.DataFrame:
+    """Run any series-level analysis per station and average across stations.
+
+    Generic because backtest_stale_input, backtest_anomaly_window and
+    residual_bands all take a daily Series and return a tidy frame with a
+    `city` column, some key columns and some numbers. Rather than three
+    near-identical wrappers, this runs `fn` on each station's own series and
+    averages the numeric columns within each combination of the key columns.
+
+    Key columns are inferred: everything non-numeric, plus any integer column
+    that looks like a parameter rather than a measurement (horizon, window,
+    lag). `n` is summed, since it counts observations rather than measuring
+    one, and `n_stations` is added so a row can be read honestly.
+    """
+    # Parameters of the experiment, not measurements of it. Averaging one of
+    # these silently collapses rows that should stay separate -- `forecast_for`
+    # did exactly that, folding three horizons into a single row reading 2.0.
+    KEYLIKE = {"horizon", "want", "forecast_for", "effective_horizon",
+               "data_lag", "lag", "window_days", "quantile",
+               "data_age_days", "horizon_days", "test_year"}
+    per: List[pd.DataFrame] = []
+    for station, s in _station_series(frame, city).items():
+        if s[s.index.year < kwargs.get("test_year", args[0] if args else 0)].notna().sum() < min_history:
+            continue
+        try:
+            got = fn(s, *args, **kwargs)
+        except Exception:
+            continue
+        if got is None or len(got) == 0:
+            continue
+        per.append(got.assign(station=station))
+
+    if not per:
+        return pd.DataFrame()
+
+    allrows = pd.concat(per, ignore_index=True)
+    keys = [c for c in allrows.columns
+            if c in KEYLIKE or (allrows[c].dtype == object and c not in ("city", "station"))]
+    numeric = [c for c in allrows.columns
+               if c not in keys + ["city", "station"] and pd.api.types.is_numeric_dtype(allrows[c])]
+
+    how = {c: (c, "sum") if c == "n" else (c, "mean") for c in numeric}
+    agg = allrows.groupby(keys, as_index=False, dropna=False).agg(
+        **how, n_stations=("station", "nunique"))
+    agg["city"] = city
+    return agg
