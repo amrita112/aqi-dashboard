@@ -34,7 +34,15 @@ import { istToday, toIstClock, toIstLocalString } from "@/lib/api/time";
 
 export const revalidate = 600;
 
-const ALLOWED_POLLUTANTS = new Set(["pm25", "pm10", "no2", "so2"]);
+// "aqi" is derived rather than stored -- readings_daily holds only the four
+// measured pollutants, and composite AQI is the max of their sub-indices. See
+// getHistoryAqi(). Without it, the app's default measurement has no history.
+const ALLOWED_POLLUTANTS = new Set(["aqi", "pm25", "pm10", "no2", "so2"]);
+
+// A derived AQI day sums `count` across the four pollutants behind it, so a
+// complete day holds roughly four times the readings of a single-pollutant one.
+// Without this the completeness figure would read about 400%.
+const HISTORY_POLLUTANT_MULTIPLIER: Record<string, number> = { aqi: 4 };
 
 /**
  * Fallback readings-per-complete-day, by source, used only when a station has
@@ -91,8 +99,11 @@ export async function GET(request: Request) {
   const observed = perDayPerStation.length ? Math.max(...perDayPerStation) : 0;
   const source = averaged.value[0]?.source ?? "openaq";
   const enoughDays = averaged.value.length >= MIN_DAYS_TO_INFER_CADENCE;
+  const multiplier = HISTORY_POLLUTANT_MULTIPLIER[pollutant] ?? 1;
   const expectedPerStation =
-    enoughDays && observed > 0 ? Math.round(observed) : FALLBACK_PER_DAY[source] ?? 84;
+    enoughDays && observed > 0
+      ? Math.round(observed)
+      : (FALLBACK_PER_DAY[source] ?? 84) * multiplier;
 
   // Per-station extremes and their timestamps are only meaningful for a single
   // station; across a neighbourhood the clock times would be from different

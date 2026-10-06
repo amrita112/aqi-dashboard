@@ -17,7 +17,7 @@ export interface Tab {
 }
 
 /**
- * The tab bar. Deliberately three, not five.
+ * The tab bar. Deliberately four, not six.
  *
  * Settings is a tab rather than buried, because the three setup answers are
  * the only thing a person can get wrong, and changing your location is a
@@ -40,6 +40,12 @@ export const TABS: Tab[] = [
     label: "Ask",
     // Speech bubble
     icon: "M8.25 19.5 12 21.75V19.5h4.5a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 16.5 4.5h-9A2.25 2.25 0 0 0 5.25 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25h.75Z",
+  },
+  {
+    href: "/trends",
+    label: "Trends",
+    // Line chart
+    icon: "M3 3v16.5A1.5 1.5 0 0 0 4.5 21H21M7 15l3.5-4 3 2.5L19 7",
   },
   {
     href: "/setup",

@@ -197,6 +197,8 @@ export async function getHistory(
   from: string,
   to: string,
 ): Promise<HistoryPoint[]> {
+  if (pollutant === "aqi") return getHistoryAqi(supabase, monitor, from, to);
+
   const { data } = await supabase
     .from("readings_daily")
     .select("date, mean, min, max, count, source")
@@ -206,6 +208,75 @@ export async function getHistory(
     .lte("date", to)
     .order("date", { ascending: true });
   return (data ?? []) as HistoryPoint[];
+}
+
+/**
+ * Composite AQI history, derived rather than stored.
+ *
+ * `readings_daily` holds only the four MEASURED pollutants. Composite AQI is
+ * not a measurement — it is the max of their sub-indices — so there is nothing
+ * to look up and it has to be computed from the day's four rows.
+ *
+ * Done the way CPCB defines NAQI, and the way every other AQI figure in this
+ * project is built: convert each pollutant's daily mean to its sub-index, take
+ * the max across the pollutants that station reported THAT DAY. Taking a max
+ * across different days would invent an AQI that never happened.
+ *
+ * Without this, the app's default measurement has no history screen at all.
+ */
+async function getHistoryAqi(
+  supabase: SupabaseClient,
+  monitor: MonitorRow,
+  from: string,
+  to: string,
+): Promise<HistoryPoint[]> {
+  const { computeSubIndex } = await import("@/lib/aqi-utils");
+  const { DEFAULT_SCALE } = await import("@/lib/types");
+  type P = Parameters<typeof computeSubIndex>[0];
+
+  // Typed explicitly: postgrest-js infers never[] once .in() is given a
+  // widened array, which silently makes every field below `never`.
+  const { data } = await supabase
+    .from("readings_daily")
+    .select("date, pollutant, mean, min, max, count, source")
+    .eq("monitor_id", monitor.id)
+    .in("pollutant", [...MEASURED_POLLUTANTS])
+    .gte("date", from)
+    .lte("date", to)
+    .order("date", { ascending: true });
+
+  const rows = (data ?? []) as unknown as {
+    date: string; pollutant: string; mean: number | null;
+    min: number | null; max: number | null; count: number | null; source: string;
+  }[];
+
+  const byDate = new Map<string, { sub: number[]; count: number; source: string;
+                                   minSub: number[]; maxSub: number[] }>();
+  for (const row of rows) {
+    if (row.mean === null || row.mean < 0) continue;
+    const slot = byDate.get(row.date) ?? { sub: [], count: 0, source: row.source,
+                                           minSub: [], maxSub: [] };
+    slot.sub.push(computeSubIndex(row.pollutant as P, row.mean, DEFAULT_SCALE));
+    // The day's extremes are sub-indexed too, so min/max stay on the AQI scale
+    // rather than being concentrations mixed into an index series.
+    if (row.min !== null && row.min >= 0) slot.minSub.push(computeSubIndex(row.pollutant as P, row.min, DEFAULT_SCALE));
+    if (row.max !== null && row.max >= 0) slot.maxSub.push(computeSubIndex(row.pollutant as P, row.max, DEFAULT_SCALE));
+    slot.count += row.count ?? 0;
+    byDate.set(row.date, slot);
+  }
+
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, s]) => ({
+      date,
+      mean: Math.max(...s.sub),
+      min: s.minSub.length ? Math.max(...s.minSub) : Math.max(...s.sub),
+      max: s.maxSub.length ? Math.max(...s.maxSub) : Math.max(...s.sub),
+      // Summed across the four pollutants, so the completeness denominator in
+      // the route has to account for that — see HISTORY_POLLUTANT_MULTIPLIER.
+      count: s.count,
+      source: s.source,
+    }));
 }
 
 /**

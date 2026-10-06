@@ -57,8 +57,8 @@ describe("which tab is current", () => {
 });
 
 describe("the tabs themselves", () => {
-  it("is three, each with a label and an icon", () => {
-    expect(TABS).toHaveLength(3);
+  it("is four, each with a label and an icon", () => {
+    expect(TABS).toHaveLength(4);
     for (const t of TABS) {
       expect(t.label.length).toBeGreaterThan(0);
       expect(t.icon.length).toBeGreaterThan(10);
