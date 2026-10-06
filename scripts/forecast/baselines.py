@@ -88,7 +88,7 @@ def _all_xkdr_names() -> str:
 SEASON_MONTHS = (10, 11, 12, 1)
 
 
-def load_city_daily(min_readings_per_station_day: int = 12,
+def load_city_daily(parameter = "PM2.5", min_readings_per_station_day: int = 12,
                     min_stations_per_day: int = 3) -> pd.DataFrame:
     """Daily city-mean PM2.5 from the local XKDR parquet export.
 
@@ -105,12 +105,15 @@ def load_city_daily(min_readings_per_station_day: int = 12,
         f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
         f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
     )
+    # Assert parameter from existing XKDR parameter_name values, to avoid a silent empty return if the caller misspells it.
+    if parameter not in {"PM2.5", "PM10", "NO2", "SO2", "O3", "CO"}:
+        raise ValueError(f"parameter {parameter!r} not in XKDR parameter_name values")
     df = con.sql(f"""
         WITH station_day AS (
             SELECT {_city_sql_case()} AS city_name, station_id,
                    CAST(collected_at AS DATE) AS d, avg(value) AS v
             FROM m
-            WHERE parameter_name = 'PM2.5'
+            WHERE parameter_name = '{parameter}'
               AND city_name IN ({_all_xkdr_names()})
               AND value BETWEEN 0 AND 2000
             GROUP BY 1, 2, 3
@@ -1352,6 +1355,7 @@ def aqi_series(daily_aqi: pd.DataFrame, city: str) -> pd.Series:
 # from Satisfactory into Moderate and gives the wrong advice for the same
 # 20 ug/m3 error. Band accuracy is therefore the metric closest to the product.
 
+# PM2.5 breakpoints for the six NAQI bands, from CPCB's 2014 notification.
 NAQI_PM25_BREAKS = [0, 30, 60, 90, 120, 250, np.inf]
 NAQI_LABELS = ["Good", "Satisfactory", "Moderate", "Poor", "Very Poor", "Severe"]
 
@@ -1363,5 +1367,17 @@ def naqi_band(values) -> pd.Categorical:
     the codes are ordered 0..5, which makes "within one band" a subtraction.
     """
     cut = pd.cut(pd.Series(values).reset_index(drop=True), bins=NAQI_PM25_BREAKS,
+                 labels=NAQI_LABELS, right=False)
+    return pd.Categorical(cut, categories=NAQI_LABELS, ordered=True)
+
+# Composite AQI bands
+NAQI_AQI_BANDS = [0, 51, 101, 201, 301, 401, np.inf]
+def naqi_band_aqi(values) -> pd.Categorical:
+    """Bucket AQI values into CPCB's six NAQI categories.
+
+    Returns a Categorical (not a Series), so callers get `.codes` directly --
+    the codes are ordered 0..5, which makes "within one band" a subtraction.
+    """
+    cut = pd.cut(pd.Series(values).reset_index(drop=True), bins=NAQI_AQI_BANDS,
                  labels=NAQI_LABELS, right=False)
     return pd.Categorical(cut, categories=NAQI_LABELS, ordered=True)
