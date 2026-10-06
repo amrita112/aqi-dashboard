@@ -11,10 +11,15 @@
  */
 
 import HomeScreen from "@/components/HomeScreen";
+import { APP_NAME, APP_DESCRIPTION } from "@/lib/brand";
 
 export const metadata = {
-  title: "Air quality near you",
-  description: "Tomorrow's air, for seven Indian cities.",
+  // Spelled out rather than relying on the layout's "%s · APP_NAME" template:
+  // Next applies a template to CHILD segments only, and this page sits in the
+  // same segment as app/layout.tsx, so the template never reaches it. Without
+  // this the home tab read "Air quality near you" with no app name at all.
+  title: `Air quality near you · ${APP_NAME}`,
+  description: APP_DESCRIPTION,
 };
 
 export default function Home() {

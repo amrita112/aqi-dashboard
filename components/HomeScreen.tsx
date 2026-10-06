@@ -18,6 +18,7 @@ import Link from "next/link";
 import { loadPrefs, placeQuery, MEASUREMENT_COPY, type Prefs } from "@/lib/prefs";
 import { decideAlert } from "@/lib/alerts";
 import { assessDataQuality } from "@/lib/api/data-quality";
+import InstallHint from "@/components/InstallHint";
 
 interface Band {
   label: string;
@@ -198,6 +199,11 @@ export default function HomeScreen() {
           )}
         </section>
       )}
+
+      {/* After the headline, never before it. Someone opening the app came for
+          the number, and a prompt ahead of it is an interruption rather than
+          an offer. iOS-only and shown once — see InstallHint. */}
+      <InstallHint />
 
       {forecast?.data.best_hour && tomorrow?.mode !== "seasonal_normal" && (
         <p className="text-sm text-gray-700">
