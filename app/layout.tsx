@@ -1,16 +1,18 @@
 /**
  * Root Layout — the outer shell that wraps every page.
  *
- * This is like a template: the Navbar appears at the top of every page,
- * and the page content ({children}) is rendered below it.
- * In Next.js, every page automatically gets wrapped by this layout.
+ * Two products share it. The original crowdsourced-readings app keeps the top
+ * Navbar; the forecast app uses the bottom TabBar. Each stands down on the
+ * other's routes — see lib/nav.ts — so they never stack.
  */
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import TabBar from "@/components/TabBar";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import { APP_NAME, APP_DESCRIPTION, THEME_COLOR } from "@/lib/brand";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -24,8 +26,38 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Air quality for seven Indian cities",
-  description: "Tomorrow's air where you are, built from the public monitoring network.",
+  // "%s · Saaf Hawa" on every page that sets its own title. iOS takes the
+  // home-screen label from here, truncated hard, which is why the app name
+  // goes last rather than first.
+  title: { default: APP_NAME, template: `%s · ${APP_NAME}` },
+  description: APP_DESCRIPTION,
+  applicationName: APP_NAME,
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/favicon.png",
+    // iOS ignores the manifest's icon list entirely and uses this.
+    apple: "/apple-touch-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    title: APP_NAME,
+    // "default" keeps the status bar legible against a light page. The
+    // translucent option would put dark text over the app's own content.
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    // Station names contain digits that iOS otherwise turns into phone links.
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: THEME_COLOR,
+  // viewport-fit=cover lets the tab bar reach the bottom of an iPhone screen;
+  // it pads itself clear of the home indicator with env(safe-area-inset-bottom).
+  viewportFit: "cover",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -34,16 +66,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en-IN">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
       >
         <Navbar />
-        {/* pb-20 so a fixed bottom bar never covers the last card on a page.
+        {/* pb-20 so the fixed bottom bar never covers the last card on a page.
             TabBar renders nothing outside the forecast app, where the padding
             is harmless. */}
         <div className="pb-20">{children}</div>
         <TabBar />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );
