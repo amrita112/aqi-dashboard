@@ -5,13 +5,22 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* THIS APP IS LIGHT-ONLY, DELIBERATELY.
+   *
+   * The AQI bands are fixed CPCB colours -- #ffff00 for Moderate, #ff0000 for
+   * Very Poor -- chosen to be read on a light background. A dark theme needs a
+   * second palette for them, and recolouring a scale people recognise from
+   * every other air quality source is a decision, not a styling tweak.
+   *
+   * The default template flipped --foreground to #ededed under
+   * prefers-color-scheme: dark, while body kept Tailwind's bg-gray-50 (a class
+   * beats an element selector). So on any phone with dark mode on, every piece
+   * of text without an explicit colour -- the AI's answer, the city heading,
+   * the latest reading -- rendered near-white on near-white. That override is
+   * gone, and color-scheme below tells the browser to render form controls and
+   * scrollbars light to match. */
+  color-scheme: light;
 }
 
 body {

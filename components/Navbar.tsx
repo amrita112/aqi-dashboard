@@ -10,7 +10,9 @@
 import Link from "next/link";        // Next.js component for linking between pages
 import { useRouter } from "next/navigation";  // For redirecting the user after logout
 import { useEffect, useState } from "react";  // React tools for managing state
+import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { isAppRoute } from "@/lib/nav";
 import type { User } from "@supabase/supabase-js";
 
 export default function Navbar() {
@@ -18,6 +20,10 @@ export default function Navbar() {
   // Here we track the logged-in user (or null if not logged in).
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
+  // Two products share this codebase. The forecast app uses a bottom tab bar,
+  // so this top bar stands down there rather than stacking two navigations on
+  // the same screen. The original crowdsourced-readings pages keep it.
+  const pathname = usePathname();
   const supabase = createClient();
 
   // useEffect runs code when the component first appears on screen.
@@ -45,6 +51,11 @@ export default function Navbar() {
     setUser(null);
     router.push("/");  // Redirect to the home page
   };
+
+  // Stand down on the forecast app's routes, which have a bottom tab bar.
+  // After the hooks, never before: React requires the same hooks to run on
+  // every render, so an early return above them would break the rules.
+  if (isAppRoute(pathname)) return null;
 
   return (
     <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">

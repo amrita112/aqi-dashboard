@@ -10,6 +10,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import TabBar from "@/components/TabBar";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -23,8 +24,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "AQI Dashboard — Crowdsourced Air Quality for India",
-  description: "Submit and view crowdsourced AQI readings across India",
+  title: "Air quality for seven Indian cities",
+  description: "Tomorrow's air where you are, built from the public monitoring network.",
 };
 
 export default function RootLayout({
@@ -38,7 +39,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
       >
         <Navbar />
-        {children}
+        {/* pb-20 so a fixed bottom bar never covers the last card on a page.
+            TabBar renders nothing outside the forecast app, where the padding
+            is harmless. */}
+        <div className="pb-20">{children}</div>
+        <TabBar />
       </body>
     </html>
   );
