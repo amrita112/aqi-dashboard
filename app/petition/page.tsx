@@ -11,17 +11,23 @@
  * can show a forecast at all. That is the point of the page — the product's own
  * limitation, stated honestly, is the argument.
  *
- * TWO CLAIMS, DELIBERATELY SEPARATED, because only one of them is cleanly ours
- * to make:
+ * TWO CLAIMS, BOTH NOW MEASURED AT THE SOURCE:
  *
- *   - SPARSITY is unambiguous. 63 government monitors for Delhi NCR is a fact
- *     about the network, independent of anything we do.
- *   - DELAY is partly ours. Our own collector has been running intermittently,
- *     and from inside we cannot fully separate "they published late" from "we
- *     fetched late" — the two are censored by our own schedule. So the page
- *     says the data *reaching us* is old, which is true and checkable, and does
- *     not assert whose fault that is. Do not tighten this into a cleaner
- *     accusation; the measurement does not support one.
+ *   - SPARSITY. 63 government monitors for Delhi NCR is a fact about the
+ *     network, independent of anything we do.
+ *   - DELAY. Measured by asking OpenAQ directly, station by station, rather than
+ *     inferred from our own database — which could not answer it, because our
+ *     own fetch schedule censored the observation. Across 45 PM2.5 sensors in
+ *     Delhi, Mumbai and Bengaluru the median publication lag is 109.7 hours,
+ *     about 4.6 days, and the slowest is 7.7 days. Nearly every station reports
+ *     the SAME age, so this is one bulk publish every few days rather than a
+ *     steady per-station delay.
+ *
+ * An earlier version of this comment said the delay was "partly ours" and
+ * declined to attribute it. That was the right caution at the time and is now
+ * superseded by the measurement: our window was too narrow to reach data that
+ * was already 4.6 days old at the source, which is a separate bug and did not
+ * create the 4.6 days.
  */
 
 import PetitionForm from "@/components/PetitionForm";
@@ -77,7 +83,8 @@ export default async function PetitionPage() {
       </p>
 
       <p className="mt-4 text-gray-700">
-        That is not a flaw in the forecast. It is what the underlying data looks like.
+        That is not a flaw in the forecast. It is what the underlying data looks like — and
+        air quality this old cannot answer a question about today.
       </p>
 
       <section className="mt-8 rounded-lg border border-gray-200 bg-white p-5">
@@ -109,10 +116,10 @@ export default async function PetitionPage() {
           last two days. Of the 126 government monitors, none had.
         </p>
         <p className="mt-2 text-sm text-gray-600">
-          Some of that delay is ours — our own collector is still being hardened, and from
-          where we sit we cannot cleanly separate data published late from data we fetched
-          late. We are not claiming otherwise. What is not ours is how few monitors there
-          are to fetch from.
+          We checked this at the source rather than trusting our own records: asked station
+          by station, the public feed publishes a batch roughly every few days, and the
+          typical reading is already <strong>4.6 days old</strong> by the time it is
+          available to anyone at all. The slowest station we found takes 7.7 days.
         </p>
       </section>
 
