@@ -2,19 +2,23 @@
 Scheduled ingest of recent measurements from the OpenAQ live API.
 
 Runs every 6 hours via GitHub Actions (00:00, 06:00, 12:00, 18:00 UTC).
-Fetches the last 8 hours of measurements for each target-city sensor listed
-in target_stations.json, converts every value to canonical units, groups by
-(station, timestamp), and upserts into Supabase.
+Fetches the last DEFAULT_FETCH_WINDOW_HOURS of measurements for each
+target-city sensor listed in target_stations.json, converts every value to
+canonical units, groups by (station, timestamp), and upserts into Supabase.
 
-Why every 6h with a 48h window (not hourly, and not 8h):
-The window has to cover OpenAQ's PUBLICATION lag, not just the gap between
-runs. OpenAQ publishes measurements ~17-24h after the fact, so the original
-8h window (6h cadence + 2h overlap) always asked for hours that did not exist
-yet and came back empty. Re-seen rows are a no-op thanks to the
-(monitor_id, source, recorded_at) uniqueness constraint on readings.
-4-6 hours of data lag is acceptable for the "should I go outside now" use
-case since historical patterns matter more than the most-recent reading.
-6-hourly cuts ~4x the API + GHA runtime for a negligible UX cost.
+Why the window is much wider than the cadence:
+It has to cover OpenAQ's PUBLICATION lag, not the gap between runs. That lag is
+neither small nor stable -- measured 16.8h on 2026-09-17 and 109.7h (4.6 days)
+on 2026-10-06, and it arrives in bulk publishes rather than continuously, so the
+window must span the gap between batches. See DEFAULT_FETCH_WINDOW_HOURS for the
+measurements. Asking for hours OpenAQ has not published yet returns nothing, and
+a window narrower than the lag returns nothing AT ALL, which is what happened
+for most of September.
+
+Re-seen rows are a no-op thanks to the (monitor_id, source, recorded_at)
+uniqueness constraint on readings, so the overlap is free. Keeping the 6-hourly
+cadence despite the wide window is about catching a bulk publish soon after it
+lands, not about the window.
 
 Why per-sensor requests (not one big global call):
 The OpenAQ /parameters/{id}/latest endpoint returns latest sensor values
@@ -67,19 +71,48 @@ from scripts.ingest.lib.supabase_client import (
 # and returned nothing on every scheduled run -- which is what looked from the
 # outside like an OpenAQ outage for Indian stations from 2026-08-27 onward.
 #
-# Measured 2026-09-17 against sensor 12234787 (R K Puram PM2.5), asking for the
-# last N hours:  8h -> 0 rows, 24h -> 0 rows, 48h -> 87 rows. The freshest
-# reading available anywhere in the API was 16.8 hours old.
+# OPENAQ'S PUBLICATION LAG IS NOT STABLE, AND 48h STOPPED REACHING IT.
 #
-# 48h covers the publication lag with room to spare. The overlap costs nothing:
-# the uniqueness constraint on (monitor_id, source, recorded_at) makes re-seen
-# rows a no-op, and a dry run over the full manifest at this window produced
-# 8,903 readings / 31,165 measurements where the 8h window produced none.
-DEFAULT_FETCH_WINDOW_HOURS = 48
+# Measured 2026-09-17 against sensor 12234787 (R K Puram PM2.5): 8h -> 0 rows,
+# 24h -> 0 rows, 48h -> 87 rows, freshest reading 16.8h old. 48h was correctly
+# sized that day.
+#
+# Re-measured 2026-10-06 across 45 PM2.5 sensors in Delhi / Mumbai / Bengaluru.
+# The same sensor now returns 0 rows at 48h, 0 at 72h, and 174 rows at 168h
+# whose newest is 109.6h old. Across all 42 sensors that have any data:
+#
+#     median publish lag   109.7h  (4.6 days)
+#     p90                  110.7h
+#     max                  184.1h  (7.7 days)
+#
+#     window reaching them:  48h -> 7%    96h -> 7%   120h -> 95%
+#                           168h -> 98%  192h -> 100%
+#
+# Note how tightly those cluster on 109.7h: nearly every station reports the
+# SAME age, which means this is not per-station latency but one bulk publish
+# that happened 4.6 days ago. The lag is bursty, not steady, so the window has
+# to span the gap BETWEEN publishes rather than any single station's delay --
+# and a 48h window only catches a batch if a run happens to land just after it.
+# That is exactly the intermittency the landing-rate data showed: two good days
+# (21 and 25 Sep, 65% fresh) in six weeks of otherwise backfill-only arrivals.
+#
+# 192h (8 days) reached 100% of live sensors when measured. It is deliberately
+# past the 110h cluster rather than snug against it, because the thing that
+# broke this was assuming a measured lag would stay put.
+#
+# The overlap costs nothing in storage: the uniqueness constraint on
+# (monitor_id, source, recorded_at) makes re-seen rows a no-op. It costs nothing
+# in runtime either -- runtime is one request per sensor plus throttle, and a
+# wider window returns more rows per request, not more requests.
+DEFAULT_FETCH_WINDOW_HOURS = 192
 
-# Max rows requested per sensor per run. See fetch_sensor_measurements for why
-# this has to comfortably exceed the number of readings a full window can hold.
+# Rows per PAGE, not per run -- fetch_sensor_recent follows pages, so this no
+# longer has to be large enough to hold a whole window.
 MEASUREMENT_PAGE_LIMIT = 1000
+
+# Refuses to page forever. 192h of 1-minute data is 11,520 rows, so 20 pages of
+# 1000 is far more headroom than any plausible sensor needs.
+MAX_PAGES_PER_SENSOR = 20
 
 
 def load_manifest() -> Dict[str, Any]:
@@ -104,42 +137,62 @@ def extract_timestamp(m: Dict[str, Any]) -> str | None:
 
 def fetch_sensor_recent(
     openaq: OpenAQClient, sensor_id: int, since_iso: str
-) -> List[Dict[str, Any]]:
-    """Fetch recent measurements for one sensor; return empty list on non-200.
+) -> List[Dict[str, Any]] | None:
+    """Every measurement for one sensor since `since_iso`, following pages.
 
-    Uses the shared OpenAQClient so throttling / 429 retries are automatic.
-    A repeated 429 raises HTTPError from openaq.get(); we let that propagate
-    so the whole ingest run stops rather than continuing to hammer the API.
+    Returns None if the request FAILED, and [] if the sensor genuinely has
+    nothing in the window. The caller must keep those apart: the old version
+    returned [] for both and swallowed the exception, so a transient network
+    error dropped a station's data for that run with nothing in the log to say
+    so. That is not hypothetical -- probing 45 sensors by hand, 4 of them
+    looked permanently dead and were simply failed requests.
+
+    WHY PAGINATE. The API returns rows ASCENDING from datetime_from and
+    truncates at `limit`, so a window holding more rows than the limit loses
+    the NEWEST ones -- precisely the wrong end for this job, and silently. The
+    previous code warned about the cap instead of handling it, and widening the
+    window to 192h brings it closer: 192h at 15-minute resolution is 768 rows
+    against a 1000 cap, and a 5-minute sensor would blow straight through it.
+    Following pages removes the whole class of problem instead of re-sizing a
+    constant each time the window changes.
+
+    A repeated 429 still raises out of openaq.get() and stops the run, rather
+    than continuing to hammer the API.
     """
-    try:
-        # The API returns rows ASCENDING from datetime_from and truncates at
-        # `limit` -- so a limit that is too small silently drops the NEWEST
-        # measurements, which is precisely the wrong end for this job.
-        #
-        # 48h at 15-minute resolution is 192 rows; the old limit of 100 was
-        # sized for the previous 8h window (32 rows) and became a latent bug
-        # when the window grew. It is not firing today only because OpenAQ's
-        # ~17h publication lag means a 48h window currently holds ~81 rows.
-        # If that lag shortens, the window fills and the cap starts biting.
-        # 1000 covers 48h even at 5-minute resolution.
-        r = openaq.get(
-            f"/v3/sensors/{sensor_id}/measurements",
-            params={"datetime_from": since_iso, "limit": MEASUREMENT_PAGE_LIMIT},
-        )
-    except Exception:
-        return []
-    if r.status_code != 200:
-        return []
-    results = r.json().get("results", [])
-    # Loud rather than silent: hitting the cap means we almost certainly lost
-    # the most recent readings for this sensor.
-    if len(results) >= MEASUREMENT_PAGE_LIMIT:
-        print(
-            f"  WARNING sensor {sensor_id}: hit the {MEASUREMENT_PAGE_LIMIT}-row page "
-            f"limit; newest measurements may be missing. Raise MEASUREMENT_PAGE_LIMIT "
-            f"or paginate."
-        )
-    return results
+    out: List[Dict[str, Any]] = []
+    page = 1
+    while True:
+        try:
+            r = openaq.get(
+                f"/v3/sensors/{sensor_id}/measurements",
+                params={
+                    "datetime_from": since_iso,
+                    "limit": MEASUREMENT_PAGE_LIMIT,
+                    "page": page,
+                },
+            )
+        except Exception as exc:
+            # Let a 429-driven HTTPError stop the run; report anything else and
+            # mark this sensor as failed rather than empty.
+            print(f"  sensor {sensor_id}: request failed on page {page} "
+                  f"({type(exc).__name__}: {exc})")
+            return None
+        if r.status_code != 200:
+            print(f"  sensor {sensor_id}: HTTP {r.status_code} on page {page}")
+            return None
+
+        results = r.json().get("results", [])
+        out.extend(results)
+        if len(results) < MEASUREMENT_PAGE_LIMIT:
+            return out
+        page += 1
+        if page > MAX_PAGES_PER_SENSOR:
+            # A guard, not an expectation. One sensor should never need this
+            # many pages; if it does, something is wrong with the window and
+            # silently fetching forever would burn the rate limit.
+            print(f"  WARNING sensor {sensor_id}: still paging after "
+                  f"{MAX_PAGES_PER_SENSOR} pages ({len(out)} rows); stopping.")
+            return out
 
 
 def build_rows(
@@ -254,7 +307,12 @@ def main() -> None:
     api_key = get_env("OPENAQ_API_KEY")
     openaq  = OpenAQClient(api_key)
     dry_run = bool(os.environ.get("DRY_RUN"))
-    window_hours = int(os.environ.get("FETCH_WINDOW_HOURS", DEFAULT_FETCH_WINDOW_HOURS))
+    # workflow_dispatch passes an EMPTY STRING when the optional input is left
+    # blank, and that is also what a scheduled run sends, so `or` rather than a
+    # dict default -- int("") raises and would fail every scheduled run.
+    window_hours = int(
+        (os.environ.get("FETCH_WINDOW_HOURS") or "").strip() or DEFAULT_FETCH_WINDOW_HOURS
+    )
     now_utc = datetime.now(timezone.utc)
     since_iso = (now_utc - timedelta(hours=window_hours)).isoformat()
 
@@ -277,6 +335,8 @@ def main() -> None:
     total_measurements = 0
     new_readings = 0
     new_measurements = 0
+    failed_sensors = 0
+    empty_sensors = 0
 
     for i, station in enumerate(stations):
         # Fetch every target sensor on this station. openaq.get() throttles
@@ -285,9 +345,17 @@ def main() -> None:
         for sensor in station["sensors"]:
             if sensor["parameter"] not in TARGET_POLLUTANTS:
                 continue
-            sensor_ms[sensor["sensor_id"]] = fetch_sensor_recent(
-                openaq, sensor["sensor_id"], since_iso
-            )
+            got = fetch_sensor_recent(openaq, sensor["sensor_id"], since_iso)
+            if got is None:
+                # Failed, not empty. Counted so the run's summary can say how
+                # much of the manifest it actually managed to ask about -- a run
+                # that silently failed half its sensors otherwise looks like a
+                # run that found no data, and those need different responses.
+                failed_sensors += 1
+                continue
+            if not got:
+                empty_sensors += 1
+            sensor_ms[sensor["sensor_id"]] = got
 
         readings, meas_placeholder = build_rows(station, sensor_ms, admin_user_id)
         if not readings:
@@ -326,6 +394,16 @@ def main() -> None:
         f"were NEW -- the rest already existed, which is expected because the "
         f"{window_hours}h window overlaps previous runs."
     )
+    print(
+        f"      Sensors: {total_sensors} asked, {failed_sensors} FAILED, "
+        f"{empty_sensors} returned nothing for the window."
+    )
+    # A run where many sensors failed is a different problem from a run where
+    # OpenAQ had nothing, and the fix is different too, so say which happened.
+    if failed_sensors:
+        pct = 100 * failed_sensors / total_sensors if total_sensors else 0
+        print(f"      WARNING {pct:.0f}% of sensors could not be reached this run; "
+              f"this run's coverage is incomplete and not evidence about OpenAQ.")
     openaq.print_stats()
 
 

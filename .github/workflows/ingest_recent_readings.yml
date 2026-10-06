@@ -1,16 +1,20 @@
 name: Ingest recent readings (OpenAQ live API)
 
-# Runs every 6 hours (00:00, 06:00, 12:00, 18:00 UTC) to fetch the last 8h of
-# measurements from OpenAQ's live API and write them into Supabase. The 8h
-# window covers the 6h since the last run plus a 2h safety overlap; the
-# uniqueness constraints on readings + measurements make the overlap a no-op.
+# Runs every 6 hours (00:00, 06:00, 12:00, 18:00 UTC) to fetch OpenAQ's live API
+# and write into Supabase. The WINDOW is set in the script, not here, and is far
+# wider than the cadence (192h as of 2026-10-06) because it has to cover OpenAQ's
+# publication lag -- measured at 4.6 days -- not the gap between runs. See
+# DEFAULT_FETCH_WINDOW_HOURS in ingest_recent_readings.py for the measurements.
+# The uniqueness constraints on readings + measurements make the overlap a no-op.
 #
 # This is the "recent readings" path; the daily S3 backfill handles completeness.
 #
-# Cadence rationale: 4-6 hours' data lag is acceptable for the "should I go
-# outside now" use case because historical patterns matter more than the exact
-# most-recent reading. 6-hourly instead of hourly cuts ~4× the API + GHA
-# runtime for a negligible UX cost.
+# Cadence rationale: the window governs WHETHER we see a bulk publish at all; the
+# cadence governs how soon after it lands. 6-hourly instead of hourly cuts ~4×
+# the API + GHA runtime for a negligible UX cost.
+#
+# Override the window for one run with FETCH_WINDOW_HOURS, e.g. to catch up after
+# an outage without editing the script.
 #
 # Manual runs from Actions UI are also supported via workflow_dispatch —
 # useful when debugging or catching up after an outage.
@@ -24,6 +28,10 @@ on:
         description: 'Dry run — log what would be inserted, do not write to Supabase (true/false)'
         required: false
         default: 'false'
+      fetch_window_hours:
+        description: 'Override the fetch window in hours (blank = the script default)'
+        required: false
+        default: ''
 
 jobs:
   ingest:
@@ -47,5 +55,6 @@ jobs:
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DRY_RUN:                   ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
+          FETCH_WINDOW_HOURS:        ${{ github.event.inputs.fetch_window_hours }}
           PYTHONUNBUFFERED:          '1'
         run: python -m scripts.ingest.ingest_recent_readings
