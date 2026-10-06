@@ -11,7 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { TABS, isAppRoute, isCurrentTab } from "@/lib/nav";
 
-const FORECAST_APP = ["/", "/ask", "/setup", "/petition", "/trends", "/trends/delhi"];
+const FORECAST_APP = ["/", "/ask", "/setup", "/petition", "/trends", "/trends/delhi", "/map"];
 const LEGACY_APP = ["/dashboard", "/submit", "/login", "/signup"];
 
 describe("route ownership", () => {
@@ -57,8 +57,8 @@ describe("which tab is current", () => {
 });
 
 describe("the tabs themselves", () => {
-  it("is four, each with a label and an icon", () => {
-    expect(TABS).toHaveLength(4);
+  it("is five, each with a label and an icon", () => {
+    expect(TABS).toHaveLength(5);
     for (const t of TABS) {
       expect(t.label.length).toBeGreaterThan(0);
       expect(t.icon.length).toBeGreaterThan(10);

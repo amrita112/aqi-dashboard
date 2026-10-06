@@ -17,7 +17,7 @@ export interface Tab {
 }
 
 /**
- * The tab bar. Deliberately four, not six.
+ * The tab bar. Five: Today, Map, Trends, Ask, Settings.
  *
  * Settings is a tab rather than buried, because the three setup answers are
  * the only thing a person can get wrong, and changing your location is a
@@ -42,6 +42,12 @@ export const TABS: Tab[] = [
     icon: "M8.25 19.5 12 21.75V19.5h4.5a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 16.5 4.5h-9A2.25 2.25 0 0 0 5.25 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25h.75Z",
   },
   {
+    href: "/map",
+    label: "Map",
+    // Map pin
+    icon: "M12 21s7-5.686 7-11a7 7 0 1 0-14 0c0 5.314 7 11 7 11Z M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z",
+  },
+  {
     href: "/trends",
     label: "Trends",
     // Line chart
@@ -56,7 +62,7 @@ export const TABS: Tab[] = [
 ];
 
 /** Routes that belong to the forecast app and get the bottom tab bar. */
-const APP_PREFIXES = ["/ask", "/setup", "/petition", "/trends"];
+const APP_PREFIXES = ["/ask", "/setup", "/petition", "/trends", "/map"];
 
 export function isAppRoute(pathname: string): boolean {
   return pathname === "/" || APP_PREFIXES.some((p) => pathname.startsWith(p));
