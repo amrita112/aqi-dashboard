@@ -6,11 +6,22 @@
  * visitor no JavaScript. Only the form itself is a client component, because
  * only the form needs state.
  *
- * The numbers below are measured, not rhetorical. They come from checking every
- * OpenAQ location within 25 km of each city centre on 2026-09-28, and they are
- * the same numbers the app uses to decide whether it can show a forecast at
- * all. That is the point of the page: the product's own limitation, stated
- * honestly, is the argument.
+ * The numbers below are measured, not rhetorical: every station we track, as of
+ * 2026-10-06, counted the way the app itself counts when deciding whether it
+ * can show a forecast at all. That is the point of the page — the product's own
+ * limitation, stated honestly, is the argument.
+ *
+ * TWO CLAIMS, DELIBERATELY SEPARATED, because only one of them is cleanly ours
+ * to make:
+ *
+ *   - SPARSITY is unambiguous. 63 government monitors for Delhi NCR is a fact
+ *     about the network, independent of anything we do.
+ *   - DELAY is partly ours. Our own collector has been running intermittently,
+ *     and from inside we cannot fully separate "they published late" from "we
+ *     fetched late" — the two are censored by our own schedule. So the page
+ *     says the data *reaching us* is old, which is true and checkable, and does
+ *     not assert whose fault that is. Do not tighten this into a cleaner
+ *     accusation; the measurement does not support one.
  */
 
 import PetitionForm from "@/components/PetitionForm";
@@ -22,14 +33,22 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Measure the air where people actually live",
   description:
-    "India's government air quality monitors report days late and cover a handful of points per city. Add your name to the case for measuring street by street.",
+    "A few dozen government air quality monitors cover each Indian city, and the public data reaches apps like this one days late. Add your name to the case for measuring street by street.",
 };
 
-/** Measured 2026-09-28. See lib/api/data-quality.ts. */
+/**
+ * Measured 2026-10-06 across every station we ingest. See lib/api/data-quality.ts.
+ *
+ * `stations` counts government monitors only. `fresh` is how many of them had
+ * produced a reading less than 48 hours old at the time of measurement.
+ * `medianDays` is the age of the freshest reading available for the median
+ * station — not an average delay, which would hide that most stations have
+ * nothing recent at all.
+ */
 const COVERAGE = [
-  { city: "Delhi", stations: 80, fresh: 0, medianDays: 3.9 },
-  { city: "Mumbai", stations: 43, fresh: 0, medianDays: 3.9 },
-  { city: "Bengaluru", stations: 20, fresh: 0, medianDays: 9.2 },
+  { city: "Delhi NCR", stations: 63, fresh: 0, medianDays: 9.8 },
+  { city: "Mumbai", stations: 19, fresh: 0, medianDays: 7.3 },
+  { city: "Bengaluru", stations: 11, fresh: 0, medianDays: 9.8 },
 ];
 
 async function signatureCount(): Promise<number | null> {
@@ -63,7 +82,7 @@ export default async function PetitionPage() {
 
       <section className="mt-8 rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-          Checked on 28 September 2026
+          Checked on 6 October 2026
         </h2>
         <table className="mt-3 w-full text-sm">
           <thead>
@@ -71,7 +90,7 @@ export default async function PetitionPage() {
               <th className="py-1 font-medium">City</th>
               <th className="py-1 font-medium">Government monitors</th>
               <th className="py-1 font-medium">Reported in last 48h</th>
-              <th className="py-1 font-medium">Typical delay</th>
+              <th className="py-1 font-medium">Freshest reading, median station</th>
             </tr>
           </thead>
           <tbody>
@@ -86,22 +105,31 @@ export default async function PetitionPage() {
           </tbody>
         </table>
         <p className="mt-3 text-sm text-gray-600">
-          Across all three cities, six privately-run sensors were reporting live. Everything
-          else arrives days later, if at all.
+          Across all seven cities we cover, three privately-run sensors had reported in the
+          last two days. Of the 126 government monitors, none had.
+        </p>
+        <p className="mt-2 text-sm text-gray-600">
+          Some of that delay is ours — our own collector is still being hardened, and from
+          where we sit we cannot cleanly separate data published late from data we fetched
+          late. We are not claiming otherwise. What is not ours is how few monitors there
+          are to fetch from.
         </p>
       </section>
 
       <h2 className="mt-10 text-xl font-semibold">Why this matters more than it sounds</h2>
       <p className="mt-3 text-gray-700">
-        A handful of monitors per city, reporting days late, cannot tell you about the road
-        you walk down or the park you run in. Air quality varies street by street — near
-        traffic, near construction, near burning — and a city-wide average hides exactly the
-        differences that would change what someone does that day.
+        Delhi NCR has 63 government monitors for a metropolitan area of more than thirty
+        million people. Bengaluru has eleven. However promptly those monitors reported, a
+        few dozen points cannot tell you about the road you walk down or the park you run
+        in. Air quality varies street by street — near traffic, near construction, near
+        burning — and a city-wide average hides exactly the differences that would change
+        what someone does that day.
       </p>
       <p className="mt-3 text-gray-700">
         Denser, faster measurement is not technically hard. Low-cost sensors already exist
-        and already work; the six that were live when we checked are proof of it. What is
-        missing is enough of them, in enough places, with the data made open.
+        and already work — the handful reporting live while we built this are proof of it.
+        What is missing is enough of them, in enough places, reporting promptly, with the
+        data made open.
       </p>
 
       <h2 className="mt-10 text-xl font-semibold">What your name is for</h2>
