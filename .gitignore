@@ -56,3 +56,8 @@ next-env.d.ts
 
 # OpenAQ raw historical archive — bulk downloaded, not source
 /data/
+
+# XKDR contribution: the data is theirs, not ours — a symlink or copy placed
+# here for local testing must never be committed.
+/contrib/forecasting/data
+/contrib/forecasting/cache_xkdr_*.parquet
