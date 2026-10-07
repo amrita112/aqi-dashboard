@@ -51,7 +51,7 @@ and Preview.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API | Public by design |
 | `AI_API_KEY` | console.groq.com | **No `NEXT_PUBLIC_` prefix** |
 | `AI_BASE_URL` | `https://api.groq.com/openai/v1` | |
-| `AI_MODEL` | `llama-3.3-70b-versatile` | Tool calling + JSON mode |
+| `AI_MODEL` | `openai/gpt-oss-120b` | Optional. Overrides the built-in default — set it if Groq retires the model |
 
 **`SUPABASE_SERVICE_ROLE_KEY` must NOT be set in Vercel.** It bypasses row-level
 security entirely and is only used by the Python ingest jobs, which run in

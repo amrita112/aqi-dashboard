@@ -8,9 +8,9 @@
  *
  * Default is Groq's free tier: 30 requests a minute, 200K tokens a day,
  * open-weight models on their own hardware, and no data retention by default.
- * `llama-3.3-70b-versatile` is the pick because it supports tool calling,
- * parallel tool calls and JSON mode, and follows OpenAI's tools/tool_calls
- * schema exactly.
+ * The model has to support tool calling and follow OpenAI's tools/tool_calls
+ * schema exactly, which is the constraint that narrows the catalogue. See
+ * DEFAULT_MODEL below for which one, and why it is worth re-checking.
  *
  * WHY SWAPPABLE IS NOT OVER-ENGINEERING: free tiers disappear. GitHub Models
  * was a popular free option and was retired on 30 July 2026. Everything
@@ -19,11 +19,32 @@
  * Config:
  *   AI_API_KEY    required at runtime (GROQ_API_KEY is accepted as an alias)
  *   AI_BASE_URL   default https://api.groq.com/openai/v1
- *   AI_MODEL      default llama-3.3-70b-versatile
+ *   AI_MODEL      default openai/gpt-oss-120b
  */
 
 export const DEFAULT_BASE_URL = "https://api.groq.com/openai/v1";
-export const DEFAULT_MODEL = "llama-3.3-70b-versatile";
+
+/**
+ * GROQ RETIRES MODELS WITHOUT WARNING, so this is a name that has to be checked
+ * rather than assumed. The previous default, llama-3.3-70b-versatile, started
+ * returning 404 "does not exist or you do not have access to it" — the key was
+ * fine, the model was simply gone from the catalogue.
+ *
+ * Verified against the live account on 2026-10-07: of the eleven models
+ * offered, only three are general-purpose chat models — openai/gpt-oss-120b,
+ * openai/gpt-oss-20b and qwen/qwen3.8-27b. All three were confirmed to emit
+ * tool_calls correctly, which this route depends on entirely; the rest are
+ * speech (whisper), prompt-safety classifiers, or too small in context.
+ *
+ * 120b over 20b because the answer quality matters more than latency here: one
+ * or two sentences on a free quota, a few times per visitor.
+ *
+ * If this 404s again, list what the key can actually see:
+ *   curl -s https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY"
+ * and set AI_MODEL rather than editing this, so a deployment can be fixed
+ * without a release.
+ */
+export const DEFAULT_MODEL = "openai/gpt-oss-120b";
 
 /** Answers are one or two sentences; anything longer is not being read. */
 export const DEFAULT_MAX_TOKENS = 220;
