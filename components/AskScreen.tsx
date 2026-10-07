@@ -31,7 +31,20 @@ type State =
   | { status: "idle" }
   | { status: "asking" }
   | { status: "answered"; result: Answer }
-  | { status: "error"; message: string; unavailable: boolean };
+  | {
+      status: "error";
+      message: string;
+      unavailable: boolean;
+      /** Set when the box is out of questions rather than broken. */
+      quota: QuotaInfo | null;
+    };
+
+interface QuotaInfo {
+  kind: "per_minute" | "per_day" | "shared_day" | "provider";
+  message: string;
+  resetAt: number | null;
+  future: string;
+}
 
 export default function AskScreen() {
   const params = useSearchParams();
@@ -75,12 +88,18 @@ export default function AskScreen() {
           status: "error",
           message: body?.error?.message ?? "Something went wrong.",
           unavailable: res.status === 503,
+          quota: body?.error?.code === "out_of_questions" ? (body.error.quota as QuotaInfo) : null,
         });
         return;
       }
       setState({ status: "answered", result: { ...body.data, question: trimmed } });
     } catch {
-      setState({ status: "error", message: "Could not reach the server.", unavailable: false });
+      setState({
+        status: "error",
+        message: "Could not reach the server.",
+        unavailable: false,
+        quota: null,
+      });
     }
   }
 
@@ -158,7 +177,35 @@ export default function AskScreen() {
             </button>
           </form>
 
-          {state.status === "error" && (
+          {state.status === "error" && state.quota ? (
+            /*
+             * OUT OF QUESTIONS IS NOT AN ERROR, so it does not get the red
+             * treatment. The app is working exactly as designed; the visitor
+             * has simply reached the end of a free allowance. Red here would
+             * read as "something is broken", and the next thing they would do
+             * is stop trusting the forecast too.
+             */
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              <p className="font-medium">{quotaHeadline(state.quota.kind)}</p>
+              <p className="mt-1">{state.quota.future}</p>
+              {state.quota.resetAt && <Countdown until={state.quota.resetAt} />}
+              <p className="mt-2">
+                Everything else works —{" "}
+                <Link href="/" className="underline">
+                  the forecast
+                </Link>
+                ,{" "}
+                <Link href="/map" className="underline">
+                  map
+                </Link>{" "}
+                and{" "}
+                <Link href="/trends" className="underline">
+                  trends
+                </Link>{" "}
+                do not use AI.
+              </p>
+            </div>
+          ) : state.status === "error" ? (
             <div
               className={`rounded-md px-4 py-3 text-sm ${
                 state.unavailable ? "bg-amber-50 text-amber-900" : "bg-red-50 text-red-800"
@@ -175,7 +222,7 @@ export default function AskScreen() {
                 </p>
               )}
             </div>
-          )}
+          ) : null}
 
           <p className="text-xs text-gray-500">
             Answers are built from the same measurements the rest of the app uses. The model
@@ -185,4 +232,37 @@ export default function AskScreen() {
       )}
     </div>
   );
+}
+
+/** A short lead per exhaustion kind; the shared explanation follows it. */
+function quotaHeadline(kind: QuotaInfo["kind"]): string {
+  switch (kind) {
+    case "per_minute":
+      return "A few questions in quick succession — the box needs a short break.";
+    case "per_day":
+      return "You have used your questions for today.";
+    case "shared_day":
+      return "Today's shared pool of questions is used up.";
+    default:
+      return "The AI service has hit its free daily limit.";
+  }
+}
+
+/**
+ * Ticks down to the moment asking is worth trying again.
+ *
+ * Only shown for the limits that recover in minutes. "Try again tomorrow" with
+ * a live second counter would be absurd, so the caller passes null for those
+ * and this never renders.
+ */
+function Countdown({ until }: { until: number }) {
+  const [left, setLeft] = useState(() => Math.max(0, until - Date.now()));
+  useEffect(() => {
+    const id = setInterval(() => setLeft(Math.max(0, until - Date.now())), 1000);
+    return () => clearInterval(id);
+  }, [until]);
+  if (left <= 0) return <p className="mt-2 font-medium">You can ask again now.</p>;
+  const secs = Math.ceil(left / 1000);
+  const text = secs >= 60 ? `${Math.ceil(secs / 60)} min` : `${secs}s`;
+  return <p className="mt-2">Try again in {text}.</p>;
 }

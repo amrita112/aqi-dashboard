@@ -12,10 +12,12 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
-import { fail, ok, badRequest, rateLimit, callerKey, tooManyRequests } from "@/lib/api/respond";
+import { NextResponse } from "next/server";
+import { fail, ok, badRequest, rateLimit, callerKey } from "@/lib/api/respond";
 import { chat, aiConfig, AiProviderError, type ChatMessage } from "@/lib/ai/provider";
 import { TOOL_DEFINITIONS, executeTool } from "@/lib/ai/tools";
 import { istToday } from "@/lib/api/time";
+import { quotaMessage, type QuotaKind } from "@/lib/ai/quota";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +25,22 @@ export const dynamic = "force-dynamic";
 const MAX_TOOL_ROUNDS = 3;
 const MAX_QUESTION_CHARS = 500;
 
-const PER_IP_PER_MINUTE = 5;
+/**
+ * THREE, NOT FIVE, BECAUSE OF THE PROVIDER'S TOKEN BUCKET. Groq allows 8,000
+ * tokens per MINUTE on this model, and a question costs 2,200-3,400 (the system
+ * prompt and tool results dominate; the answer is ~100). Five in a minute is
+ * 11,000-17,000 and overruns it — measured, not estimated: asking five in a row
+ * returned Groq's own 429 before our limit ever fired.
+ *
+ * Losing that race is worse than it sounds. The visitor gets the "provider"
+ * message, which cannot carry a countdown because we do not know when Groq's
+ * bucket refills, and we have spent a failed API call to find out.
+ *
+ * Three can still overrun when several people ask at once — the bucket is
+ * shared across everyone and no per-IP limit can bound that — which is why the
+ * provider path stays handled rather than assumed away.
+ */
+const PER_IP_PER_MINUTE = 3;
 const PER_IP_PER_DAY = 40;
 /**
  * A global cap, because per-IP alone does not bound the shared quota — a
@@ -74,18 +91,29 @@ export async function POST(request: Request) {
     return badRequest(`question must be at most ${MAX_QUESTION_CHARS} characters`);
   }
 
+  // All four exhaustion paths answer in the same voice and carry a machine
+  // readable `quota` object, so the screen can explain what happened rather
+  // than showing a bare "429 Too Many Requests".
+  const outOfQuestions = (kind: QuotaKind, resetAt: number | null) => {
+    const q = quotaMessage(kind, resetAt);
+    return NextResponse.json(
+      { error: { message: q.message, code: "out_of_questions", quota: q } },
+      {
+        status: 429,
+        ...(resetAt
+          ? { headers: { "Retry-After": String(Math.max(1, Math.ceil((resetAt - Date.now()) / 1000))) } }
+          : {}),
+      },
+    );
+  };
+
   const caller = callerKey(request);
   const perMinute = rateLimit(`ask:min:${caller}`, PER_IP_PER_MINUTE, MINUTE);
-  if (!perMinute.allowed) return tooManyRequests(perMinute.resetAt);
+  if (!perMinute.allowed) return outOfQuestions("per_minute", perMinute.resetAt);
   const perDay = rateLimit(`ask:day:${caller}`, PER_IP_PER_DAY, DAY);
-  if (!perDay.allowed) return tooManyRequests(perDay.resetAt);
+  if (!perDay.allowed) return outOfQuestions("per_day", perDay.resetAt);
   const global = rateLimit("ask:day:global", GLOBAL_PER_DAY, DAY);
-  if (!global.allowed) {
-    return fail(
-      "The shared daily budget for questions is used up. The rest of the app still works.",
-      429,
-    );
-  }
+  if (!global.allowed) return outOfQuestions("shared_day", global.resetAt);
 
   const supabase = createClient();
   const messages: ChatMessage[] = [
@@ -145,7 +173,10 @@ export async function POST(request: Request) {
     return fail("Could not settle on an answer within the tool budget", 504);
   } catch (err) {
     if (err instanceof AiProviderError) {
-      return fail(err.message, err.status === 429 ? 429 : 502);
+      // Groq's own limit, which we do not control and cannot predict the reset
+      // of — same explanation, no countdown.
+      if (err.status === 429) return outOfQuestions("provider", null);
+      return fail(err.message, 502);
     }
     return fail(`Unexpected failure answering the question: ${(err as Error).message}`, 500);
   }
