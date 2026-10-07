@@ -18,6 +18,7 @@ import { chat, aiConfig, AiProviderError, type ChatMessage } from "@/lib/ai/prov
 import { TOOL_DEFINITIONS, executeTool } from "@/lib/ai/tools";
 import { istToday } from "@/lib/api/time";
 import { quotaMessage, type QuotaKind } from "@/lib/ai/quota";
+import { bestChart } from "@/lib/ai/chart";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,7 @@ function systemPrompt(): string {
     "6. AQI here is India's CPCB scale, 0-500. It is driven by PM10 more often than PM2.5, which surprises people.",
     "7. Use ONLY the CPCB band names, and only when a tool gave you one: Good, Satisfactory, Moderate, Poor, Very Poor, Severe. Never use US categories like 'unhealthy', 'unhealthy for sensitive groups' or 'hazardous' — they are a different scale and do not match what the rest of the app shows for the same number.",
     "",
+    "A tool result may contain a `series` field. It exists only to draw the chart shown beside your answer. NEVER recite it — summarise with the mean, min and max that accompany it. Listing dates and values is exactly what the chart is for.",
     "Answer in at most two short sentences. No preamble, no bullet points, no markdown. Be specific and plain.",
   ].join("\n");
 }
@@ -122,6 +124,10 @@ export async function POST(request: Request) {
   ];
 
   const toolsUsed: { name: string; args: unknown }[] = [];
+  // Kept so the answer can be shown with a chart. Built from the SAME result
+  // the model was given, in code, so the picture cannot disagree with the
+  // sentence — neither of them invented anything.
+  const toolResults: { name: string; result: unknown }[] = [];
   let tokens = { prompt: 0, completion: 0 };
 
   try {
@@ -144,7 +150,7 @@ export async function POST(request: Request) {
         const answer = (response.message.content ?? "").trim();
         if (!answer) return fail("The model returned an empty answer", 502);
         return ok(
-          { question, answer, tools_used: toolsUsed },
+          { question, answer, tools_used: toolsUsed, chart: bestChart(toolResults) },
           { model: cfg.model, rounds: round, tokens, remaining_today: perDay.remaining },
         );
       }
@@ -161,6 +167,7 @@ export async function POST(request: Request) {
         }
         toolsUsed.push({ name: call.function.name, args });
         const result = await executeTool(supabase, call.function.name, args);
+        toolResults.push({ name: call.function.name, result });
         messages.push({
           role: "tool",
           tool_call_id: call.id,

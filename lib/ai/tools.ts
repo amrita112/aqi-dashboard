@@ -161,6 +161,37 @@ function daysAgo(n: number): string {
     .slice(0, 10);
 }
 
+/** Enough to show a shape; few enough not to dominate the prompt. */
+const MAX_SERIES_POINTS = 30;
+
+/**
+ * One value per calendar day, evenly thinned to at most `cap` points.
+ *
+ * Thinned by stride rather than truncated, so a 90-day request still shows the
+ * whole 90 days instead of its first month.
+ */
+function dailySeries(
+  rows: { date: string; mean: number | null }[],
+  cap: number,
+): { date: string; value: number }[] {
+  const byDate = new Map<string, number[]>();
+  for (const r of rows) {
+    if (r.mean === null || !Number.isFinite(r.mean)) continue;
+    const arr = byDate.get(r.date) ?? [];
+    arr.push(r.mean);
+    byDate.set(r.date, arr);
+  }
+  const daily = Array.from(byDate.entries())
+    .sort((x, y) => x[0].localeCompare(y[0]))
+    .map(([date, vals]: [string, number[]]) => ({
+      date,
+      value: Math.round((vals.reduce((sum: number, v: number) => sum + v, 0) / vals.length) * 10) / 10,
+    }));
+  if (daily.length <= cap) return daily;
+  const stride = Math.ceil(daily.length / cap);
+  return daily.filter((_, i) => i % stride === 0);
+}
+
 export async function executeTool(
   supabase: SupabaseClient,
   name: string,
@@ -364,6 +395,11 @@ export async function executeTool(
         mean: meanAcross(flat.map((d) => d.mean)),
         min: Math.min(...flat.map((d) => d.min)),
         max: Math.max(...flat.map((d) => d.max)),
+        // A short daily series so the answer can be shown as a chart. Capped
+        // and down-sampled rather than returned whole: a year of history is 365
+        // numbers, which would cost more tokens than the rest of the request
+        // and tell the model nothing the mean/min/max do not already say.
+        series: dailySeries(flat, MAX_SERIES_POINTS),
       };
     }
 

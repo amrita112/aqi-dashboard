@@ -20,11 +20,15 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { loadPrefs, type Prefs } from "@/lib/prefs";
+import AnswerChart from "@/components/AnswerChart";
+import type { AnswerChart as ChartSpec } from "@/lib/ai/chart";
 
 interface Answer {
   question: string;
   answer: string;
   tools_used: { name: string }[];
+  /** Built server-side from the tool results; null when there is no series. */
+  chart: ChartSpec | null;
 }
 
 type State =
@@ -123,6 +127,7 @@ export default function AskScreen() {
           <section className="rounded-lg border border-gray-200 bg-white p-5">
             <p className="text-sm text-gray-500">{state.result.question}</p>
             <p className="mt-3 text-lg leading-relaxed">{state.result.answer}</p>
+            {state.result.chart && <AnswerChart chart={state.result.chart} />}
             {state.result.tools_used?.length > 0 && (
               <p className="mt-4 border-t border-gray-100 pt-3 text-xs text-gray-500">
                 Answered using {state.result.tools_used.map((t) => t.name).join(", ")} — every
