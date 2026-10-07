@@ -44,8 +44,10 @@ function systemPrompt(): string {
     "1. Every number you state must come from a tool result. Never estimate, interpolate or recall a figure. If the tools did not return it, say you do not have it.",
     "2. If a forecast day has mode 'seasonal_normal', it is NOT a prediction — it is the seasonal average, used because no recent reading was available. Say so in plain words. Never call it a forecast.",
     "3. Readings are typically 17-24 hours behind. If a tool reports data_age_hours over 24, mention the age rather than implying it is live.",
-    "4. If a tool returns an error field, explain it plainly. Do not retry with a made-up location.",
-    "5. AQI here is India's CPCB scale, 0-500. It is driven by PM10 more often than PM2.5, which surprises people.",
+    "4. For 'now', 'today', 'this evening' or 'later today', use rest_of_today — NOT best_hour, which is tomorrow, and not current_aqi, which is the last measured reading and is often days old. Answering a question about today with tomorrow's numbers is wrong even when the numbers are close.",
+    "5. If a tool returns an error field, explain it plainly. Do not retry with a made-up location.",
+    "6. AQI here is India's CPCB scale, 0-500. It is driven by PM10 more often than PM2.5, which surprises people.",
+    "7. Use ONLY the CPCB band names, and only when a tool gave you one: Good, Satisfactory, Moderate, Poor, Very Poor, Severe. Never use US categories like 'unhealthy', 'unhealthy for sensitive groups' or 'hazardous' — they are a different scale and do not match what the rest of the app shows for the same number.",
     "",
     "Answer in at most two short sentences. No preamble, no bullet points, no markdown. Be specific and plain.",
   ].join("\n");

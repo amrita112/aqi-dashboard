@@ -22,7 +22,9 @@ import {
   MAX_STATIONS_PER_CITY_QUERY,
   type ResolvedLocation,
 } from "@/lib/api/data";
-import { istToday, toIstClock } from "@/lib/api/time";
+import type { ForecastDay } from "@/lib/api/forecast";
+import { getAqiLabel } from "@/lib/aqi-utils";
+import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
 
 const LOCATION_PARAM = {
   type: "string",
@@ -72,7 +74,20 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     function: {
       name: "best_hour",
       description:
-        "The cleanest and dirtiest hours of tomorrow for a place, in Indian Standard Time. Use for 'when should I go for a run'. Returns nothing usable if no hourly profile has been fitted for that city and month.",
+        "The cleanest and dirtiest hours of TOMORROW for a place, in Indian Standard Time. For today, this evening, or the next few hours, use rest_of_today instead. Returns nothing usable if no hourly profile has been fitted for that city and month.",
+      parameters: {
+        type: "object",
+        properties: { location: LOCATION_PARAM, pollutant: POLLUTANT_PARAM },
+        required: ["location"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "rest_of_today",
+      description:
+        "What is left of TODAY, hour by hour, in Indian Standard Time — the hours from now to midnight, the cleanest and dirtiest among them, and the day's overall level. Use for 'right now', 'this evening', 'later today', 'should I go out now'. Like forecast, each day has a mode: 'seasonal_normal' means the number is the seasonal average, not a prediction. Returns an error near midnight when too little of the day remains.",
       parameters: {
         type: "object",
         properties: { location: LOCATION_PARAM, pollutant: POLLUTANT_PARAM },
@@ -168,6 +183,12 @@ export async function executeTool(
         kind: loc.kind,
         stations_used: readings.length,
         aqi,
+        // THE BAND NAME HAS TO COME FROM HERE. Handed a bare number, the model
+        // reaches for the scale it knows best and answers "unhealthy" or
+        // "unhealthy for sensitive groups" -- US EPA categories, which do not
+        // exist on India's CPCB scale and do not match what every other screen
+        // in the app shows for the same value. AQI 169 is "Moderate" here.
+        band: aqi === null ? null : getAqiLabel(aqi),
         // Which pollutant drives the index surprises people: it is PM10 most
         // of the time in these cities, not PM2.5.
         dominant_pollutant: readings[0].dominant_pollutant,
@@ -247,6 +268,80 @@ export async function executeTool(
         dirtiest_hour_ist: worst,
         dirtiest_clock: stamp(worst),
         dirtiest_value: hours[worst],
+        timezone: "Asia/Kolkata",
+      };
+    }
+
+    case "rest_of_today": {
+      const loc = await resolveLocation(supabase, String(args.location ?? ""));
+      if (!loc) return notFound(String(args.location ?? ""));
+      const pollutant = (args.pollutant as string) ?? "aqi";
+      const today = istToday();
+      const forecasts = await Promise.all(
+        sample(loc).map((m) => getForecast(supabase, m, pollutant, 1, { includeToday: true })),
+      );
+      // includeToday only guarantees today is not excluded; if the nightly job
+      // has not run, the first row is still tomorrow. Match the date rather
+      // than trusting the position, or "today" silently becomes tomorrow --
+      // which is the exact failure this tool exists to fix.
+      const days = forecasts.map((f) => f.find((d) => d.target_date === today)).filter(Boolean) as ForecastDay[];
+      if (!days.length) {
+        return {
+          location: loc.label,
+          error: "no_forecast_for_today",
+          message: "There is no forecast row for today. Say so; do not answer with tomorrow's.",
+        };
+      }
+
+      const nowHour = toIstHour(new Date());
+      // Below this, "the rest of today" is a handful of sleeping hours and any
+      // recommendation drawn from it would be a technicality.
+      const MIN_HOURS_LEFT = 3;
+      const hoursLeft = 24 - nowHour;
+      if (hoursLeft < MIN_HOURS_LEFT) {
+        return {
+          location: loc.label,
+          error: "day_nearly_over",
+          now_hour_ist: nowHour,
+          message: "Too little of today is left to advise on. Offer tomorrow instead.",
+        };
+      }
+
+      const flat = days.every((d) => d.hourly_is_flat);
+      const remaining = Array.from({ length: hoursLeft }, (_, i) => {
+        const h = nowHour + i;
+        const value = meanAcross(days.map((d) => d.hourly?.[h]?.value ?? NaN));
+        return { hour_ist: h, clock: toIstClock(`${today}T${String(h).padStart(2, "0")}:00:00+05:30`), value };
+      }).filter((x) => x.value !== null);
+
+      if (!remaining.length) return { location: loc.label, error: "no_hourly_values" };
+
+      const sorted = [...remaining].sort((a, b) => (a.value as number) - (b.value as number));
+      const dayValue = meanAcross(days.map((d) => d.value));
+      const withBand = (x: { hour_ist: number; clock: string; value: number | null }) =>
+        pollutant === "aqi" && x.value !== null ? { ...x, band: getAqiLabel(x.value) } : x;
+      return {
+        location: loc.label,
+        date: today,
+        pollutant,
+        now_hour_ist: nowHour,
+        mode: days[0].mode,
+        // Pass the headline through as well as the mode. The forecast tool
+        // reliably gets the seasonal-normal disclosure right and this one did
+        // not, and the difference between them was this string: given only
+        // mode:'seasonal_normal' the model treats it as metadata, given the
+        // sentence it repeats the point to the user.
+        headline: days[0].headline,
+        day_value: dayValue,
+        day_band: dayValue === null || pollutant !== "aqi" ? null : getAqiLabel(dayValue),
+        data_age_days: days[0].data_age_days,
+        hours_remaining: remaining.length,
+        hourly: remaining,
+        // With a flat profile every hour is identical, so naming a "cleanest"
+        // one would be picking noise and presenting it as advice.
+        cleanest: flat ? null : withBand(sorted[0]),
+        dirtiest: flat ? null : withBand(sorted[sorted.length - 1]),
+        hourly_is_flat: flat,
         timezone: "Asia/Kolkata",
       };
     }

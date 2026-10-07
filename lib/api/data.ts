@@ -156,8 +156,18 @@ export async function getForecast(
   monitor: MonitorRow,
   pollutant: string,
   days: number,
+  opts: { includeToday?: boolean } = {},
 ): Promise<ForecastDay[]> {
   const today = istToday();
+  // TODAY'S ROW EXISTS AND WAS BEING THROWN AWAY. The nightly job writes a
+  // horizon-1 row for the day it runs, so by the time anyone opens the app
+  // there is a forecast for today sitting in the table -- `gt` dropped it and
+  // the earliest thing the app could say anything about was tomorrow. That is
+  // why "what about this evening" had nothing to answer with.
+  //
+  // Still EXCLUDED by default, because the Today screen and the forecast list
+  // are built around "the days ahead" and silently prepending today would
+  // shift every card. Callers that want it ask for it.
   const { data: rows } = await supabase
     .from("forecast_daily")
     .select(
@@ -165,7 +175,7 @@ export async function getForecast(
     )
     .eq("monitor_id", monitor.id)
     .eq("pollutant", pollutant)
-    .gt("target_date", today)
+    [opts.includeToday ? "gte" : "gt"]("target_date", today)
     .order("target_date", { ascending: true })
     .limit(days);
   if (!rows?.length) return [];

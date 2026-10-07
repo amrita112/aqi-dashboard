@@ -46,10 +46,22 @@ const DELHI_MONITORS = [
 ];
 
 describe("tool contract", () => {
-  it("exposes exactly the five agreed tools", () => {
+  it("exposes exactly the six agreed tools", () => {
     expect(TOOL_NAMES.sort()).toEqual(
-      ["best_hour", "compare", "current_aqi", "forecast", "history"].sort(),
+      ["best_hour", "compare", "current_aqi", "forecast", "history", "rest_of_today"].sort(),
     );
+  });
+
+  it("keeps best_hour and rest_of_today distinguishable to the model", () => {
+    // These two are the pair most easily confused, and confusing them is how
+    // "should I run this evening" got answered with TOMORROW's cleanest hour.
+    // Each description has to name its own day unambiguously.
+    const byName = Object.fromEntries(
+      TOOL_DEFINITIONS.map((t) => [t.function.name, t.function.description]),
+    );
+    expect(byName.best_hour).toMatch(/TOMORROW/);
+    expect(byName.best_hour.toLowerCase()).toContain("rest_of_today");
+    expect(byName.rest_of_today).toMatch(/TODAY/);
   });
 
   it("gives every tool a description and a typed parameter schema", () => {
@@ -239,7 +251,7 @@ describe("provider client", () => {
     }) as never;
 
     const res = await chat([{ role: "user", content: "hi" }], { tools: TOOL_DEFINITIONS });
-    expect(sent.tools).toHaveLength(5);
+    expect(sent.tools).toHaveLength(6);
     expect(sent.tool_choice).toBe("auto");
     expect(res.message.content).toContain("180");
     expect(res.usage).toEqual({ prompt: 100, completion: 12 });
