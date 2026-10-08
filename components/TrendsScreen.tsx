@@ -27,12 +27,16 @@ import { useRouter } from "next/navigation";
 import {
   loadPrefs,
   MEASUREMENT_COPY,
-  NEAREST_K,
   type Measurement,
   type Prefs,
 } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
 import TrendsChart, { SERIES_COLORS, type Series, type SeriesPoint } from "@/components/TrendsChart";
+import PlaceEditor, {
+  myPlace,
+  type EditorCity,
+  type TrendsPlace,
+} from "@/components/PlaceEditor";
 
 type ForecastRange = "next24" | "days3" | "days7";
 type HistoryRange = 7 | 30;
@@ -42,13 +46,6 @@ const FORECAST_LABEL: Record<ForecastRange, string> = {
   days3: "3 days",
   days7: "7 days",
 };
-
-interface Place {
-  key: string;
-  label: string;
-  /** Query fragment: a point for "my place", a city name otherwise. */
-  query: Record<string, string>;
-}
 
 interface Day {
   target_date: string;
@@ -80,20 +77,6 @@ function clock(hour: number): string {
   return `${h12}${s}`;
 }
 
-/** How many stations make up a "city" here, against three for a doorstep. */
-const CITY_K = 10;
-const CITY_MAX_KM = 60;
-
-function cityQuery(c: { city: string; lat: number; lng: number }): Record<string, string> {
-  return {
-    lat: String(c.lat),
-    lng: String(c.lng),
-    k: String(CITY_K),
-    max_km: String(CITY_MAX_KM),
-    city: c.city,
-  };
-}
-
 /** The current hour in India, wherever the device is. */
 function istHourNow(): number {
   return new Date(Date.now() + (5 * 60 + 30) * 60_000).getUTCHours();
@@ -102,14 +85,16 @@ function istHourNow(): number {
 export default function TrendsScreen() {
   const router = useRouter();
   const [prefs, setPrefs] = useState<Prefs | null>(null);
-  const [cities, setCities] = useState<{ city: string; lat: number; lng: number }[]>([]);
+  const [cities, setCities] = useState<EditorCity[]>([]);
   const [measurement, setMeasurement] = useState<Measurement>("aqi");
-  const [places, setPlaces] = useState<Place[]>([]);
+  const [places, setPlaces] = useState<TrendsPlace[]>([]);
   const [fRange, setFRange] = useState<ForecastRange>("days3");
   const [hRange, setHRange] = useState<HistoryRange>(30);
   const [forecasts, setForecasts] = useState<Record<string, Day[] | null>>({});
   const [histories, setHistories] = useState<Record<string, HistoryRow[] | null>>({});
   const [error, setError] = useState<string | null>(null);
+  /** Which pill is open for editing, or null. */
+  const [editing, setEditing] = useState<number | null>(null);
 
   useEffect(() => {
     const p = loadPrefs();
@@ -119,13 +104,7 @@ export default function TrendsScreen() {
     }
     setPrefs(p);
     setMeasurement(p.measurement);
-    setPlaces([
-      {
-        key: "mine",
-        label: p.anchor.name,
-        query: { lat: String(p.anchor.latitude), lng: String(p.anchor.longitude), k: String(NEAREST_K) },
-      },
-    ]);
+    setPlaces([myPlace(p)]);
     // City centres are the mean of that city's own stations, so a city cannot
     // drift from a hardcoded coordinate when stations are added or removed.
     fetch("/api/locations")
@@ -145,7 +124,7 @@ export default function TrendsScreen() {
   }, [router]);
 
   const load = useCallback(
-    async (place: Place) => {
+    async (place: TrendsPlace) => {
       const base = new URLSearchParams({ ...place.query, pollutant: measurement });
       const fDays = fRange === "days7" ? 7 : fRange === "days3" ? 3 : 2;
       const f = new URLSearchParams(base);
@@ -261,86 +240,47 @@ export default function TrendsScreen() {
       : `${humanDate(days[0].target_date)} – ${humanDate(days[days.length - 1].target_date)}`;
   }, [forecasts, places]);
 
-  function setPlaceAt(idx: number, city: string) {
-    setPlaces((prev) => {
-      const next = [...prev];
-      if (city === "__mine" && prefs) {
-        next[idx] = {
-          key: `mine`,
-          label: prefs.anchor.name,
-          query: {
-            lat: String(prefs.anchor.latitude),
-            lng: String(prefs.anchor.longitude),
-            k: String(NEAREST_K),
-          },
-        };
-      } else {
-        const c = cities.find((x) => x.city === city);
-        if (!c) return prev;
-        // /api/history and /api/forecast take a POINT, not a city name, so a
-        // city is its centre with a wide net: ten stations inside that city
-        // rather than the three nearest a doorstep.
-        next[idx] = { key: `city:${city}`, label: city, query: cityQuery(c) };
-      }
-      return next;
-    });
-  }
-
   if (!prefs) return <p className="text-gray-500">Loading…</p>;
 
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
 
-      {/* Places and pollutant, as controls rather than a header and a Change
-          link: every one of them is something to change, not something to read. */}
+      {/* Places as pills, as in the mockup: the first solid, the second
+          outlined in its own colour, both tappable to change. */}
       <div className="flex flex-wrap items-center gap-2">
-        {places.map((pl, idx) => (
-          <span key={`${pl.key}-${idx}`} className="inline-flex items-center">
-            <span
-              className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full"
-              style={{ background: SERIES_COLORS[idx] ?? "#5c6b73" }}
-            />
-            <select
-              value={pl.key === "mine" ? "__mine" : pl.label}
-              onChange={(e) => setPlaceAt(idx, e.target.value)}
-              aria-label={`Place ${idx + 1}`}
-              className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium"
+        {places.map((pl, idx) => {
+          const colour = SERIES_COLORS[idx] ?? "#5c6b73";
+          const open = editing === idx;
+          return (
+            <button
+              key={`${pl.key}-${idx}`}
+              type="button"
+              onClick={() => setEditing(open ? null : idx)}
+              className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium ${
+                idx === 0
+                  ? "bg-gray-900 text-white"
+                  : "border-2 bg-white"
+              }`}
+              style={idx === 0 ? undefined : { borderColor: colour, color: colour }}
             >
-              <option value="__mine">{prefs.anchor.name} (my place)</option>
-              {cities.map((c) => (
-                <option key={c.city} value={c.city}>
-                  {c.city}
-                </option>
-              ))}
-            </select>
-            {idx === 1 && (
-              <button
-                type="button"
-                onClick={() => setPlaces((prev) => prev.slice(0, 1))}
-                aria-label="Remove second place"
-                className="ml-1 text-gray-400 hover:text-gray-700"
-              >
-                ×
-              </button>
-            )}
-          </span>
-        ))}
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-full"
+                style={{ background: idx === 0 ? "#ffffff" : colour }}
+              />
+              {pl.label}
+            </button>
+          );
+        })}
 
-        {places.length === 1 && cities.length > 0 && (
+        {places.length === 1 && (
           <button
             type="button"
-            onClick={() =>
-              setPlaces((prev) => [
-                ...prev,
-                {
-                  key: `city:${cities[0].city}`,
-                  label: cities[0].city,
-                  query: cityQuery(cities[0]),
-                },
-              ])
-            }
-            className="rounded-lg border border-dashed border-gray-400 px-2.5 py-1.5 text-sm text-gray-700"
+            onClick={() => {
+              setPlaces((prev) => [...prev, { key: "pending", label: "Choose a place", query: {} }]);
+              setEditing(1);
+            }}
+            className="rounded-full border border-dashed border-gray-400 px-3.5 py-2 text-sm text-gray-700"
           >
             + Compare
           </button>
@@ -356,6 +296,35 @@ export default function TrendsScreen() {
           <option value="pm25">{MEASUREMENT_COPY.pm25.short}</option>
         </select>
       </div>
+
+      {editing !== null && (
+        <PlaceEditor
+          index={editing}
+          prefs={prefs}
+          cities={cities}
+          onPick={(place) => {
+            setPlaces((prev) => {
+              const next = [...prev];
+              next[editing] = place;
+              return next;
+            });
+            setEditing(null);
+          }}
+          onRemove={
+            editing === 1
+              ? () => {
+                  setPlaces((prev) => prev.slice(0, 1));
+                  setEditing(null);
+                }
+              : undefined
+          }
+          onCancel={() => {
+            // A pill added but never chosen should not linger as "Choose a place".
+            setPlaces((prev) => prev.filter((pl) => pl.key !== "pending"));
+            setEditing(null);
+          }}
+        />
+      )}
 
       {error && <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
@@ -383,12 +352,14 @@ export default function TrendsScreen() {
           {forecastSeries.every((s) => !s.points.length) ? (
             <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
           ) : (
-            <TrendsChart
-              series={forecastSeries}
-              unit={unit}
-              bandLabel="likely range"
-              threshold={prefs.threshold}
-            />
+            // NO ALERT LINE. The threshold is set for ONE measure, whichever was
+            // chosen at setup, but this screen switches freely between AQI and
+            // PM2.5 — so the line was drawn against whatever happened to be on
+            // the axis. A PM2.5 threshold of 60 ruled across an AQI chart is not
+            // a cautious extra; it is a wrong number wearing the authority of
+            // the person's own setting. The home screen keeps its warning, where
+            // the measure is always theirs.
+            <TrendsChart series={forecastSeries} unit={unit} bandLabel="likely range" />
           )}
         </div>
       </section>
@@ -413,12 +384,7 @@ export default function TrendsScreen() {
               No daily history held for this place in that window.
             </p>
           ) : (
-            <TrendsChart
-              series={historySeries}
-              unit={unit}
-              bandLabel="day's lowest to highest"
-              threshold={prefs.threshold}
-            />
+            <TrendsChart series={historySeries} unit={unit} bandLabel="day's lowest to highest" />
           )}
         </div>
       </section>
