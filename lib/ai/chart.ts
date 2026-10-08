@@ -126,6 +126,29 @@ export function chartFor(tool: string, result: unknown): AnswerChart | null {
       };
     }
 
+    case "rank_places": {
+      const all = Array.isArray(r.all) ? r.all : [];
+      const points: ChartPoint[] = [];
+      for (const x of all) {
+        const row = x as Record<string, unknown>;
+        const v = num(row.value);
+        if (v === null) continue;
+        // Station names carry the network suffix ("Worli, Mumbai - MPCB"),
+        // which is noise on an axis label.
+        const label = String(row.station ?? "").split(",")[0].trim();
+        points.push({ label, value: v });
+      }
+      if (points.length < 2) return null;
+      if (points[0]) points[0].highlight = true;   // the cleanest
+      return {
+        kind: "compare",
+        title: `${String(r.location ?? "")} — cleanest to dirtiest today`,
+        unit: unitFor(r.pollutant),
+        points,
+        note: typeof r.note === "string" ? r.note : null,
+      };
+    }
+
     case "compare": {
       // compare returns two named sides, a and b, not an array.
       const points: ChartPoint[] = [];

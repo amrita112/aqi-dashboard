@@ -41,7 +41,7 @@ const REST_STILL_WORKS =
 
 export function quotaMessage(kind: QuotaKind, resetAt: number | null = null): QuotaMessage {
   const lead: Record<QuotaKind, string> = {
-    per_minute: "You have asked a few questions in quick succession, so the question box needs a short break.",
+    per_minute: "You asked a few questions in quick succession. The AI agent needs a short break.",
     per_day: "You have used your questions for today.",
     shared_day: "Today's shared pool of AI questions is used up.",
     provider: "The AI service this app uses has hit its free daily limit.",

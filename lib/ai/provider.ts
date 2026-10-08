@@ -185,3 +185,33 @@ export async function chat(
       : null,
   };
 }
+
+/**
+ * Strip an answer that the model emitted twice.
+ *
+ * gpt-oss-120b occasionally returns its sentence doubled, with no separator:
+ * "...prefer running there.Powai (MPCB) is the cleanest...". It is the model's
+ * quirk, not a parsing bug -- `content` arrives doubled and `reasoning` is a
+ * separate field we never read.
+ *
+ * Only an EXACT doubling is removed. Anything cleverer risks truncating a real
+ * answer that happens to repeat a phrase, which is a worse failure than showing
+ * a sentence twice.
+ */
+export function undouble(answer: string): string {
+  const t = answer.trim();
+  if (t.length < 2) return t;
+  const half = Math.floor(t.length / 2);
+  if (t.length % 2 === 0 && t.slice(0, half) === t.slice(half)) {
+    return t.slice(0, half).trim();
+  }
+  // The same, allowing one space or newline between the two copies.
+  for (const sep of [" ", "\n", "\n\n"]) {
+    const n = (t.length - sep.length) / 2;
+    if (Number.isInteger(n) && n > 0) {
+      const a = t.slice(0, n);
+      if (a + sep + a === t) return a.trim();
+    }
+  }
+  return t;
+}

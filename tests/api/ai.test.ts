@@ -21,6 +21,7 @@ import {
   AiProviderError,
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,
+  undouble,
 } from "@/lib/ai/provider";
 import { resolveLocation, meanAcross } from "@/lib/api/data";
 
@@ -46,9 +47,10 @@ const DELHI_MONITORS = [
 ];
 
 describe("tool contract", () => {
-  it("exposes exactly the six agreed tools", () => {
+  it("exposes exactly the seven agreed tools", () => {
     expect(TOOL_NAMES.sort()).toEqual(
-      ["best_hour", "compare", "current_aqi", "forecast", "history", "rest_of_today"].sort(),
+      ["best_hour", "compare", "current_aqi", "forecast", "history", "rank_places",
+       "rest_of_today"].sort(),
     );
   });
 
@@ -251,7 +253,7 @@ describe("provider client", () => {
     }) as never;
 
     const res = await chat([{ role: "user", content: "hi" }], { tools: TOOL_DEFINITIONS });
-    expect(sent.tools).toHaveLength(6);
+    expect(sent.tools).toHaveLength(7);
     expect(sent.tool_choice).toBe("auto");
     expect(res.message.content).toContain("180");
     expect(res.usage).toEqual({ prompt: 100, completion: 12 });
@@ -279,5 +281,35 @@ describe("provider client", () => {
     await expect(chat([{ role: "user", content: "hi" }])).rejects.toMatchObject({
       retryable: true,
     });
+  });
+});
+
+describe("doubled answers", () => {
+  it("removes an exactly doubled sentence", () => {
+    const one = "Powai is the cleanest spot in Mumbai today (8 Oct).";
+    expect(undouble(one + one)).toBe(one);
+  });
+
+  it("removes a doubling separated by a space or newline", () => {
+    const one = "Delhi is Moderate at 168.";
+    expect(undouble(`${one} ${one}`)).toBe(one);
+    expect(undouble(`${one}\n${one}`)).toBe(one);
+  });
+
+  it("leaves a normal answer alone", () => {
+    const a = "Delhi is 168 today and 175 tomorrow.";
+    expect(undouble(a)).toBe(a);
+  });
+
+  it("does not truncate an answer that merely repeats a phrase", () => {
+    // The dangerous case: halving this would lose real content, which is worse
+    // than showing a repetition.
+    const a = "Air is bad today. Air is bad tomorrow too, and worse on Friday.";
+    expect(undouble(a)).toBe(a);
+  });
+
+  it("handles empty and tiny strings", () => {
+    expect(undouble("")).toBe("");
+    expect(undouble("  ")).toBe("");
   });
 });

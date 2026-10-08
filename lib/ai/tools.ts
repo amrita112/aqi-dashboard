@@ -98,6 +98,19 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     type: "function",
     function: {
+      name: "rank_places",
+      description:
+        "Rank the monitoring stations in or near a place from cleanest to dirtiest for TODAY. Use for 'where in Mumbai is best for a run', 'which part of Delhi is cleanest', or any question comparing areas within one city. Returns station names with values, so you can name the actual places. Note that only places with a monitoring station can be ranked — if someone names a neighbourhood with no station, say so rather than guessing.",
+      parameters: {
+        type: "object",
+        properties: { location: LOCATION_PARAM, pollutant: POLLUTANT_PARAM },
+        required: ["location"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "history",
       description:
         "Daily averages for a place over a past window. Use for 'how was last week' or 'is it worse than last month'.",
@@ -374,6 +387,45 @@ export async function executeTool(
         dirtiest: flat ? null : withBand(sorted[sorted.length - 1]),
         hourly_is_flat: flat,
         timezone: "Asia/Kolkata",
+      };
+    }
+
+    case "rank_places": {
+      const loc = await resolveLocation(supabase, String(args.location ?? ""));
+      if (!loc) return notFound(String(args.location ?? ""));
+      const pollutant = (args.pollutant as string) ?? "aqi";
+      const today = istToday();
+      const picks = loc.monitors.slice(0, MAX_STATIONS_PER_CITY_QUERY);
+
+      const days = await Promise.all(
+        picks.map((m) => getForecast(supabase, m, pollutant, 1, { includeToday: true })),
+      );
+      const ranked: { station: string; value: number; mode: string }[] = [];
+      picks.forEach((m, i) => {
+        const d = days[i].find((x) => x.target_date === today) ?? days[i][0];
+        if (d && typeof d.value === "number") {
+          ranked.push({ station: m.name, value: Math.round(d.value), mode: d.mode });
+        }
+      });
+      if (ranked.length < 2) {
+        return {
+          location: loc.label,
+          error: "not_enough_stations",
+          message: `Only ${ranked.length} station here has a value for today, so there is nothing to rank.`,
+        };
+      }
+      ranked.sort((a, b) => a.value - b.value);
+      return {
+        location: loc.label,
+        date: today,
+        pollutant,
+        stations_ranked: ranked.length,
+        // Both ends, not the whole list: a two-sentence answer names the best
+        // and the worst, and twenty rows of middle would only cost tokens.
+        cleanest: ranked.slice(0, 3),
+        dirtiest: ranked.slice(-3).reverse(),
+        all: ranked,
+        note: "Only places with a monitoring station appear here. A neighbourhood with no station cannot be ranked.",
       };
     }
 

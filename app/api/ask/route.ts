@@ -14,7 +14,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { fail, ok, badRequest, rateLimit, callerKey } from "@/lib/api/respond";
-import { chat, aiConfig, AiProviderError, type ChatMessage } from "@/lib/ai/provider";
+import { chat, aiConfig, AiProviderError, undouble, type ChatMessage } from "@/lib/ai/provider";
 import { TOOL_DEFINITIONS, executeTool } from "@/lib/ai/tools";
 import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
 import { quotaMessage, type QuotaKind } from "@/lib/ai/quota";
@@ -75,6 +75,9 @@ function systemPrompt(): string {
     "6. AQI here is India's CPCB scale, 0-500. It is driven by PM10 more often than PM2.5, which surprises people.",
     "7. Use ONLY the CPCB band names, and only when a tool gave you one: Good, Satisfactory, Moderate, Poor, Very Poor, Severe. Never use US categories like 'unhealthy', 'unhealthy for sensitive groups' or 'hazardous' — they are a different scale and do not match what the rest of the app shows for the same number.",
     "",
+    "8. ALWAYS NAME THE DATE you are talking about, e.g. 'tomorrow (9 Oct)' or 'today (8 Oct)'. The reader cannot tell from the words alone whether you know what day it is.",
+    "9. The forecast reaches 7 days ahead. For anything beyond that, say plainly that it is outside the forecast window rather than answering from the seasonal average as though it were a forecast.",
+    "10. Only places with a monitoring station can be reported on. If someone names a neighbourhood with no station, say so and offer the nearest place that does have one.",
     "A tool result may contain a `series` field. It exists only to draw the chart shown beside your answer. NEVER recite it — summarise with the mean, min and max that accompany it. Listing dates and values is exactly what the chart is for.",
     "Answer in at most two short sentences. No preamble, no bullet points, no markdown. Be specific and plain.",
   ].join("\n");
@@ -140,12 +143,28 @@ export async function POST(request: Request) {
 
   try {
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-      // On the last permitted round, drop the tools so the model is forced to
-      // answer from what it already has rather than asking for more.
+      // ON THE LAST ROUND, ASK IN WORDS RATHER THAN WITHDRAWING THE TOOLS.
+      //
+      // Dropping `tools` makes Groq default tool_choice to "none", and
+      // gpt-oss-120b calls a tool anyway — which the provider then rejects
+      // outright: 400 "Tool choice is none, but model called a tool". So any
+      // question needing more than MAX_TOOL_ROUNDS rounds did not degrade to a
+      // worse answer, it died. That is the error Amrita hit with "where in
+      // mumbai is best for a run", and the cause of several blank answers.
+      //
+      // Keeping the tools present means the request is always valid; the
+      // instruction below is what actually stops it looking things up, and if
+      // it calls one anyway the result is discarded a few lines down rather
+      // than failing the request.
       const atCeiling = round === MAX_TOOL_ROUNDS;
-      const response = await chat(messages, {
-        tools: atCeiling ? undefined : TOOL_DEFINITIONS,
-      });
+      if (atCeiling) {
+        messages.push({
+          role: "system",
+          content:
+            "You now have everything you are going to get. Answer the question in words from the tool results above. Do not call any more tools. If the results do not contain what was asked for, say plainly what you could not find.",
+        });
+      }
+      const response = await chat(messages, { tools: TOOL_DEFINITIONS });
       if (response.usage) {
         tokens = {
           prompt: tokens.prompt + response.usage.prompt,
@@ -153,10 +172,24 @@ export async function POST(request: Request) {
         };
       }
 
-      const calls = response.message.tool_calls ?? [];
+      // At the ceiling, ignore any tool calls: the loop is over, and the
+      // content is what matters. Treating them as calls would spend another
+      // round that does not exist.
+      const calls = atCeiling ? [] : (response.message.tool_calls ?? []);
       if (!calls.length) {
-        const answer = (response.message.content ?? "").trim();
-        if (!answer) return fail("The model returned an empty answer", 502);
+        const answer = undouble(response.message.content ?? "");
+        if (!answer) {
+          // Empty content with no tool calls means the model had nothing to
+          // say — usually because every tool it tried returned an error. Say
+          // which tools ran, so this is diagnosable from the response instead
+          // of from the server log.
+          const tried = toolsUsed.map((t) => t.name).join(", ") || "none";
+          return fail(
+            `No answer could be produced for that question (tools tried: ${tried}). ` +
+              "Try asking about one place and one day.",
+            502,
+          );
+        }
         return ok(
           { question, answer, tools_used: toolsUsed, chart: bestChart(toolResults) },
           { model: cfg.model, rounds: round, tokens, remaining_today: perDay.remaining },

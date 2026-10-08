@@ -243,7 +243,7 @@ export default function AskScreen() {
 function quotaHeadline(kind: QuotaInfo["kind"]): string {
   switch (kind) {
     case "per_minute":
-      return "A few questions in quick succession — the box needs a short break.";
+      return "You asked a few questions in quick succession. The AI agent needs a short break.";
     case "per_day":
       return "You have used your questions for today.";
     case "shared_day":
