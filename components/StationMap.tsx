@@ -52,7 +52,14 @@ interface Meta {
 /** Grey, hollow: a station we hold nothing recent for. */
 const NO_DATA = "#9ca3af";
 
-export default function StationMap() {
+export default function StationMap({
+  // The home screen embeds a short map under the forecast; the Map tab wants
+  // the tall one. A prop rather than a second component, so both stay the same
+  // map with the same data and the same caveats.
+  heightClass = "h-[60vh]",
+}: {
+  heightClass?: string;
+} = {}) {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [stations, setStations] = useState<Station[] | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -90,7 +97,7 @@ export default function StationMap() {
 
   return (
     <div className="space-y-3">
-      <div className="h-[60vh] w-full overflow-hidden rounded-lg border border-gray-200">
+      <div className={`${heightClass} w-full overflow-hidden rounded-lg border border-gray-200`}>
         <MapContainer
           center={centre}
           zoom={11}

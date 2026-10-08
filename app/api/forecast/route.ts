@@ -51,6 +51,10 @@ export async function GET(request: Request) {
   }
   const days = parseNumber(params, "days", 7, 1, 7);
   const wantHourly = (params.get("hourly") ?? "true") !== "false";
+  // Today is excluded by default so the forecast list reads as "the days
+  // ahead". The home screen wants it, because "expected today" is the number
+  // someone opens the app for.
+  const includeToday = params.get("include_today") === "true";
 
   const supabase = createClient();
   const resolved = await resolvePlace(supabase, params);
@@ -63,7 +67,7 @@ export async function GET(request: Request) {
   const perStation = await Promise.all(
     place.monitors.map(async (monitor) => ({
       monitor,
-      days: await getForecast(supabase, monitor, pollutant, days),
+      days: await getForecast(supabase, monitor, pollutant, days, { includeToday }),
     })),
   );
 

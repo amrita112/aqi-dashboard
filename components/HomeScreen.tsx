@@ -3,10 +3,18 @@
 /**
  * What someone sees when they open the app.
  *
- * Order is deliberate. The FORECAST leads, not the current reading, because
- * OpenAQ runs days behind for India's government monitors — "what will it be
- * like tomorrow" is answerable, "what is it right now" usually is not. The
- * latest measurement comes second, with its age attached.
+ * ORDER IS THE DESIGN, and it changed after the 7 Oct review. Top to bottom:
+ * the app's name, the question box, today's number with the place it is for,
+ * the forecast, and a map. Everything else that used to be here — a threshold
+ * banner, the last measured reading, the list of contributing stations, and a
+ * box explaining the data's age — has gone.
+ *
+ * WHY THOSE WENT. Each was defensible alone and together they buried the
+ * number. The threshold warning is now the "Tomorrow" line turning red, which
+ * says the same thing in the place the eye already is. The station list is one
+ * line and an info button. The staleness explanation lives on the data-quality
+ * route and the petition page rather than on the screen someone opens to check
+ * one number.
  *
  * A client component because the user's place lives in localStorage; there is
  * no account to read it from on the server.
@@ -15,69 +23,84 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { loadPrefs, placeQuery, MEASUREMENT_COPY, type Prefs } from "@/lib/prefs";
-import { decideAlert } from "@/lib/alerts";
-import { assessDataQuality } from "@/lib/api/data-quality";
+import dynamic from "next/dynamic";
+import { loadPrefs, placeQuery, MEASUREMENT_COPY, NEAREST_K, type Prefs } from "@/lib/prefs";
+import { APP_NAME } from "@/lib/brand";
+import ForecastChart, { type ForecastPoint } from "@/components/ForecastChart";
 import InstallHint from "@/components/InstallHint";
+
+const HomeMap = dynamic(() => import("@/components/StationMap"), {
+  ssr: false,
+  loading: () => <div className="h-56 w-full animate-pulse rounded-lg bg-gray-100" />,
+});
 
 interface Band {
   label: string;
   color: string;
   textColor: string;
 }
+interface Day {
+  target_date: string;
+  horizon_days: number;
+  value: number;
+  band_low: number | null;
+  band_high: number | null;
+  mode: string;
+  band: Band;
+  hourly: { hour: number; value: number }[] | null;
+}
 interface StationRef {
   monitor_id: string;
   name: string;
   distance_km: number;
 }
-interface DataQuality {
-  level: string;
-  headline: string;
-  explanation: string;
-  affects_forecast: boolean;
-  actions: { id: string; label: string; body: string; available: boolean }[];
+
+/** "Today", "Thu", "Fri" — the axis labels in the mockup. */
+function dayLabel(iso: string, today: string): string {
+  if (iso === today) return "Today";
+  const d = new Date(`${iso}T12:00:00+05:30`);
+  return d.toLocaleDateString("en-IN", { weekday: "short" });
 }
-interface ForecastDay {
-  target_date: string;
-  value: number;
-  band: Band;
-  mode: string;
-  headline: string;
-  band_low: number | null;
-  band_high: number | null;
+
+/** "a little worse, around 160" — plain words before the number. */
+function describeChange(todayValue: number | null, tomorrowValue: number): string {
+  if (todayValue === null) return `around ${Math.round(tomorrowValue)}`;
+  const diff = tomorrowValue - todayValue;
+  const rel = Math.abs(diff) / Math.max(todayValue, 1);
+  const word =
+    rel < 0.05 ? "about the same" : diff > 0 ? "a little worse" : "a little better";
+  const strong = rel >= 0.25 ? (diff > 0 ? "worse" : "better") : word;
+  return `${strong}, around ${Math.round(tomorrowValue)}`;
 }
-interface ForecastBody {
-  data: {
-    tomorrow: ForecastDay | null;
-    best_hour: { hour: number; local_time: string; value: number } | null;
-    data_quality: DataQuality;
+
+/** The run of hours with the lowest values — "2–4 pm" in the mockup. */
+function cleanestWindow(hours: { hour: number; value: number }[] | null): string | null {
+  if (!hours || hours.length < 6) return null;
+  // Daytime only: the small hours are usually cleanest and advising someone to
+  // go out at 4am is useless even when it is true.
+  const day = hours.filter((h) => h.hour >= 6 && h.hour <= 21);
+  if (day.length < 4) return null;
+  let best = { start: day[0].hour, mean: Infinity };
+  for (let i = 0; i + 2 < day.length; i++) {
+    const mean = (day[i].value + day[i + 1].value + day[i + 2].value) / 3;
+    if (mean < best.mean) best = { start: day[i].hour, mean };
+  }
+  const fmt = (h: number) => {
+    const suffix = h < 12 ? "am" : "pm";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}${suffix}`;
   };
-  meta: { stations: StationRef[]; furthest_km: number };
-}
-interface CurrentBody {
-  data: {
-    aqi: number;
-    band: Band;
-    dominant_pollutant: string;
-    recorded_clock: string;
-    age_hours: number;
-    stale: boolean;
-    pollutants: { pollutant: string; value: number }[];
-  };
+  return `${fmt(best.start)}–${fmt(best.start + 3)}`;
 }
 
 export default function HomeScreen() {
   const router = useRouter();
   const [prefs, setPrefs] = useState<Prefs | null>(null);
-  const [forecast, setForecast] = useState<ForecastBody | null>(null);
-  const [current, setCurrent] = useState<CurrentBody | null>(null);
-  // Fetched separately from the forecast. The likeliest reason the forecast
-  // fails is that there is no stored forecast for this place -- exactly when
-  // the user most needs to see which stations are near them and why there is
-  // nothing to show. Hanging the station list off the forecast response meant
-  // it disappeared at the only moment it mattered.
-  const [nearby, setNearby] = useState<StationRef[]>([]);
+  const [days, setDays] = useState<Day[] | null>(null);
+  const [todayIso, setTodayIso] = useState<string>("");
+  const [stations, setStations] = useState<StationRef[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showStations, setShowStations] = useState(false);
 
   useEffect(() => {
     const p = loadPrefs();
@@ -87,25 +110,22 @@ export default function HomeScreen() {
     }
     setPrefs(p);
 
-    const q = placeQuery(p, { pollutant: p.measurement, days: 1, hourly: "true" });
-    Promise.all([
-      fetch(`/api/forecast?${q}`).then((r) => r.json()),
-      fetch(`/api/current?${placeQuery(p)}`).then((r) => r.json()),
-      fetch(`/api/nearest?${placeQuery(p)}`).then((r) => r.json()),
-    ])
-      .then(([f, c, n]) => {
-        if (f?.error) setError(f.error.message);
-        else setForecast(f);
-        if (!c?.error) setCurrent(c);
-        if (!n?.error && Array.isArray(n.data)) {
-          setNearby(
-            n.data.map((m: { monitor_id: string; name: string; distance_km: number }) => ({
-              monitor_id: m.monitor_id,
-              name: m.name,
-              distance_km: m.distance_km,
-            })),
-          );
+    const q = placeQuery(p, {
+      pollutant: p.measurement,
+      days: 5,
+      hourly: "true",
+      include_today: "true",
+    });
+    fetch(`/api/forecast?${q}`)
+      .then((r) => r.json())
+      .then((b) => {
+        if (b?.error) {
+          setError(b.error.message);
+          return;
         }
+        setDays(b.data.days ?? []);
+        setTodayIso(b.data.today ?? "");
+        setStations(b.meta?.stations ?? []);
       })
       .catch(() => setError("Could not reach the server."));
   }, [router]);
@@ -114,208 +134,151 @@ export default function HomeScreen() {
 
   const unit = MEASUREMENT_COPY[prefs.measurement].unit;
   const short = MEASUREMENT_COPY[prefs.measurement].short;
-  const tomorrow = forecast?.data.tomorrow ?? null;
-  const stations = forecast?.meta.stations ?? nearby;
-  const alert = decideAlert(tomorrow, prefs.threshold, prefs.measurement);
 
-  // When the forecast call fails there is no data_quality block to show, but
-  // the explanation is more useful then, not less: assess it from the latest
-  // reading instead so the user still learns why there is nothing to forecast.
-  const quality =
-    forecast?.data.data_quality ??
-    (current
-      ? assessDataQuality(current.data.age_hours, { servingSeasonalNormal: true })
-      : error
-        ? assessDataQuality(null, { servingSeasonalNormal: true })
-        : null);
+  const today = days?.find((d) => d.target_date === todayIso) ?? days?.[0] ?? null;
+  const tomorrow = days?.find((d) => d.target_date !== (today?.target_date ?? "")) ?? null;
+  const overThreshold =
+    prefs.threshold !== null && tomorrow !== null && tomorrow.value >= prefs.threshold;
+
+  const points: ForecastPoint[] = (days ?? []).map((d) => ({
+    target_date: d.target_date,
+    value: d.value,
+    band_low: d.band_low,
+    band_high: d.band_high,
+    mode: d.mode,
+    label: dayLabel(d.target_date, todayIso),
+  }));
+
+  const cleanest = cleanestWindow(today?.hourly ?? null);
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-baseline justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{prefs.city}</h1>
-          <p className="text-sm text-gray-600">near {prefs.anchor.name}</p>
-        </div>
-        <Link href="/setup" className="text-sm text-blue-700 underline">
-          Change
-        </Link>
-      </header>
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
+
+      {/* The question box leads, because it is the thing this app does that
+          nothing else does. */}
+      <Link
+        href="/ask"
+        className="block rounded-xl border border-gray-200 bg-white p-5 text-center shadow-sm transition hover:bg-gray-50"
+      >
+        <span className="block text-lg font-semibold">Ask AI: When should I go out?</span>
+        <span className="mt-1 block text-sm text-gray-500">
+          Suggestions based on {short} data
+        </span>
+      </Link>
 
       {error && (
         <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
       )}
 
-      {/* The banner sits above the forecast, because for someone who set a
-          threshold this is the thing they opened the app to find out. */}
-      {alert && (
-        <section
-          className={`rounded-lg border p-4 ${
-            alert.level === "alert"
-              ? "border-red-300 bg-red-50"
-              : "border-gray-300 bg-gray-50"
-          }`}
-        >
-          <h2
-            className={`font-semibold ${
-              alert.level === "alert" ? "text-red-900" : "text-gray-900"
-            }`}
-          >
-            {alert.headline}
-          </h2>
-          <p
-            className={`mt-1 text-sm ${
-              alert.level === "alert" ? "text-red-900/90" : "text-gray-700"
-            }`}
-          >
-            {alert.body}
-          </p>
+      {/* Expected today. */}
+      {today && (
+        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div
+              className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl"
+              style={{ backgroundColor: today.band.color, color: today.band.textColor }}
+            >
+              <span className="text-3xl font-bold leading-none">
+                {Math.round(today.value)}
+              </span>
+              <span className="mt-1 text-[10px] font-semibold uppercase tracking-wide">
+                {today.band.label}
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="font-semibold">Expected today</h2>
+              <p className="mt-1 text-sm text-gray-600">
+                {short}
+                {unit ? ` (${unit})` : ""}, average forecast from {stations.length || NEAREST_K}{" "}
+                nearest monitoring stations{" "}
+                <button
+                  type="button"
+                  onClick={() => setShowStations((v) => !v)}
+                  aria-label="Which stations?"
+                  className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-400 text-[10px] font-semibold text-gray-600 align-middle"
+                >
+                  i
+                </button>
+              </p>
+
+              {showStations && (
+                <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2 text-xs text-gray-600">
+                  {stations.length === 0 && <li>Station list unavailable.</li>}
+                  {stations.map((s) => (
+                    <li key={s.monitor_id} className="flex justify-between gap-3">
+                      <span className="truncate">{s.name}</span>
+                      <span className="shrink-0 tabular-nums">
+                        {s.distance_km.toFixed(1)} km
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* The place, not the city — the point they dropped in setup. */}
+              <Link
+                href="/settings"
+                className="mt-3 inline-flex items-center gap-1 border-t border-gray-100 pt-3 text-sm font-medium text-gray-900"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11z" />
+                  <circle cx="12" cy="10" r="2.5" />
+                </svg>
+                {prefs.anchor.name}
+                <svg viewBox="0 0 24 24" className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </Link>
+            </div>
+          </div>
         </section>
       )}
 
-      {/* The forecast leads. */}
-      {tomorrow && (
-        <section
-          className="rounded-xl p-6"
-          style={{ backgroundColor: tomorrow.band.color, color: tomorrow.band.textColor }}
-        >
-          {/* No opacity on text sitting on a band colour. "Very Poor" is red
-              on white at 4.0:1, already under the 4.5:1 standard for normal
-              text, and dimming it would push it further — on exactly the band
-              Delhi sits in all winter. Everything here is either large or
-              bold, which is the threshold that applies instead (3:1). */}
-          <p className="text-sm font-semibold">{tomorrow.headline}</p>
-          <p className="mt-2 text-6xl font-bold tabular-nums">
-            {Math.round(tomorrow.value)}
-            {unit && <span className="ml-2 text-2xl font-medium">{unit}</span>}
-          </p>
-          <p className="mt-1 text-lg font-semibold">
-            {tomorrow.band.label}
-            <span className="ml-2 text-sm font-semibold">{short}</span>
-          </p>
-          {tomorrow.band_low !== null && tomorrow.band_high !== null && (
-            <p className="mt-2 text-sm font-semibold">
-              likely between {Math.round(tomorrow.band_low)} and {Math.round(tomorrow.band_high)}
+      {/* Forecast. */}
+      {points.length >= 2 && (
+        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide">Forecast</h2>
+            <span className="text-xs text-gray-500">
+              {short}
+              {unit ? ` · ${unit}` : ""}
+            </span>
+          </div>
+          <div className="mt-2">
+            <ForecastChart points={points} unit={unit} />
+          </div>
+
+          {tomorrow && (
+            <p
+              className={`mt-4 border-t border-gray-100 pt-3 text-sm ${
+                overThreshold ? "font-semibold text-red-700" : "text-gray-900"
+              }`}
+            >
+              <span className="font-semibold">Tomorrow:</span>{" "}
+              {describeChange(today?.value ?? null, tomorrow.value)}
+              {overThreshold && (
+                <>
+                  {" "}
+                  — above your {prefs.threshold} {short} threshold
+                </>
+              )}
+              .
+            </p>
+          )}
+          {cleanest && (
+            <p className="mt-1 text-sm text-gray-600">
+              Cleanest hours today: <span className="font-medium text-gray-900">{cleanest}</span>
             </p>
           )}
         </section>
       )}
 
-      {/* After the headline, never before it. Someone opening the app came for
-          the number, and a prompt ahead of it is an interruption rather than
-          an offer. iOS-only and shown once — see InstallHint. */}
-      <InstallHint />
-
-      {forecast?.data.best_hour && tomorrow?.mode !== "seasonal_normal" && (
-        <p className="text-sm text-gray-700">
-          Cleanest around{" "}
-          <span className="font-medium">
-            {forecast.data.best_hour.local_time.slice(11, 16)}
-          </span>{" "}
-          tomorrow.
-        </p>
-      )}
-
-      {/* The latest measurement, with its age attached. */}
-      {current && (
-        <section className="rounded-lg border border-gray-200 bg-white p-4">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-medium text-gray-700">Last measured</h2>
-            <span className="text-xs text-gray-500">
-              {current.data.recorded_clock}
-              {current.data.age_hours >= 24
-                ? `, ${Math.round(current.data.age_hours / 24)} days ago`
-                : `, ${Math.round(current.data.age_hours)}h ago`}
-            </span>
-          </div>
-          <p className="mt-1 text-3xl font-semibold tabular-nums">
-            {current.data.aqi}
-            <span className="ml-2 text-base font-normal text-gray-600">
-              {current.data.band.label}
-            </span>
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            Driven by {current.data.dominant_pollutant.toUpperCase()}
-          </p>
-        </section>
-      )}
-
-      {/* Which stations this is actually built from. */}
-      {stations.length > 0 && (
-        <section className="rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-medium text-gray-700">
-            Averaged from {stations.length} nearby{" "}
-            {stations.length === 1 ? "station" : "stations"}
-          </h2>
-          <ul className="mt-2 space-y-1 text-sm text-gray-600">
-            {stations.map((s) => (
-              <li key={s.monitor_id} className="flex justify-between gap-4">
-                <span className="truncate">{s.name}</span>
-                <span className="shrink-0 tabular-nums text-gray-500">
-                  {s.distance_km} km
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* Staleness, and what to do about it. */}
-      {quality && quality.actions.length > 0 && (
-        <section className="rounded-lg border border-amber-300 bg-amber-50 p-4">
-          <h2 className="font-medium text-amber-900">{quality.headline}</h2>
-          <p className="mt-1 text-sm text-amber-900/90">{quality.explanation}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {quality.actions.map((a) =>
-              a.id === "support_hyperlocal" ? (
-                <Link
-                  key={a.id}
-                  href="/petition"
-                  className="rounded-md bg-amber-900 px-3 py-2 text-sm font-medium text-white hover:bg-amber-800"
-                >
-                  {a.label}
-                </Link>
-              ) : (
-                <span
-                  key={a.id}
-                  title={a.body}
-                  className="rounded-md border border-amber-400 px-3 py-2 text-sm text-amber-900"
-                >
-                  {a.label} <span className="opacity-70">(coming in v2)</span>
-                </span>
-              ),
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* The handoff to the question box. */}
-      <section className="rounded-lg border border-gray-200 bg-white p-4">
-        <h2 className="font-medium">Ask about the air</h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Plain questions, answered from the same data — try one.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {[
-            `Is tomorrow worse than today in ${prefs.city}?`,
-            "When is the cleanest time to go out tomorrow?",
-            `How was last week in ${prefs.city}?`,
-          ].map((q) => (
-            <Link
-              key={q}
-              href={`/ask?q=${encodeURIComponent(q)}`}
-              className="rounded-full border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
-            >
-              {q}
-            </Link>
-          ))}
-        </div>
-        <Link
-          href="/ask"
-          className="mt-3 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          Ask your own question
-        </Link>
+      <section className="overflow-hidden rounded-xl border border-gray-200">
+        <HomeMap heightClass="h-56" />
       </section>
+
+      <InstallHint />
     </div>
   );
 }

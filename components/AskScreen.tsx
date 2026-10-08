@@ -83,7 +83,13 @@ export default function AskScreen() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          question: prefs ? `${trimmed}\n\n(I am in ${prefs.city}, near ${prefs.anchor.name}.)` : trimmed,
+          // The chosen pollutant travels with the question. Without it the
+          // model defaulted to AQI for everyone, so someone who picked PM2.5 in
+          // setup was answered in a unit they had explicitly declined.
+          question: prefs
+            ? `${trimmed}\n\n(I am in ${prefs.city}, near ${prefs.anchor.name}. ` +
+              `I want answers in ${prefs.measurement === "pm25" ? "PM2.5 concentration (µg/m³)" : "AQI"} unless I ask otherwise.)`
+            : trimmed,
         }),
       });
       const body = await res.json();
