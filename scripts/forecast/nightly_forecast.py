@@ -240,8 +240,68 @@ def build_station_rows(monitor_id: str, city: str, pollutant: str,
             "based_on_date": based_on.isoformat() if based_on else None,
             "data_age_days": age,
             "computed_at": datetime.now(timezone.utc).isoformat(),
+            # Dropped before writing; only used to match a bias decision.
+            "city_key": city,
         })
     return rows
+
+
+BIAS_HISTORY_DAYS = 21
+
+
+def load_scored_history(client, pollutants: List[str], since: date
+                        ) -> Tuple[List[Dict[str, Any]], Dict[Tuple[str, str], float]]:
+    """Past forecasts and what actually happened, for learning the bias.
+
+    Returns the forecasts (carrying value_raw where one was stored) and the
+    observed daily value per (monitor_id, date) in the same shape the forecasts
+    are keyed by, so city_day_errors can line them up.
+    """
+    from scripts.ingest.lib.aqi_utils import compute_subindex
+
+    fc, offset = [], 0
+    while True:
+        r = (client.table("forecast_daily")
+                   .select("monitor_id, pollutant, target_date, value, value_raw")
+                   .eq("horizon_days", 1)
+                   .in_("pollutant", pollutants)
+                   .gte("target_date", since.isoformat())
+                   .range(offset, offset + 999).execute())
+        fc += r.data or []
+        if not r.data or len(r.data) < 1000:
+            break
+        offset += 1000
+
+    rows, offset = [], 0
+    while True:
+        r = (client.table("readings_daily")
+                   .select("monitor_id, pollutant, date, mean")
+                   .in_("pollutant", list(MEASURED_POLLUTANTS))
+                   .gte("date", since.isoformat())
+                   .range(offset, offset + 999).execute())
+        rows += r.data or []
+        if not r.data or len(r.data) < 1000:
+            break
+        offset += 1000
+
+    # Same construction as latest_observations: sub-index per pollutant, max
+    # across them for AQI. Deriving it differently here would make the measured
+    # bias an artefact of the two definitions disagreeing.
+    actuals: Dict[Tuple[str, str], float] = {}
+    by_day: Dict[Tuple[str, str], Dict[str, float]] = {}
+    for r in rows:
+        if r["mean"] is None:
+            continue
+        key = (r["monitor_id"], r["date"])
+        by_day.setdefault(key, {})[r["pollutant"]] = float(r["mean"])
+    for (mid, d), pol in by_day.items():
+        if "pm25" in pol:
+            actuals[(mid, d)] = pol["pm25"] if "pm25" in pollutants else None
+        subs = [compute_subindex(p, v) for p, v in pol.items()]
+        subs = [x for x in subs if x is not None]
+        if subs:
+            actuals[(mid, d)] = max(subs)
+    return fc, actuals
 
 
 def main() -> None:
@@ -304,9 +364,50 @@ def main() -> None:
     else:
         print("  no station had a usable recent observation — all seasonal_normal")
 
+    # ── BIAS CORRECTION ──────────────────────────────────────────────────────
+    # Learned from how the last three weeks of our own +1 day forecasts scored
+    # against what was measured, and applied per city only where it has been
+    # helping. See scripts/forecast/bias_correction.py for why this exists and
+    # why it polices itself.
+    hist_fc, hist_actual = load_scored_history(
+        client, args.pollutants, today - timedelta(days=BIAS_HISTORY_DAYS))
+    errors = city_day_errors(hist_fc, hist_actual, city_of)
+    decisions = {k: decide(v, today) for k, v in errors.items()}
+
+    print(f"\n  bias correction, from {len(hist_fc)} scored forecasts:")
+    applied_n = 0
+    for (city, pollutant), d in sorted(decisions.items()):
+        mark = "APPLY " if d["applied"] else "skip  "
+        print(f"    {mark}{city:<12}{pollutant:<6}offset {d['offset']:+8.2f}   {d['reason']}")
+    for r in out_rows:
+        d = decisions.get((r["city_key"], r["pollutant"]))
+        if not d or not d["applied"]:
+            continue
+        raw = r["value"]
+        r["value_raw"] = raw
+        r["value"] = round(apply_offset(raw, d["offset"]), 2)
+        applied_n += 1
+    print(f"    corrected {applied_n} of {len(out_rows)} rows")
+
+    # city_key exists only to join rows to decisions; it is not a column.
+    for r in out_rows:
+        r.pop("city_key", None)
+
     if args.dry_run:
         print("\nDry run — nothing written.")
         return
+
+    bias_rows = [{
+        "city": city, "pollutant": pollutant,
+        "offset_value": d["offset"], "applied": d["applied"],
+        "reason": d["reason"], "n_days": d["n_days"],
+        "mae_raw": d["mae_raw"], "mae_corrected": d["mae_corrected"],
+        "computed_at": datetime.now(timezone.utc).isoformat(),
+    } for (city, pollutant), d in decisions.items()]
+    if bias_rows:
+        (client.table("forecast_bias")
+               .upsert(bias_rows, on_conflict="city,pollutant").execute())
+        print(f"  forecast_bias: {len(bias_rows)} rows upserted")
 
     written = 0
     for i in range(0, len(out_rows), 500):
