@@ -126,6 +126,27 @@ export function chartFor(tool: string, result: unknown): AnswerChart | null {
       };
     }
 
+    case "best_hour": {
+      const hourly = Array.isArray(r.hourly) ? r.hourly : [];
+      const points: ChartPoint[] = [];
+      for (const h of hourly) {
+        const row = h as Record<string, unknown>;
+        const v = num(row.value);
+        if (v === null) continue;
+        points.push({ label: String(row.clock ?? row.hour ?? ""), value: v });
+      }
+      if (points.length < MIN_POINTS) return null;
+      const cleanest = r.cleanest_clock;
+      for (const p of points) if (p.label === cleanest) p.highlight = true;
+      return {
+        kind: "hourly",
+        title: `${String(r.location ?? "")} — tomorrow, hour by hour`,
+        unit: unitFor(r.pollutant),
+        points,
+        note: null,
+      };
+    }
+
     case "rank_places": {
       const all = Array.isArray(r.all) ? r.all : [];
       const points: ChartPoint[] = [];
@@ -169,8 +190,8 @@ export function chartFor(tool: string, result: unknown): AnswerChart | null {
     }
 
     default:
-      // current_aqi and best_hour are single facts. A chart of one value is
-      // decoration pretending to be evidence.
+      // current_aqi is a single fact. A chart of one value is decoration
+      // pretending to be evidence.
       return null;
   }
 }

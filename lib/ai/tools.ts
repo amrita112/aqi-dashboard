@@ -306,6 +306,15 @@ export async function executeTool(
         location: loc.label,
         date: days[0].target_date,
         pollutant,
+        // The WHOLE day, so the answer can be shown as a curve. "3 pm is
+        // cleanest" is not actionable on its own: the reader needs to see
+        // whether the clean window lasts an hour or five, and how much worse
+        // the alternatives are.
+        hourly: hours.map((value, hour) => ({
+          hour,
+          clock: stamp(hour),
+          value: Number.isFinite(value) ? Math.round(value) : null,
+        })),
         cleanest_hour_ist: best,
         cleanest_clock: stamp(best),
         cleanest_value: hours[best],
