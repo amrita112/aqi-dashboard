@@ -189,9 +189,13 @@ export default function AqiVsPm25Page() {
         </li>
       </ul>
 
+      {/* No "back to setup" link: this opens in its own tab from the setup
+          screen, so the way back is to close it, and a link would navigate the
+          wrong tab and restart the flow. The link is to the app for people who
+          arrive here directly. */}
       <p className="mt-10">
-        <Link href="/setup" className="text-blue-700 underline">
-          Back to setup
+        <Link href="/" className="text-blue-700 underline">
+          Go to {APP_NAME}
         </Link>
       </p>
     </main>

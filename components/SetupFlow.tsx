@@ -223,7 +223,16 @@ export default function SetupFlow() {
 
           <p className="mt-4 text-xs text-gray-500">
             You can change this later.{" "}
-            <Link href="/learn/aqi-vs-pm25" className="underline">
+            {/* A NEW TAB, so the half-finished setup survives. Following the
+                link in place lost the city and the pin -- there is nowhere to
+                put in-progress answers, since prefs are only written at the
+                end, so the fix is not to navigate away at all. */}
+            <Link
+              href="/learn/aqi-vs-pm25"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
               Click here to learn more
             </Link>
             .

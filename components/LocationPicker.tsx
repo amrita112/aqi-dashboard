@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Circle, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Circle, Tooltip, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { NEAREST_K } from "@/lib/prefs";
@@ -30,6 +30,8 @@ export interface NearbyStation {
   monitor_id: string;
   name: string;
   distance_km: number;
+  latitude: number;
+  longitude: number;
 }
 
 export interface PickedPlace {
@@ -39,8 +41,14 @@ export interface PickedPlace {
   stations: NearbyStation[];
 }
 
-/** Leaflet's default marker icons resolve to paths that do not exist under a
- *  bundler, so the pin is drawn rather than loaded. */
+/**
+ * Leaflet's default marker icons resolve to paths that do not exist under a
+ * bundler, so both markers are drawn rather than loaded.
+ *
+ * The pin is the person's place; the dots are the stations their numbers will
+ * come from. Listing the stations underneath but not drawing them left the map
+ * showing a pin in an apparently empty city, which is the opposite of the point.
+ */
 const PIN = L.divIcon({
   className: "",
   html:
@@ -50,6 +58,16 @@ const PIN = L.divIcon({
   iconSize: [22, 22],
   iconAnchor: [11, 22],
 });
+
+const STATION_DOT = L.divIcon({
+  className: "",
+  html:
+    '<div style="width:12px;height:12px;border-radius:50%;background:#2a78d6;' +
+    'border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)"></div>',
+  iconSize: [12, 12],
+  iconAnchor: [6, 6],
+});
+
 
 function ClickCatcher({ onPick }: { onPick: (lat: number, lng: number) => void }) {
   useMapEvents({
@@ -149,6 +167,21 @@ export default function LocationPicker({
           />
           <ClickCatcher onPick={(lat, lng) => setPoint({ lat, lng })} />
           {point && <Marker position={[point.lat, point.lng]} icon={PIN} />}
+          {/* The stations themselves. Named on hover/tap, so the list below and
+              the map are obviously the same three things. */}
+          {stations.map((st) =>
+            typeof st.latitude === "number" && typeof st.longitude === "number" ? (
+              <Marker
+                key={st.monitor_id}
+                position={[st.latitude, st.longitude]}
+                icon={STATION_DOT}
+              >
+                <Tooltip direction="top" offset={[0, -6]}>
+                  {st.name} · {st.distance_km.toFixed(1)} km
+                </Tooltip>
+              </Marker>
+            ) : null,
+          )}
           {/* The ring is the actual distance to the furthest station we would
               average, not a round number — so the neighbourhood the forecast
               comes from is visible rather than implied. */}
