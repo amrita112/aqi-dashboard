@@ -61,9 +61,12 @@ describe("tool contract", () => {
     const byName = Object.fromEntries(
       TOOL_DEFINITIONS.map((t) => [t.function.name, t.function.description]),
     );
-    expect(byName.best_hour).toMatch(/TOMORROW/);
+    // Case-insensitive, and no assertion that best_hour avoids the word
+    // "today": it legitimately uses it to point at rest_of_today, which is the
+    // handoff this test exists to protect.
+    expect(byName.best_hour).toMatch(/tomorrow/i);
     expect(byName.best_hour.toLowerCase()).toContain("rest_of_today");
-    expect(byName.rest_of_today).toMatch(/TODAY/);
+    expect(byName.rest_of_today).toMatch(/today/i);
   });
 
   it("gives every tool a description and a typed parameter schema", () => {

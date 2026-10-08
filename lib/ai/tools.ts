@@ -74,7 +74,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     function: {
       name: "best_hour",
       description:
-        "The cleanest and dirtiest hours of TOMORROW for a place, in Indian Standard Time. For today, this evening, or the next few hours, use rest_of_today instead. Returns nothing usable if no hourly profile has been fitted for that city and month.",
+        "Tomorrow hour by hour for a place, in Indian Standard Time: the full 24-hour curve plus the cleanest and dirtiest hours. Use for 'when should I go out tomorrow' AND for any request to see or graph tomorrow's hourly values — the curve is charted for the reader automatically, so describe its shape and name the key hours rather than saying you cannot show a series. For today, this evening, or the next few hours, use rest_of_today instead. Returns nothing usable if no hourly profile has been fitted for that city and month.",
       parameters: {
         type: "object",
         properties: { location: LOCATION_PARAM, pollutant: POLLUTANT_PARAM },
@@ -174,6 +174,26 @@ function daysAgo(n: number): string {
     .slice(0, 10);
 }
 
+/** "10 Oct" — unambiguous next to a weekday or the word "tomorrow". */
+function humanDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return iso;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${Number(m[3])} ${months[Number(m[2]) - 1]}`;
+}
+
+/** "today" / "tomorrow" / "Saturday", computed here rather than inferred. */
+function describeDay(iso: string): string {
+  const today = istToday();
+  if (iso === today) return "today";
+  const t = Date.parse(`${today}T00:00:00+05:30`);
+  const d = Date.parse(`${iso}T00:00:00+05:30`);
+  const days = Math.round((d - t) / 86_400_000);
+  if (days === 1) return "tomorrow";
+  if (days === 2) return "the day after tomorrow";
+  return new Date(`${iso}T12:00:00+05:30`).toLocaleDateString("en-IN", { weekday: "long" });
+}
+
 /** Enough to show a shape; few enough not to dominate the prompt. */
 const MAX_SERIES_POINTS = 30;
 
@@ -263,9 +283,12 @@ export async function executeTool(
         // If ANY station is serving the seasonal normal, say so rather than
         // hiding it behind an average that looks like a prediction.
         const modes = new Set(slice.map((d) => d.mode));
+        const dayValue = meanAcross(slice.map((d) => d.value));
         byDay.push({
           date: slice[0].target_date,
-          value: meanAcross(slice.map((d) => d.value)),
+          date_label: `${describeDay(slice[0].target_date)} (${humanDate(slice[0].target_date)})`,
+          value: dayValue,
+          band: pollutant === "aqi" && dayValue !== null ? getAqiLabel(dayValue) : null,
           // Averaged across stations, same as `value`. Carried so the chart can
           // show the within-day swing, which is the half of the model a daily
           // line throws away -- these cities move by a factor of two inside a
@@ -326,12 +349,21 @@ export async function executeTool(
           clock: stamp(hour),
           value: Number.isFinite(value) ? Math.round(value) : null,
         })),
+        // THE DATE SPELLED OUT, because the model wrote "tomorrow (9 Oct)"
+        // while using the 10 Oct numbers. Given only an ISO string next to the
+        // word "tomorrow" in its own prompt, it reached for the wrong one.
+        date_label: `${describeDay(days[0].target_date)} (${humanDate(days[0].target_date)})`,
         cleanest_hour_ist: best,
         cleanest_clock: stamp(best),
-        cleanest_value: hours[best],
+        cleanest_value: Math.round(hours[best]),
+        // BANDS FROM OUR SCALE. Without them the model labelled an AQI of 74
+        // "Moderate", which is the US scale; on CPCB 74 is Satisfactory, and
+        // that is what every other screen shows for the same number.
+        cleanest_band: pollutant === "aqi" ? getAqiLabel(hours[best]) : null,
         dirtiest_hour_ist: worst,
         dirtiest_clock: stamp(worst),
-        dirtiest_value: hours[worst],
+        dirtiest_value: Math.round(hours[worst]),
+        dirtiest_band: pollutant === "aqi" ? getAqiLabel(hours[worst]) : null,
         timezone: "Asia/Kolkata",
       };
     }
@@ -421,11 +453,16 @@ export async function executeTool(
       const days = await Promise.all(
         picks.map((m) => getForecast(supabase, m, pollutant, 1, { includeToday: true })),
       );
-      const ranked: { station: string; value: number; mode: string }[] = [];
+      const ranked: { station: string; value: number; band: string | null; mode: string }[] = [];
       picks.forEach((m, i) => {
         const d = days[i].find((x) => x.target_date === today) ?? days[i][0];
         if (d && typeof d.value === "number") {
-          ranked.push({ station: m.name, value: Math.round(d.value), mode: d.mode });
+          ranked.push({
+            station: m.name,
+            value: Math.round(d.value),
+            band: pollutant === "aqi" ? getAqiLabel(d.value) : null,
+            mode: d.mode,
+          });
         }
       });
       if (ranked.length < 2) {
