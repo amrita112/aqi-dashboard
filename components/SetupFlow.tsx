@@ -15,6 +15,8 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   savePrefs,
@@ -39,6 +41,15 @@ interface City {
   } | null;
 }
 
+// Leaflet reaches for `window` at import time, so the picker can never be part
+// of a server render. Same pattern the map screen already uses.
+const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-64 w-full animate-pulse rounded-md border border-gray-300 bg-gray-100" />
+  ),
+});
+
 type Step = "location" | "measurement" | "threshold";
 
 export default function SetupFlow() {
@@ -48,7 +59,7 @@ export default function SetupFlow() {
 
   const [step, setStep] = useState<Step>("location");
   const [cityName, setCityName] = useState<string | null>(null);
-  const [station, setStation] = useState<Station | null>(null);
+  const [place, setPlace] = useState<import("@/components/LocationPicker").PickedPlace | null>(null);
   const [measurement, setMeasurement] = useState<Measurement>("aqi");
   const [notify, setNotify] = useState(true);
   const [threshold, setThreshold] = useState<number | null>(null);
@@ -80,20 +91,38 @@ export default function SetupFlow() {
     if (suggested !== null) setThreshold(suggested);
   }, [suggested]);
 
+  // The map needs somewhere to open. The mean of a city's own stations is a
+  // better centre than a hardcoded coordinate per city, and it cannot go stale
+  // when the station list changes.
+  const centre = useMemo(() => {
+    if (!city?.stations?.length) return null;
+    const n = city.stations.length;
+    return {
+      latitude: city.stations.reduce((t, x) => t + x.latitude, 0) / n,
+      longitude: city.stations.reduce((t, x) => t + x.longitude, 0) / n,
+    };
+  }, [city]);
+
   function finish() {
-    if (!city || !station) return;
+    if (!city || !place) return;
     savePrefs({
       city: city.city,
       anchor: {
-        monitor_id: station.monitor_id,
-        name: station.name,
-        latitude: station.latitude,
-        longitude: station.longitude,
+        // The nearest station at the time of choosing, kept for callers that
+        // want one representative site. The place itself is what the app shows.
+        monitor_id: place.stations[0]?.monitor_id ?? "",
+        name: place.label,
+        latitude: place.latitude,
+        longitude: place.longitude,
       },
       measurement,
       threshold: notify ? threshold : null,
     });
-    router.push("/");
+    // Land on the Ask tab, not Home. The first thing someone wants after
+    // answering three questions is to try the thing the app is for, and the
+    // old behaviour flashed Ask and then replaced it with Home, which looked
+    // like a bug.
+    router.push("/ask");
   }
 
   if (loadError) {
@@ -113,10 +142,7 @@ export default function SetupFlow() {
 
       {step === "location" && (
         <section>
-          <h2 className="text-xl font-semibold">Where do you want air quality for?</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Pick anywhere we cover — it does not have to be where you are now.
-          </p>
+          <h2 className="text-xl font-semibold">Which city&apos;s air quality do you want to see?</h2>
 
           <div className="mt-5 space-y-5">
             <div>
@@ -128,7 +154,7 @@ export default function SetupFlow() {
                 value={cityName ?? ""}
                 onChange={(e) => {
                   setCityName(e.target.value || null);
-                  setStation(null);
+                  setPlace(null);
                 }}
                 className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2"
               >
@@ -141,43 +167,31 @@ export default function SetupFlow() {
               </select>
             </div>
 
-            {city && (
+            {city && centre && (
               <div>
-                <label htmlFor="station" className="block text-sm font-medium text-gray-700">
-                  Which part of {city.city}?
+                <label className="block text-sm font-medium text-gray-700">
+                  Where in {city.city}?
                 </label>
-                <select
-                  id="station"
-                  value={station?.monitor_id ?? ""}
-                  onChange={(e) =>
-                    setStation(city.stations.find((s) => s.monitor_id === e.target.value) ?? null)
-                  }
-                  className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2"
-                >
-                  <option value="">Choose an area…</option>
-                  {city.stations.map((s) => (
-                    <option key={s.monitor_id} value={s.monitor_id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-gray-500">
-                  Pick whichever is nearest you. We average the few closest monitoring
-                  stations around it rather than relying on any single one.
-                </p>
+                <div className="mt-1">
+                  <LocationPicker
+                    centre={centre}
+                    city={city.city}
+                    value={place}
+                    onChange={setPlace}
+                  />
+                </div>
               </div>
             )}
           </div>
 
-          <Next disabled={!station} onClick={() => setStep("measurement")} />
+          <Next disabled={!place} onClick={() => setStep("measurement")} />
         </section>
       )}
 
       {step === "measurement" && (
         <section>
-          <h2 className="text-xl font-semibold">Which number would you rather see?</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Both are shown everywhere in the app. This just picks the one that leads.
+          <h2 className="text-xl font-semibold">Do you want to see AQI or just PM2.5 levels?</h2>
+          <p className="mt-1 hidden text-sm text-gray-600">
           </p>
 
           <div className="mt-5 space-y-3">
@@ -208,7 +222,11 @@ export default function SetupFlow() {
           </div>
 
           <p className="mt-4 text-xs text-gray-500">
-            Neither is wrong — they answer different questions. You can change this later.
+            You can change this later.{" "}
+            <Link href="/learn/aqi-vs-pm25" className="underline">
+              Click here to learn more
+            </Link>
+            .
           </p>
 
           <Next onClick={() => setStep("threshold")} onBack={() => setStep("location")} />
@@ -217,11 +235,10 @@ export default function SetupFlow() {
 
       {step === "threshold" && (
         <section>
-          <h2 className="text-xl font-semibold">When should we tell you?</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            We can flag the days when tomorrow&apos;s air is forecast to be worse than a level
-            you choose.
-          </p>
+          <h2 className="text-xl font-semibold">
+            Would you like to be notified when {MEASUREMENT_COPY[measurement].short} crosses a
+            particular threshold?
+          </h2>
 
           <div className="mt-5 space-y-3">
             <button
@@ -233,7 +250,10 @@ export default function SetupFlow() {
                   : "border-gray-300 bg-white hover:bg-gray-50"
               }`}
             >
-              <span className="block font-medium">Tell me on bad days</span>
+              <span className="block font-medium">
+                Yes, tell me when {MEASUREMENT_COPY[measurement].short} is{" "}
+                {notify ? "" : (threshold ?? suggested ?? "")} or above
+              </span>
               {notify && (
                 <div className="mt-3">
                   <div className="flex items-baseline gap-2">
@@ -256,8 +276,11 @@ export default function SetupFlow() {
                     </span>
                   </div>
                   {suggested !== null && (
+                    /* One sentence regardless of whether the box still holds the
+                       suggestion. The old copy switched between "This is the X"
+                       and "Suggested: X", which read as two different facts
+                       about the same number. */
                     <p className="mt-2 text-xs text-gray-600">
-                      {threshold === suggested ? "This is the " : "Suggested: "}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -268,8 +291,9 @@ export default function SetupFlow() {
                       >
                         {suggested}
                       </button>{" "}
-                      — a typical bad day in {city?.city} between October and February. Keep it
-                      and you will hear from us on roughly half the days of the season.
+                      is the median value of {MEASUREMENT_COPY[measurement].short} in{" "}
+                      {city?.city} between October and February. With this threshold, you will
+                      get a notification on roughly half the days this season.
                     </p>
                   )}
                 </div>
@@ -286,16 +310,14 @@ export default function SetupFlow() {
               }`}
             >
               <span className="block font-medium">Do not notify me</span>
-              <span className="mt-1 block text-sm text-gray-600">
-                I will check the app when I want to know.
-              </span>
             </button>
           </div>
 
           {/* Said now rather than discovered later. */}
           <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            Notifications are not switched on yet — this saves your preference so they work
-            the day they are. Everything else in the app works now.
+            Note: notifications are not enabled in the beta version of the app. This saves
+            your preferences, so that they are in place when we update the app to send
+            notifications.
           </p>
 
           <Next
@@ -306,11 +328,6 @@ export default function SetupFlow() {
           />
         </section>
       )}
-
-      <p className="mt-8 text-xs text-gray-500">
-        These three answers are kept on this device only — no account, nothing sent to us.
-        Clearing your browser data will lose them.
-      </p>
     </div>
   );
 }

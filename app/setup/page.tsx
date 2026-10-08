@@ -8,6 +8,7 @@
  * when someone wants to change them.
  */
 
+import { APP_NAME } from "@/lib/brand";
 import SetupFlow from "@/components/SetupFlow";
 
 export const metadata = {
@@ -18,9 +19,10 @@ export const metadata = {
 export default function SetupPage() {
   return (
     <main className="mx-auto max-w-lg px-6 py-12">
-      <h1 className="text-2xl font-bold tracking-tight">Let&apos;s set this up</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Welcome to {APP_NAME}</h1>
       <p className="mt-2 text-gray-600">
-        Three questions. It takes about twenty seconds, and you can change any of it later.
+        To get started, please answer three questions. You can change your answers any time
+        from the settings tab.
       </p>
 
       <div className="mt-8">

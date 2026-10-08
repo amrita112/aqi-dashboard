@@ -44,7 +44,7 @@ describe("round trip", () => {
     expect(back.measurement).toBe("aqi");
     expect(back.threshold).toBe(380);
     expect(back.anchor.name).toBe("Alipur, Delhi - DPCC");
-    expect(back.version).toBe(1);
+    expect(back.version).toBe(2);
   });
 
   it("keeps 'do not notify me' as an explicit null, not a missing value", () => {
@@ -156,7 +156,10 @@ describe("placeQuery", () => {
 describe("the explanation shown at first run", () => {
   it("tells people AQI is usually driven by PM10, which is the surprising part", () => {
     expect(MEASUREMENT_COPY.aqi.blurb).toMatch(/PM10/);
-    expect(MEASUREMENT_COPY.pm25.blurb).toMatch(/lungs|fine particles/i);
+    // Wording changed in the 7 Oct review; the thing being asserted did not —
+    // the PM2.5 explanation must name the particles and say why they matter.
+    expect(MEASUREMENT_COPY.pm25.blurb).toMatch(/fine particulate|fine particles/i);
+    expect(MEASUREMENT_COPY.pm25.blurb).toMatch(/lung/i);
   });
 
   it("gives PM2.5 a unit and AQI none, because AQI is an index", () => {

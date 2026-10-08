@@ -20,10 +20,19 @@ export type Measurement = "aqi" | "pm25";
 
 export interface Prefs {
   /** Bumped when the shape changes, so a stale object is discarded not crashed on. */
-  version: 1;
+  version: 2;
   city: string;
-  /** The station the user picked as their anchor. Its coordinates drive the
-   *  nearest-station average; it is not necessarily the station we quote. */
+  /**
+   * The POINT the user dropped on the map, not a station.
+   *
+   * v1 stored a station the user picked from a dropdown, which asked them to
+   * know which CPCB site was nearest their flat. The anchor is now their own
+   * place; the stations are derived from it, and `name` is what they called it
+   * rather than a monitoring site's name.
+   *
+   * monitor_id is kept, holding the nearest station at the time of choosing,
+   * because several callers still want a single representative station.
+   */
   anchor: {
     monitor_id: string;
     name: string;
@@ -36,7 +45,9 @@ export interface Prefs {
   saved_at: string;
 }
 
-export const PREFS_KEY = "aqi.prefs.v1";
+// v2 because the anchor changed meaning. A v1 object would load and look
+// valid while pointing at a station the person never chose as their "place".
+export const PREFS_KEY = "aqi.prefs.v2";
 
 /** How many nearby stations an answer is averaged over. */
 export const NEAREST_K = 3;
@@ -46,18 +57,18 @@ export const MEASUREMENT_COPY: Record<
   { label: string; short: string; blurb: string; unit: string }
 > = {
   aqi: {
-    label: "Air Quality Index",
+    label: "Air Quality Index (AQI)",
     short: "AQI",
     // The honest version: familiar, but not what most people assume it means.
     blurb:
-      "The familiar 0–500 number. It combines several pollutants and reports the worst one — which in Indian cities is usually PM10 (coarse dust), not PM2.5. Good if you want one number that matches what you see reported elsewhere.",
+      "AQI is a combined measure of five different pollutants. Its value corresponds to the pollutant with maximum concentration. In most Indian cities, it is dominated by PM10 (coarse dust).",
     unit: "",
   },
   pm25: {
     label: "PM2.5 concentration",
     short: "PM2.5",
     blurb:
-      "The fine particles small enough to reach deep into your lungs, in micrograms per cubic metre. A smaller, less familiar number, and the one most health research is about. Good if you care specifically about what you are breathing in.",
+      "The PM2.5 concentration tells you how much fine particulate matter is in the air. This is the pollutant with the worst long-term effects on health, especially lung health. It may be lower than AQI (because AQI is the maximum of five different pollutants).",
     unit: "µg/m³",
   },
 };
@@ -70,7 +81,7 @@ export function loadPrefs(): Prefs | null {
     const parsed = JSON.parse(raw) as Prefs;
     // A shape from an older version is discarded rather than patched: the
     // first run is three questions, so asking them again is cheap.
-    if (parsed?.version !== 1 || !parsed.city || !parsed.anchor?.monitor_id) return null;
+    if (parsed?.version !== 2 || !parsed.city || !parsed.anchor?.name) return null;
     return parsed;
   } catch {
     // Private windows and blocked site data both throw here.
@@ -79,7 +90,7 @@ export function loadPrefs(): Prefs | null {
 }
 
 export function savePrefs(prefs: Omit<Prefs, "version" | "saved_at">): Prefs | null {
-  const full: Prefs = { ...prefs, version: 1, saved_at: new Date().toISOString() };
+  const full: Prefs = { ...prefs, version: 2, saved_at: new Date().toISOString() };
   try {
     window.localStorage.setItem(PREFS_KEY, JSON.stringify(full));
     return full;
