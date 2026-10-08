@@ -54,7 +54,7 @@ export const TABS: Tab[] = [
     icon: "M3 3v16.5A1.5 1.5 0 0 0 4.5 21H21M7 15l3.5-4 3 2.5L19 7",
   },
   {
-    href: "/setup",
+    href: "/settings",
     label: "Settings",
     // Sliders
     icon: "M6 4.5v6m0 3v6m6-15v9m0 3v3m6-15v3m0 3v9M3.75 10.5h4.5m1.5 3h4.5m1.5-6h4.5",
@@ -62,7 +62,7 @@ export const TABS: Tab[] = [
 ];
 
 /** Routes that belong to the forecast app and get the bottom tab bar. */
-const APP_PREFIXES = ["/ask", "/setup", "/petition", "/trends", "/map"];
+const APP_PREFIXES = ["/ask", "/setup", "/settings", "/petition", "/trends", "/map"];
 
 export function isAppRoute(pathname: string): boolean {
   return pathname === "/" || APP_PREFIXES.some((p) => pathname.startsWith(p));
