@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { getAqiLabel } from "@/lib/aqi-utils";
 import {
   averageForecastDays,
   averageCurrent,
@@ -69,6 +70,7 @@ describe("averageForecastDays", () => {
         { monitor: monitor("b", 2), days: [day({ value: 200 })] },
       ],
       1,
+      "aqi",
     )!;
     expect(out.value[0].value).toBe(150);
     expect(out.stations).toHaveLength(2);
@@ -87,6 +89,7 @@ describe("averageForecastDays", () => {
         },
       ],
       1,
+      "aqi",
     )!;
     expect(out.value[0].value).toBe(100);
     expect(out.value[0].mode).toBe("forecast");
@@ -101,6 +104,7 @@ describe("averageForecastDays", () => {
         { monitor: monitor("b", 2), days: [sn()] },
       ],
       1,
+      "aqi",
     )!;
     expect(out.value[0].mode).toBe("seasonal_normal");
     expect(out.value[0].value).toBe(120);
@@ -114,6 +118,7 @@ describe("averageForecastDays", () => {
         { monitor: monitor("b", 2), days: [day({ value: 200 })] },
       ],
       1,
+      "aqi",
     )!;
     const hourly = out.value[0].hourly!;
     expect(hourly).toHaveLength(24);
@@ -129,12 +134,13 @@ describe("averageForecastDays", () => {
         { monitor: monitor("near", 1), days: [day()] },
       ],
       1,
+      "aqi",
     )!;
     expect(out.stations.map((s) => s.monitor_id)).toEqual(["near", "far"]);
   });
 
   it("returns null when no station has a forecast at all", () => {
-    expect(averageForecastDays([{ monitor: monitor("a", 1), days: [] }], 1)).toBeNull();
+    expect(averageForecastDays([{ monitor: monitor("a", 1), days: [] }], 1, "aqi")).toBeNull();
   });
 });
 
@@ -218,5 +224,59 @@ describe("averageHistory", () => {
       { monitor: monitor("b", 2), series: [point("2026-09-20", 10), point("2026-09-21", 10)] },
     ]);
     expect(out.value.map((d) => d.date)).toEqual(["2026-09-20", "2026-09-21", "2026-09-22"]);
+  });
+});
+
+describe("the averaged band describes the averaged value", () => {
+  it("does not inherit the first station's band", () => {
+    // The bug Amrita caught: a Bangalore forecast of 59 was labelled "Severe"
+    // because `...base` carried the first contributing station's band through
+    // while `value` was overwritten with the average.
+    const out = averageForecastDays(
+      [
+        { monitor: monitor("a", 1), days: [day({ value: 450 })] },
+        { monitor: monitor("b", 2), days: [day({ value: 50 })] },
+      ],
+      1,
+      "aqi",
+    )!;
+    expect(out.value[0].value).toBeCloseTo(250, 0);
+    expect(out.value[0].band.label).toBe("Poor");
+  });
+
+  it("gives each averaged hour its own band", () => {
+    const out = averageForecastDays(
+      [
+        { monitor: monitor("a", 1), days: [day({ value: 400 })] },
+        { monitor: monitor("b", 2), days: [day({ value: 40 })] },
+      ],
+      1,
+      "aqi",
+    )!;
+    const hours = out.value[0].hourly ?? [];
+    for (const h of hours) {
+      expect(h.band.label).toBe(getAqiLabel(h.value));
+    }
+  });
+});
+
+describe("band lookup covers the gaps between bands", () => {
+  it("does not report a fractional value as the worst band", () => {
+    // The CPCB table is written as integer ranges — Good 0-50, Satisfactory
+    // 51-100 — so 50.4 fell in the gap, matched nothing, and hit the
+    // fall-back-to-worst branch. Values are continuous; the table is not.
+    // The band follows the number the screen shows, which is the rounded one.
+    expect(getAqiLabel(50.4)).toBe("Good");          // displays as 50
+    expect(getAqiLabel(50.6)).toBe("Satisfactory");  // displays as 51
+    expect(getAqiLabel(100.4)).toBe("Satisfactory");
+    expect(getAqiLabel(200.4)).toBe("Moderate");
+    expect(getAqiLabel(300.4)).toBe("Poor");
+    expect(getAqiLabel(400.4)).toBe("Very Poor");
+  });
+
+  it("still reports genuinely severe values as Severe", () => {
+    expect(getAqiLabel(401)).toBe("Severe");
+    expect(getAqiLabel(999)).toBe("Severe");
+    expect(getAqiLabel(5000)).toBe("Severe");
   });
 });

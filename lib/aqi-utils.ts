@@ -67,8 +67,18 @@ export function getAqiCategory(
   scale: Scale = DEFAULT_SCALE
 ): AqiCategory {
   const table = CATEGORIES[scale];
-  const category = table.find((cat) => value >= cat.min && value <= cat.max);
-  // Defensive: out-of-range values fall back to the worst (last) category.
+  // ROUND FIRST. The bands are written as integer ranges with gaps between
+  // them — Good ends at 50 and Satisfactory starts at 51 — so a fractional
+  // value in a gap matched NOTHING and the fallback below reported it as the
+  // WORST band. A Bangalore forecast of 50.4 was labelled "Severe".
+  //
+  // Rounding rather than widening the comparison, because the screen shows the
+  // rounded number: 50.4 is displayed as "50", and a band of "Satisfactory"
+  // beside the digits "50" would contradict the table the user can look up.
+  // The label and the number now always agree.
+  const v = Math.round(value);
+  const category = table.find((cat) => v >= cat.min && v <= cat.max);
+  // Above the top of the scale, the worst band is the right answer.
   return category ?? table[table.length - 1];
 }
 

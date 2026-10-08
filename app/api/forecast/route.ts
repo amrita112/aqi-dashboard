@@ -67,7 +67,7 @@ export async function GET(request: Request) {
     })),
   );
 
-  const averaged = averageForecastDays(perStation, days);
+  const averaged = averageForecastDays(perStation, days, pollutant);
   if (!averaged) {
     return notFound(
       "No forecast stored for any station near that place. The nightly job may not have run since they were added.",

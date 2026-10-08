@@ -97,7 +97,7 @@ export function indexShape(rows: ShapeRow[]): Map<string, number[]> {
 }
 
 /** The band a value falls in, for whichever pollutant it is. */
-function bandFor(pollutant: string, value: number, scale: Scale) {
+export function bandFor(pollutant: string, value: number, scale: Scale) {
   // AQI is already an index. A concentration has to be converted to its
   // sub-index first, or a PM2.5 of 40 would be read as an AQI of 40.
   const index =

@@ -15,11 +15,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   indexShape,
   expandDay,
+  bandFor,
   type ForecastDailyRow,
   type ForecastDay,
   type ShapeRow,
 } from "@/lib/api/forecast";
 import { istToday } from "@/lib/api/time";
+import { DEFAULT_SCALE, type Scale } from "@/lib/types";
 
 /** monitors.city uses the app's spelling; the analysis tables use XKDR's. */
 export const APP_TO_ANALYSIS: Record<string, string> = {
@@ -389,6 +391,11 @@ function describe(monitors: NearbyMonitor[]) {
 export function averageForecastDays(
   perStation: { monitor: NearbyMonitor; days: ForecastDay[] }[],
   horizonCount: number,
+  // Needed to re-derive the band from the averaged value. ForecastDay carries
+  // no pollutant of its own, and inheriting the first station's band is the bug
+  // this argument exists to prevent.
+  pollutant: string,
+  scale: Scale = DEFAULT_SCALE,
 ): Averaged<ForecastDay[]> | null {
   const withData = perStation.filter((p) => p.days.length);
   if (!withData.length) return null;
@@ -410,18 +417,31 @@ export function averageForecastDays(
     const mean = (pick: (d: ForecastDay) => number | null) =>
       meanAcross(contributing.map((c) => pick(c.day) ?? NaN));
 
+    // RECOMPUTE THE BAND FROM THE AVERAGED VALUE. Spreading `...h` and
+    // overriding only `value` left each point wearing the FIRST station's band
+    // while displaying the average of all of them, so the colour and the label
+    // described a number that was no longer on screen. A Bangalore forecast of
+    // 59 was shown as "Severe" because the first contributing station's band
+    // happened to be that.
     const hourly = base.hourly
-      ? base.hourly.map((h, hour) => ({
-          ...h,
-          value: mean((d) => d.hourly?.[hour]?.value ?? null) ?? h.value,
-          band_low: mean((d) => d.hourly?.[hour]?.band_low ?? null),
-          band_high: mean((d) => d.hourly?.[hour]?.band_high ?? null),
-        }))
+      ? base.hourly.map((h, hour) => {
+          const value = mean((d) => d.hourly?.[hour]?.value ?? null) ?? h.value;
+          return {
+            ...h,
+            value,
+            band_low: mean((d) => d.hourly?.[hour]?.band_low ?? null),
+            band_high: mean((d) => d.hourly?.[hour]?.band_high ?? null),
+            band: bandFor(pollutant, value, scale),
+          };
+        })
       : null;
+
+    const dayValue = mean((d) => d.value) ?? base.value;
 
     out.push({
       ...base,
-      value: mean((d) => d.value) ?? base.value,
+      value: dayValue,
+      band: bandFor(pollutant, dayValue, scale),
       band_low: mean((d) => d.band_low),
       band_high: mean((d) => d.band_high),
       // Honest label: only a real forecast if the rows behind it were.
