@@ -40,6 +40,14 @@ export async function GET(request: Request) {
     return badRequest("lat and lng are required");
   }
 
+  // POLLUTANT, because the map was AQI-only: someone who chose PM2.5 in setup
+  // saw AQI dots everywhere, which is both the wrong number and a different
+  // colour from the rest of their app.
+  const pollutant = params.get("pollutant") ?? "aqi";
+  if (pollutant !== "aqi" && pollutant !== "pm25") {
+    return badRequest("pollutant must be aqi or pm25", { received: pollutant });
+  }
+
   const radiusKm = parseNumber(params, "radius_km", 30, 1, 200);
   const limit = parseNumber(params, "limit", 60, 1, 200);
 
@@ -77,8 +85,14 @@ export async function GET(request: Request) {
     if (!latestDay.has(r.monitor_id)) latestDay.set(r.monitor_id, r.date);
   }
   const subIndices = new Map<string, { sub: number; pollutant: string }[]>();
+  // For PM2.5 the map shows the CONCENTRATION, so only that pollutant's row
+  // counts and the max-across-pollutants step does not apply. The colour still
+  // comes from its sub-index, so a dot means the same severity on both maps.
+  const raw = new Map<string, number>();
   for (const r of rows) {
     if (r.date !== latestDay.get(r.monitor_id) || r.mean === null || r.mean < 0) continue;
+    if (pollutant === "pm25" && r.pollutant !== "pm25") continue;
+    if (pollutant === "pm25") raw.set(r.monitor_id, r.mean);
     const list = subIndices.get(r.monitor_id) ?? [];
     list.push({
       sub: computeSubIndex(r.pollutant as Parameters<typeof computeSubIndex>[0], r.mean, DEFAULT_SCALE),
@@ -103,10 +117,15 @@ export async function GET(request: Request) {
     }
     const dominant = subs.reduce((a, b) => (b.sub > a.sub ? b : a));
     const category = getAqiCategory(dominant.sub, DEFAULT_SCALE);
+    // `value` is what the dot shows; `aqi` stays the sub-index so the colour
+    // and the band are on one scale whichever pollutant is selected.
+    const shown = pollutant === "pm25" ? (raw.get(m.id) ?? null) : dominant.sub;
     return {
       monitor_id: m.id, name: m.name, city: m.city,
       latitude: m.latitude, longitude: m.longitude,
       distance_km: m.distance_km,
+      value: shown === null ? null : Math.round(shown),
+      pollutant,
       aqi: dominant.sub,
       band: {
         label: category.label,
@@ -121,7 +140,7 @@ export async function GET(request: Request) {
 
   const withData = stations.filter((s) => s.aqi !== null);
   return ok(stations, {
-    lat, lng, radius_km: radiusKm,
+    lat, lng, radius_km: radiusKm, pollutant,
     station_count: stations.length,
     with_recent_data: withData.length,
     // Said plainly, because a map of coloured dots invites the assumption that

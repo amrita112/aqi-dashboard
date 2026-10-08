@@ -24,11 +24,21 @@
  */
 
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Circle, Popup, Tooltip } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Circle, Tooltip } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { loadPrefs, NEAREST_K, type Prefs } from "@/lib/prefs";
+import {
+  loadPrefs,
+  MEASUREMENT_COPY,
+  NEAREST_K,
+  type Measurement,
+  type Prefs,
+} from "@/lib/prefs";
+import { APP_NAME } from "@/lib/brand";
+import StationDetail, { type DetailStation } from "@/components/StationDetail";
 
 interface Station {
+  value: number | null;
+  pollutant?: string;
   monitor_id: string;
   name: string;
   city: string;
@@ -42,12 +52,6 @@ interface Station {
   age_days: number | null;
 }
 
-interface Meta {
-  station_count: number;
-  with_recent_data: number;
-  median_age_days: number | null;
-  lookback_days: number;
-}
 
 /** Grey, hollow: a station we hold nothing recent for. */
 const NO_DATA = "#9ca3af";
@@ -62,24 +66,36 @@ export default function StationMap({
 } = {}) {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [stations, setStations] = useState<Station[] | null>(null);
-  const [meta, setMeta] = useState<Meta | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Local to this screen. Switching the pollutant here changes what the map
+  // shows and nothing else -- it is a way of looking, not a change of mind
+  // about the setting chosen in setup.
+  const [measurement, setMeasurement] = useState<Measurement>("aqi");
+  const [selected, setSelected] = useState<DetailStation | null>(null);
+
+  // Seeded from the person's own setting, then free to differ while they look.
+  useEffect(() => {
+    const p = loadPrefs();
+    if (p) setMeasurement(p.measurement);
+  }, []);
 
   useEffect(() => {
     const p = loadPrefs();
     if (!p) return;
     setPrefs(p);
-    fetch(`/api/map?lat=${p.anchor.latitude}&lng=${p.anchor.longitude}&radius_km=30&limit=80`)
+    fetch(
+      `/api/map?lat=${p.anchor.latitude}&lng=${p.anchor.longitude}` +
+        `&radius_km=30&limit=80&pollutant=${measurement}`,
+    )
       .then((r) => r.json())
       .then((b) => {
         if (b?.error) setError(b.error.message);
         else {
           setStations(b.data as Station[]);
-          setMeta(b.meta as Meta);
         }
       })
       .catch(() => setError("Could not load the map."));
-  }, []);
+  }, [measurement]);
 
   if (!prefs) return <p className="text-gray-500">Loading…</p>;
   if (error) {
@@ -96,7 +112,23 @@ export default function StationMap({
       : 5000;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-0">
+      <header className="mb-3 flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
+        <select
+          value={measurement}
+          onChange={(e) => {
+            setMeasurement(e.target.value as Measurement);
+            setSelected(null);
+          }}
+          aria-label="Which pollutant to show"
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium"
+        >
+          <option value="aqi">{MEASUREMENT_COPY.aqi.short}</option>
+          <option value="pm25">{MEASUREMENT_COPY.pm25.short}</option>
+        </select>
+      </header>
+
       <div className={`${heightClass} w-full overflow-hidden rounded-lg border border-gray-200`}>
         <MapContainer
           center={centre}
@@ -109,14 +141,15 @@ export default function StationMap({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
-          {/* What the forecast is actually averaged over. */}
+          {/* What the forecast is actually averaged over. Kept at Amrita's
+              request even though the sentence explaining it has gone: the ring
+              shows it without needing a paragraph. */}
           <Circle
             center={centre}
             radius={averagingRadiusM}
             pathOptions={{ color: "#2a78d6", weight: 1, fillOpacity: 0.05, dashArray: "5 4" }}
           />
 
-          {/* The place the person chose. */}
           <CircleMarker
             center={centre}
             radius={6}
@@ -127,78 +160,67 @@ export default function StationMap({
             </Tooltip>
           </CircleMarker>
 
-          {(stations ?? []).map((s) => {
-            const has = s.aqi !== null && s.band !== null;
+          {(stations ?? []).map((st) => {
+            const has = st.value !== null && st.band !== null;
             return (
               <CircleMarker
-                key={s.monitor_id}
-                center={[s.latitude, s.longitude]}
-                radius={has ? 9 : 6}
+                key={st.monitor_id}
+                center={[st.latitude, st.longitude]}
+                radius={has ? 15 : 7}
+                eventHandlers={{
+                  click: () =>
+                    setSelected({
+                      monitor_id: st.monitor_id,
+                      name: st.name,
+                      city: st.city,
+                      date: st.date,
+                      age_days: st.age_days,
+                    }),
+                }}
                 pathOptions={{
-                  color: has ? "#ffffff" : NO_DATA,
-                  weight: has ? 2 : 1.5,
-                  fillColor: has ? s.band!.color : "#ffffff",
+                  color: has ? "#12171b" : NO_DATA,
+                  weight: has ? 1.5 : 1.5,
+                  fillColor: has ? st.band!.color : "#ffffff",
                   // Hollow for no data: visibly different at a glance, not just
                   // a different shade of the same thing.
                   fillOpacity: has ? 0.95 : 0.15,
                 }}
               >
-                <Popup>
-                  <div className="min-w-[11rem]">
-                    <p className="font-semibold">{s.name}</p>
-                    {has ? (
-                      <>
-                        {/* Age first. A coloured dot already implies "now". */}
-                        <p className="mt-1 text-xs text-gray-600">
-                          {s.age_days === 0
-                            ? "Measured today"
-                            : `Measured ${s.age_days} day${s.age_days === 1 ? "" : "s"} ago`}
-                          {" · "}
-                          {s.date}
-                        </p>
-                        <p className="mt-2">
-                          <span
-                            className="rounded px-2 py-0.5 text-sm font-semibold"
-                            style={{ background: s.band!.color, color: s.band!.textColor }}
-                          >
-                            {s.aqi} {s.band!.label}
-                          </span>
-                        </p>
-                        <p className="mt-1 text-xs text-gray-600">
-                          Driven by {s.dominant_pollutant?.toUpperCase()}
-                          {" · "}
-                          {s.distance_km} km away
-                        </p>
-                      </>
-                    ) : (
-                      <p className="mt-1 text-xs text-gray-600">
-                        Nothing reported in the last {meta?.lookback_days ?? 14} days.
-                        {" "}
-                        {s.distance_km} km away.
-                      </p>
-                    )}
-                  </div>
-                </Popup>
+                {has && (
+                  <Tooltip
+                    permanent
+                    direction="center"
+                    className="!border-0 !bg-transparent !shadow-none"
+                  >
+                    <span className="text-xs font-bold" style={{ color: st.band!.textColor }}>
+                      {st.value}
+                    </span>
+                  </Tooltip>
+                )}
               </CircleMarker>
             );
           })}
         </MapContainer>
       </div>
 
-      {meta && (
-        <p className="text-xs text-gray-600">
-          {meta.with_recent_data} of {meta.station_count} stations within 30 km have
-          reported in the last {meta.lookback_days} days
-          {meta.median_age_days !== null && (
-            <> — typically {meta.median_age_days} day
-              {meta.median_age_days === 1 ? "" : "s"} old</>
-          )}
-          . Hollow circles are stations we hold nothing recent for. The dashed ring is
-          what your forecast is averaged over.
-        </p>
+      {/* The station card, below the map rather than in a Leaflet popup: it
+          holds a chart and a control, which a popup anchored to a dot cannot
+          size sensibly on a phone. */}
+      {selected && (
+        <div className="mt-3">
+          <StationDetail
+            station={selected}
+            measurement={measurement}
+            onClose={() => setSelected(null)}
+          />
+        </div>
       )}
 
-      {stations === null && <p className="text-sm text-gray-500">Loading stations…</p>}
+      {!selected && (
+        <p className="mt-3 px-1 text-xs text-gray-500">
+          Tap a station for its forecast and recent history.
+        </p>
+      )}
     </div>
   );
 }
