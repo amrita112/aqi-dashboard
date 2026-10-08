@@ -16,7 +16,7 @@ import { NextResponse } from "next/server";
 import { fail, ok, badRequest, rateLimit, callerKey } from "@/lib/api/respond";
 import { chat, aiConfig, AiProviderError, type ChatMessage } from "@/lib/ai/provider";
 import { TOOL_DEFINITIONS, executeTool } from "@/lib/ai/tools";
-import { istToday } from "@/lib/api/time";
+import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
 import { quotaMessage, type QuotaKind } from "@/lib/ai/quota";
 import { bestChart } from "@/lib/ai/chart";
 
@@ -56,7 +56,15 @@ const DAY = 86_400_000;
 function systemPrompt(): string {
   return [
     "You answer questions about air quality in seven Indian cities: Delhi NCR, Mumbai, Bengaluru, Hyderabad, Chennai, Kolkata and Pune.",
-    `Today is ${istToday()} in India. All times are Indian Standard Time.`,
+    // THE MODEL HAS NO CLOCK. It knows nothing about when "now" is beyond what
+    // this sentence tells it, and it never sees the visitor's device time --
+    // this is computed on the server from UTC plus a fixed +5:30, so it is
+    // correct for India regardless of where the server runs or where the
+    // visitor is. Previously only the DATE was given, which left "is it bad
+    // right now" and "should I go out this evening" to be answered without the
+    // model knowing whether it was breakfast or midnight.
+    `Right now in India it is ${toIstClock(new Date())} on ${istToday()} (Indian Standard Time, UTC+5:30). All times you mention are IST.`,
+    `The current hour in IST is ${toIstHour(new Date())} on a 24-hour clock. "This evening" means roughly 18:00-21:00 today; "later today" means the hours after the current one.`,
     "",
     "Rules, in order of importance:",
     "1. Every number you state must come from a tool result. Never estimate, interpolate or recall a figure. If the tools did not return it, say you do not have it.",
