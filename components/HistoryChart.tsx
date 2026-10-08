@@ -53,7 +53,10 @@ export default function HistoryChart({
   const tickEvery = Math.max(1, Math.ceil(rows.length / 5));
 
   return (
-    <div className="h-48 w-full">
+    // Same reason as ForecastChart: the caption must sit outside the sized box
+    // or it overlaps the content below.
+    <div className="w-full">
+      <div className="h-48 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={rows} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke="#eef0f1" />
@@ -81,7 +84,8 @@ export default function HistoryChart({
           />
         </LineChart>
       </ResponsiveContainer>
-      <p className="mt-1 text-xs text-gray-500">
+      </div>
+      <p className="mt-2 text-xs text-gray-500">
         Measured daily averages. Breaks are days with no reading.
       </p>
     </div>

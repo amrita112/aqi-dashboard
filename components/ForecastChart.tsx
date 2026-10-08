@@ -123,7 +123,11 @@ export default function ForecastChart({
   const ticks = rows.filter((r) => r.isNoon).map((r) => r.i);
 
   return (
-    <div className="h-52 w-full">
+    // The fixed height belongs to the PLOT ONLY. With the legend inside the
+    // sized box it overflowed the bottom and printed on top of whatever
+    // followed -- on the map card, the "cleanest hours" line.
+    <div className="w-full">
+      <div className="h-52 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={rows} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke="#eef0f1" />
@@ -177,8 +181,9 @@ export default function ForecastChart({
           />
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
 
-      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-5" style={{ background: FORECAST }} />
           Forecast
