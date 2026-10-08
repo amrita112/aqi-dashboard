@@ -9,7 +9,6 @@
  */
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadPrefs } from "@/lib/prefs";
@@ -32,15 +31,9 @@ export default function MapScreen() {
   }, [router]);
 
   return (
-    <main className="mx-auto max-w-lg px-5 py-8">
-      <header className="mb-4 flex items-baseline justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Monitors</h1>
-          <p className="text-sm text-gray-600">What the stations near you last reported</p>
-        </div>
-        <Link href="/" className="text-sm text-blue-700 underline">Today</Link>
-      </header>
-      {ready && <StationMap />}
-    </main>
+    /* The header lives in StationMap now, with the pollutant selector beside
+       it. This wrapper exists only so /map can stay a server component and
+       export metadata, which a client component cannot. */
+    <main className="mx-auto max-w-lg px-5 py-8">{ready && <StationMap />}</main>
   );
 }

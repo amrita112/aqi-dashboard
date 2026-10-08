@@ -47,7 +47,34 @@ export const DEFAULT_BASE_URL = "https://api.groq.com/openai/v1";
 export const DEFAULT_MODEL = "openai/gpt-oss-120b";
 
 /** Answers are one or two sentences; anything longer is not being read. */
-export const DEFAULT_MAX_TOKENS = 220;
+/**
+ * THIS WAS 220 AND IT WAS STARVING THE ANSWER.
+ *
+ * gpt-oss-120b is a reasoning model: it emits a `reasoning` field that we never
+ * read, and those tokens count against max_tokens before a single character of
+ * `content` is produced. Measured on one of Amrita's failing questions, the
+ * model spent 746 characters of reasoning against a 220-token budget — it fit
+ * by luck, and with our system prompt and a page of tool results it did not.
+ * The result was content: "" with no tool calls, which the route reported as
+ * "no answer could be produced".
+ *
+ * So the empty answers were not the model declining to answer. It never got as
+ * far as answering.
+ *
+ * 700 is comfortable headroom for reasoning plus two sentences. The answer
+ * itself is still short; nothing here changes how much the model SAYS.
+ */
+export const DEFAULT_MAX_TOKENS = 700;
+
+/**
+ * Reasoning costs tokens against both the budget above and the 8,000-per-minute
+ * account limit. At "low" the same question used 113 completion tokens against
+ * 322 at "medium", with an answer of the same quality — this is two sentences
+ * chosen from six tools, not a problem that rewards deliberation.
+ *
+ * Ignored by providers and models that do not support it.
+ */
+export const REASONING_EFFORT = "low";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
@@ -110,6 +137,8 @@ export async function chat(
     maxTokens?: number;
     temperature?: number;
     signal?: AbortSignal;
+    /** Set internally when retrying a garbled tool call; not for callers. */
+    isRetry?: boolean;
   } = {},
 ): Promise<ChatResponse> {
   const cfg = aiConfig();
@@ -125,6 +154,7 @@ export async function chat(
     // only choosing a tool and phrasing a sentence. Determinism matters more
     // than variety here.
     temperature: opts.temperature ?? 0.2,
+    reasoning_effort: REASONING_EFFORT,
   };
   if (opts.tools?.length) {
     body.tools = opts.tools;
@@ -152,13 +182,34 @@ export async function chat(
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
+
+    // THE MODEL SOMETIMES EMITS MALFORMED TOOL ARGUMENTS and Groq rejects the
+    // whole request with 400 tool_use_failed — "Failed to parse tool call
+    // arguments as JSON". It is a generation slip, not a problem with the
+    // question, and the same question usually succeeds on a second attempt.
+    // Retried once rather than shown to the person, who saw a wall of provider
+    // JSON for asking "what about the day after?".
+    const toolSlip = response.status === 400 && text.includes("tool_use_failed");
+    if (toolSlip && !opts.isRetry) {
+      return chat(messages, { ...opts, isRetry: true });
+    }
+
     // 429 is the one that actually matters on a free tier: the daily token
     // budget is exhausted, so the app stops answering rather than costing
     // anything. Surfaced distinctly so the route can say so plainly.
+    //
+    // Nothing else leaks the provider's raw body to a user. It is diagnostic
+    // for us and noise to them, so the message is plain and the detail goes to
+    // the server log.
+    if (response.status !== 429) {
+      console.error(`AI provider ${response.status}: ${text.slice(0, 500)}`);
+    }
     throw new AiProviderError(
       response.status === 429
         ? "The free model quota is exhausted for now"
-        : `Model provider returned ${response.status}: ${text.slice(0, 200)}`,
+        : toolSlip
+          ? "The model garbled its request twice in a row. Please ask again."
+          : "The model provider could not answer that just now.",
       response.status,
       response.status === 429 || response.status >= 500,
     );

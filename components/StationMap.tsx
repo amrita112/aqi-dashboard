@@ -23,7 +23,7 @@
  * place the person chose at first run.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MapContainer, TileLayer, CircleMarker, Circle, Tooltip } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -72,6 +72,16 @@ export default function StationMap({
   // about the setting chosen in setup.
   const [measurement, setMeasurement] = useState<Measurement>("aqi");
   const [selected, setSelected] = useState<DetailStation | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // Bring the card into view when one opens. Shrinking the map usually suffices
+  // on a tall phone; on a short one it does not, and silently rendering content
+  // below the fold is how a feature goes unnoticed.
+  useEffect(() => {
+    if (selected && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [selected]);
 
   // Seeded from the person's own setting, then free to differ while they look.
   useEffect(() => {
@@ -129,7 +139,12 @@ export default function StationMap({
         </select>
       </header>
 
-      <div className={`${heightClass} w-full overflow-hidden rounded-lg border border-gray-200`}>
+      {/* The map gives up height when a station card opens, so the card is on
+          screen rather than below the fold. Without this the chart was clipped
+          by the tab bar and the person had to know to scroll. */}
+      <div
+        className={`${selected ? "h-[38vh]" : heightClass} w-full overflow-hidden rounded-lg border border-gray-200 transition-[height] duration-200`}
+      >
         <MapContainer
           center={centre}
           zoom={11}
@@ -162,6 +177,7 @@ export default function StationMap({
 
           {(stations ?? []).map((st) => {
             const has = st.value !== null && st.band !== null;
+            const isSelected = selected?.monitor_id === st.monitor_id;
             return (
               <CircleMarker
                 key={st.monitor_id}
@@ -178,8 +194,10 @@ export default function StationMap({
                     }),
                 }}
                 pathOptions={{
-                  color: has ? "#12171b" : NO_DATA,
-                  weight: has ? 1.5 : 1.5,
+                  // The selected station gets a heavy dark outline, so the card
+                  // below is visibly about one of the dots above it.
+                  color: isSelected ? "#12171b" : has ? "#12171b" : NO_DATA,
+                  weight: isSelected ? 4 : 1.5,
                   fillColor: has ? st.band!.color : "#ffffff",
                   // Hollow for no data: visibly different at a glance, not just
                   // a different shade of the same thing.
@@ -207,7 +225,7 @@ export default function StationMap({
           holds a chart and a control, which a popup anchored to a dot cannot
           size sensibly on a phone. */}
       {selected && (
-        <div className="mt-3">
+        <div className="mt-3" ref={cardRef}>
           <StationDetail
             station={selected}
             measurement={measurement}

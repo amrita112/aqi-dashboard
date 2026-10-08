@@ -91,7 +91,20 @@ export function chartFor(tool: string, result: unknown): AnswerChart | null {
         const v = num(row.value);
         if (v === null) continue;
         if (row.mode === "seasonal_normal") anySeasonal = true;
-        points.push({ label: String(row.date ?? row.target_date ?? ""), value: v });
+        const date = String(row.date ?? row.target_date ?? "");
+        // Hourly where we have it: a daily line between five dots hides the
+        // within-day swing, which is most of what a reader wants from a
+        // multi-day forecast.
+        const hours = Array.isArray(row.hourly) ? row.hourly : null;
+        if (hours && hours.length === 24) {
+          hours.forEach((hv, hour) => {
+            const value = num(hv);
+            if (value === null) return;
+            points.push({ label: hour === 12 ? date : "", value });
+          });
+        } else {
+          points.push({ label: date, value: v });
+        }
       }
       if (points.length < 2) return null;   // two days is already a trend
       return {
@@ -209,4 +222,79 @@ export function bestChart(results: { name: string; result: unknown }[]): AnswerC
     .filter((c): c is AnswerChart => c !== null);
   if (!charts.length) return null;
   return charts.sort((a, b) => b.points.length - a.points.length)[0];
+}
+
+/**
+ * Where the numbers in an answer came from.
+ *
+ * Replaces "From forecast, best_hour — every number comes from the
+ * measurements, not the model", which named our internal tools and told the
+ * reader nothing they could check. The mockup's line is the right one: how many
+ * stations, over what period, and how old the freshest reading is.
+ *
+ * Assembled from the tool results rather than written by the model, for the
+ * same reason the chart is: it is a claim about provenance, and a claim about
+ * provenance that the model composed would be worth nothing.
+ */
+export interface Provenance {
+  stations: number | null;
+  place: string | null;
+  /** "hourly averages 2019–2026" or "measured 9 Sep – 8 Oct". */
+  period: string | null;
+  /** Hours since the freshest reading behind the answer. */
+  latestAgeHours: number | null;
+}
+
+export function provenanceFrom(
+  results: { name: string; result: unknown }[],
+): Provenance | null {
+  let stations: number | null = null;
+  let place: string | null = null;
+  let period: string | null = null;
+  let latestAgeHours: number | null = null;
+
+  for (const { name, result } of results) {
+    if (!result || typeof result !== "object") continue;
+    const r = result as Record<string, unknown>;
+    if (r.error) continue;
+
+    if (typeof r.location === "string" && !place) place = r.location;
+
+    const used = num(r.stations_used) ?? num(r.stations_ranked) ?? num(r.stations);
+    if (used !== null) stations = Math.max(stations ?? 0, used);
+
+    const age = num(r.data_age_hours);
+    if (age !== null) latestAgeHours = latestAgeHours === null ? age : Math.min(latestAgeHours, age);
+    const ageDays = num(r.data_age_days);
+    if (ageDays !== null) {
+      const hours = ageDays * 24;
+      latestAgeHours = latestAgeHours === null ? hours : Math.min(latestAgeHours, hours);
+    }
+
+    // A measured series carries its own span, which is more informative than
+    // any count of days requested.
+    if (name === "history" && Array.isArray(r.series) && r.series.length) {
+      const dates = (r.series as Record<string, unknown>[])
+        .map((d) => String(d.date ?? ""))
+        .filter(Boolean)
+        .sort();
+      if (dates.length) period = `measured ${short(dates[0])} – ${short(dates[dates.length - 1])}`;
+    }
+    if (!period && (name === "best_hour" || name === "rest_of_today")) {
+      period = "hourly pattern fitted on 2019–2026";
+    }
+  }
+
+  if (stations === null && place === null && latestAgeHours === null && period === null) {
+    return null;
+  }
+  return { stations, place, period, latestAgeHours };
+}
+
+/** "2026-09-09" -> "9 Sep". */
+function short(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return iso;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${Number(m[3])} ${months[Number(m[2]) - 1]}`;
 }

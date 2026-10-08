@@ -19,7 +19,7 @@ import {
 } from "@/lib/ask-history";
 
 function entry(question: string, asked_at = Date.now()): AskEntry {
-  return { question, answer: `answer to ${question}`, tools: ["forecast"], chart: null, asked_at };
+  return { question, answer: `answer to ${question}`, tools: ["forecast"], chart: null, provenance: null, asked_at };
 }
 
 beforeEach(() => {
@@ -85,7 +85,7 @@ describe("history storage", () => {
 describe("suggested follow-up", () => {
   it("offers a question the tools can answer, keyed off the tool that ran", () => {
     expect(suggestNext(["rest_of_today"], "Bandra")).toMatch(/tomorrow/i);
-    expect(suggestNext(["best_hour"], "Bandra")).toMatch(/day after/i);
+    expect(suggestNext(["best_hour"], "Bandra")).toBe("I can't go out then. What about the day after?");
     expect(suggestNext(["forecast"], "Bandra")).toContain("Bandra");
     expect(suggestNext(["history"], "Bandra")).toMatch(/better or worse/i);
   });
@@ -105,5 +105,15 @@ describe("age wording", () => {
     expect(shortAge(Date.now())).toBe("just now");
     expect(shortAge(Date.now() - 4 * 60_000)).toBe("4 min ago");
     expect(shortAge(Date.now() - 3 * 3_600_000)).toBe("3 h ago");
+  });
+});
+
+describe("suggestion wording", () => {
+  it("uses no em dashes, which read badly in a chip", () => {
+    const tools = ["rest_of_today", "best_hour", "forecast", "rank_places", "history", "compare", "current_aqi"];
+    for (const t of tools) {
+      const q = suggestNext([t], "Bandra");
+      if (q) expect(q).not.toMatch(/—/);
+    }
   });
 });

@@ -28,7 +28,7 @@ import Link from "next/link";
 import { loadPrefs, type Prefs } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
 import AnswerChart from "@/components/AnswerChart";
-import type { AnswerChart as ChartSpec } from "@/lib/ai/chart";
+import type { AnswerChart as ChartSpec, Provenance } from "@/lib/ai/chart";
 import {
   addToHistory,
   loadHistory,
@@ -113,6 +113,7 @@ export default function AskScreen() {
           answer: body.data.answer,
           tools: (body.data.tools_used ?? []).map((t: { name: string }) => t.name),
           chart: (body.data.chart ?? null) as ChartSpec | null,
+          provenance: (body.data.provenance ?? null) as Provenance | null,
           asked_at: Date.now(),
         };
         setHistory((h) => addToHistory(entry, h));
@@ -178,9 +179,7 @@ export default function AskScreen() {
                 i
               </span>
               <span>
-                {state.entry.tools.length
-                  ? `From ${state.entry.tools.join(", ")} — every number comes from the measurements, not the model.`
-                  : "Answered without looking anything up."}
+                {provenanceLine(state.entry) ?? "Answered without looking anything up."}
                 {state.cached && ` · saved answer, ${shortAge(state.entry.asked_at)}`}
               </span>
             </p>
@@ -313,6 +312,32 @@ export default function AskScreen() {
       </form>
     </div>
   );
+}
+
+/**
+ * "3 Mumbai stations · hourly pattern fitted on 2019–2026 · latest reading 17 h
+ * ago" — what the mockup asks for, and what someone could actually check.
+ *
+ * The old line named our internal tool names, which mean nothing outside this
+ * codebase and told the reader nothing about where the numbers came from.
+ */
+function provenanceLine(entry: AskEntry): string | null {
+  const p = entry.provenance;
+  if (!p) return entry.tools.length ? "Built from the measurements in this app." : null;
+  const parts: string[] = [];
+  if (p.stations !== null) {
+    parts.push(
+      `${p.stations} ${p.place ?? ""} station${p.stations === 1 ? "" : "s"}`.replace(/\s+/g, " ").trim(),
+    );
+  } else if (p.place) {
+    parts.push(p.place);
+  }
+  if (p.period) parts.push(p.period);
+  if (p.latestAgeHours !== null) {
+    const h = Math.round(p.latestAgeHours);
+    parts.push(h < 48 ? `latest reading ${h} h ago` : `latest reading ${Math.round(h / 24)} days ago`);
+  }
+  return parts.length ? parts.join(" · ") : null;
 }
 
 /** A short lead per exhaustion kind; the shared explanation follows it. */

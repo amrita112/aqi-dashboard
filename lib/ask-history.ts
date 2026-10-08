@@ -18,7 +18,7 @@
  * to deserve an account.
  */
 
-import type { AnswerChart } from "@/lib/ai/chart";
+import type { AnswerChart, Provenance } from "@/lib/ai/chart";
 
 export interface AskEntry {
   /** The question as the person typed it, without the location context. */
@@ -26,6 +26,7 @@ export interface AskEntry {
   answer: string;
   tools: string[];
   chart: AnswerChart | null;
+  provenance: Provenance | null;
   /** Unix ms. Shown as "2 min ago" and used to drop stale entries. */
   asked_at: number;
 }
@@ -93,7 +94,7 @@ export function suggestNext(tools: string[], place: string): string | null {
     case "rest_of_today":
       return "What about tomorrow?";
     case "best_hour":
-      return "I can't go then — what about the day after?";
+      return "I can't go out then. What about the day after?";
     case "forecast":
       return `Which hours are cleanest in ${place}?`;
     case "rank_places":

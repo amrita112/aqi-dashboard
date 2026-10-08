@@ -30,6 +30,9 @@ import type { AnswerChart as ChartSpec } from "@/lib/ai/chart";
 
 /** Shorten an axis label without losing what distinguishes it. */
 function shortLabel(label: string, kind: ChartSpec["kind"]): string {
+  // An empty label is deliberate: hourly points between day marks carry none,
+  // so only one tick per day is drawn.
+  if (!label) return "";
   if (kind === "hourly") {
     // "6:00 pm" -> "6pm", which is what people say and fits the axis.
     return label.replace(/:00\s*/, "").replace(/\s+/g, "");
@@ -51,8 +54,10 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
     short: shortLabel(p.label, chart.kind),
   }));
 
-  // Enough points that every tick would overlap; show roughly six.
-  const tickGap = Math.max(0, Math.ceil(data.length / 6) - 1);
+  // When the series carries its own sparse labels (one per day among hourly
+  // points), honour them instead of thinning a dense axis.
+  const sparse = data.some((d) => d.short === "") && data.some((d) => d.short !== "");
+  const tickGap = sparse ? 0 : Math.max(0, Math.ceil(data.length / 6) - 1);
 
   const axis = {
     tick: { fontSize: 11, fill: "#5c6b73" },

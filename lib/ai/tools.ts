@@ -266,6 +266,16 @@ export async function executeTool(
         byDay.push({
           date: slice[0].target_date,
           value: meanAcross(slice.map((d) => d.value)),
+          // Averaged across stations, same as `value`. Carried so the chart can
+          // show the within-day swing, which is the half of the model a daily
+          // line throws away -- these cities move by a factor of two inside a
+          // day. The model is told not to recite it.
+          hourly: Array.from({ length: 24 }, (_, hour) => {
+            const v = meanAcross(
+              slice.map((d) => d.hourly?.[hour]?.value ?? NaN),
+            );
+            return v === null ? null : Math.round(v);
+          }),
           mode: modes.has("forecast")
             ? "forecast"
             : modes.has("outlook")
@@ -306,6 +316,7 @@ export async function executeTool(
         location: loc.label,
         date: days[0].target_date,
         pollutant,
+        stations_used: days.length,
         // The WHOLE day, so the answer can be shown as a curve. "3 pm is
         // cleanest" is not actionable on its own: the reader needs to see
         // whether the clean window lasts an hour or five, and how much worse
@@ -377,6 +388,7 @@ export async function executeTool(
         location: loc.label,
         date: today,
         pollutant,
+        stations_used: days.length,
         now_hour_ist: nowHour,
         mode: days[0].mode,
         // Pass the headline through as well as the mode. The forecast tool

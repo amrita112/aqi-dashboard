@@ -18,7 +18,7 @@ import { chat, aiConfig, AiProviderError, undouble, type ChatMessage } from "@/l
 import { TOOL_DEFINITIONS, executeTool } from "@/lib/ai/tools";
 import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
 import { quotaMessage, type QuotaKind } from "@/lib/ai/quota";
-import { bestChart } from "@/lib/ai/chart";
+import { bestChart, provenanceFrom } from "@/lib/ai/chart";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +78,7 @@ function systemPrompt(): string {
     "8. ALWAYS NAME THE DATE you are talking about, e.g. 'tomorrow (9 Oct)' or 'today (8 Oct)'. The reader cannot tell from the words alone whether you know what day it is.",
     "9. The forecast reaches 7 days ahead. For anything beyond that, say plainly that it is outside the forecast window rather than answering from the seasonal average as though it were a forecast.",
     "10. Only places with a monitoring station can be reported on. If someone names a neighbourhood with no station, say so and offer the nearest place that does have one.",
+    "A tool result may contain an `hourly` array of 24 values. Like `series`, it is there to draw the chart beside your answer. Never list it; quote at most the one or two hours that answer the question.",
     "A tool result may contain a `series` field. It exists only to draw the chart shown beside your answer. NEVER recite it — summarise with the mean, min and max that accompany it. Listing dates and values is exactly what the chart is for.",
     "Answer in at most two short sentences. No preamble, no bullet points, no markdown. Be specific and plain.",
   ].join("\n");
@@ -183,15 +184,25 @@ export async function POST(request: Request) {
           // say — usually because every tool it tried returned an error. Say
           // which tools ran, so this is diagnosable from the response instead
           // of from the server log.
+          // NOT "try asking about one place and one day", which was both
+          // untrue and insulting: the tools compare places, forecast seven
+          // days and carry seasonal normals into February. An empty answer is
+          // our failure, not a malformed question.
           const tried = toolsUsed.map((t) => t.name).join(", ") || "none";
+          console.error(`Empty answer. Question: ${question}. Tools: ${tried}`);
           return fail(
-            `No answer could be produced for that question (tools tried: ${tried}). ` +
-              "Try asking about one place and one day.",
+            "Something went wrong producing that answer. Please ask again — it usually works the second time.",
             502,
           );
         }
         return ok(
-          { question, answer, tools_used: toolsUsed, chart: bestChart(toolResults) },
+          {
+            question,
+            answer,
+            tools_used: toolsUsed,
+            chart: bestChart(toolResults),
+            provenance: provenanceFrom(toolResults),
+          },
           { model: cfg.model, rounds: round, tokens, remaining_today: perDay.remaining },
         );
       }
