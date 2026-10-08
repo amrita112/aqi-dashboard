@@ -26,7 +26,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { loadPrefs, placeQuery, MEASUREMENT_COPY, NEAREST_K, type Prefs } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
-import ForecastChart, { type ForecastPoint } from "@/components/ForecastChart";
+import ForecastChart, { type ForecastDayInput } from "@/components/ForecastChart";
 import InstallHint from "@/components/InstallHint";
 
 const HomeMap = dynamic(() => import("@/components/StationMap"), {
@@ -47,7 +47,7 @@ interface Day {
   band_high: number | null;
   mode: string;
   band: Band;
-  hourly: { hour: number; value: number }[] | null;
+  hourly: { hour: number; value: number; band_low: number | null; band_high: number | null }[] | null;
 }
 interface StationRef {
   monitor_id: string;
@@ -140,12 +140,13 @@ export default function HomeScreen() {
   const overThreshold =
     prefs.threshold !== null && tomorrow !== null && tomorrow.value >= prefs.threshold;
 
-  const points: ForecastPoint[] = (days ?? []).map((d) => ({
+  const points: ForecastDayInput[] = (days ?? []).map((d) => ({
     target_date: d.target_date,
     value: d.value,
     band_low: d.band_low,
     band_high: d.band_high,
     mode: d.mode,
+    hourly: d.hourly,
     label: dayLabel(d.target_date, todayIso),
   }));
 
@@ -246,7 +247,7 @@ export default function HomeScreen() {
             </span>
           </div>
           <div className="mt-2">
-            <ForecastChart points={points} unit={unit} />
+            <ForecastChart days={points} unit={unit} />
           </div>
 
           {tomorrow && (

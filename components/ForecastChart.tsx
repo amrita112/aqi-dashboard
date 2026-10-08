@@ -1,17 +1,24 @@
 "use client";
 
 /**
- * The forecast line on the home screen.
+ * The forecast line on the home screen — HOURLY, not daily.
  *
- * THREE THINGS AT ONCE, which is the point: the predicted value, how uncertain
- * it is, and where prediction stops and the seasonal average begins. Drawing
- * them as one continuous line would be the easy version and would quietly imply
- * we can forecast seven days out, which we cannot — skill is gone by about day
- * four, and past that the number IS the climatology.
+ * The app's model is daily level x diurnal shape, and plotting one point per
+ * day threw the second half away: the chart was a nearly straight line between
+ * five dots, which is both less informative and less honest than what the
+ * model actually says. Air quality in these cities swings by a factor of two
+ * within a day, and "when today" is the question people act on.
  *
- * So the solid line covers the days with a real forecast, and the dashed line
- * continues through the seasonal-normal tail. They share a point at the join so
- * there is no visual gap.
+ * THREE THINGS AT ONCE. The predicted value, how uncertain it is, and where
+ * prediction stops and the seasonal average begins:
+ *
+ *   solid    hours with a real forecast or outlook
+ *   dashed   the seasonal-normal tail, where the number IS the climatology
+ *   shaded   the likely range, which EXISTS ONLY FOR FORECAST DAYS
+ *
+ * The shaded band disappearing partway across is not a rendering gap. A
+ * seasonal average has no uncertainty band stored for it, because it is not a
+ * prediction and inventing a range around it would dress it up as one.
  */
 
 import {
@@ -26,60 +33,106 @@ import {
   YAxis,
 } from "recharts";
 
-export interface ForecastPoint {
+export interface ForecastDayInput {
   target_date: string;
   value: number;
   band_low: number | null;
   band_high: number | null;
   mode: string;
+  hourly: { hour: number; value: number; band_low?: number | null; band_high?: number | null }[] | null;
   label: string;
 }
 
-const INK = "#12171b";
 const FORECAST = "#c2410c";
 const NORMAL = "#5c6b73";
 
+interface Row {
+  i: number;
+  label: string;
+  isNoon: boolean;
+  forecast: number | null;
+  normal: number | null;
+  range: [number, number] | null;
+  clock: string;
+}
+
+function clockOf(hour: number): string {
+  const suffix = hour < 12 ? "am" : "pm";
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h12}${suffix}`;
+}
+
 export default function ForecastChart({
-  points,
+  days,
   unit,
 }: {
-  points: ForecastPoint[];
+  days: ForecastDayInput[];
   unit: string;
 }) {
-  if (points.length < 2) return null;
+  const rows: Row[] = [];
+  let firstNormalIndex = -1;
 
-  const firstNormal = points.findIndex((p) => p.mode === "seasonal_normal");
-  const splitAt = firstNormal === -1 ? points.length : firstNormal;
+  for (const d of days) {
+    const hours = d.hourly?.length
+      ? d.hourly
+      : // No fitted diurnal shape for this city and month: fall back to the flat
+        // daily value rather than dropping the day off the chart.
+        Array.from({ length: 24 }, (_, hour) => ({
+          hour,
+          value: d.value,
+          band_low: d.band_low,
+          band_high: d.band_high,
+        }));
 
-  const data = points.map((p, i) => ({
-    label: p.label,
-    // Solid through the forecast days; the join point belongs to both series so
-    // the two lines meet instead of leaving a gap.
-    forecast: i < splitAt ? p.value : i === splitAt ? p.value : null,
-    normal: i >= splitAt - 1 ? p.value : null,
-    // Recharts draws a stacked area from a [low, high] pair.
-    range:
-      p.band_low !== null && p.band_high !== null
-        ? ([p.band_low, p.band_high] as [number, number])
-        : null,
-  }));
+    for (const h of hours) {
+      const seasonal = d.mode === "seasonal_normal";
+      if (seasonal && firstNormalIndex === -1) firstNormalIndex = rows.length;
+      const lo = h.band_low ?? null;
+      const hi = h.band_high ?? null;
+      rows.push({
+        i: rows.length,
+        label: d.label,
+        isNoon: h.hour === 12,
+        forecast: seasonal ? null : h.value,
+        normal: seasonal ? h.value : null,
+        range: lo !== null && hi !== null ? [lo, hi] : null,
+        clock: `${d.label} ${clockOf(h.hour)}`,
+      });
+    }
+  }
 
-  const values = points.flatMap((p) =>
-    [p.value, p.band_low, p.band_high].filter((v): v is number => v !== null),
+  if (rows.length < 4) return null;
+
+  // Join the two lines: the last forecast point also starts the dashed one, so
+  // they meet instead of leaving a one-hour hole.
+  if (firstNormalIndex > 0) rows[firstNormalIndex - 1].normal = rows[firstNormalIndex - 1].forecast;
+
+  const values = rows.flatMap((r) =>
+    [r.forecast, r.normal, r.range?.[0] ?? null, r.range?.[1] ?? null].filter(
+      (v): v is number => v !== null,
+    ),
   );
-  // Padded bounds. Letting recharts pick made a rising forecast look flat,
-  // because it anchored the axis at zero.
   const lo = Math.min(...values);
   const hi = Math.max(...values);
-  const pad = Math.max(8, (hi - lo) * 0.25);
+  // Padded around the data, never anchored at zero: a rising forecast was being
+  // drawn as a flat line against a zero baseline.
+  const pad = Math.max(6, (hi - lo) * 0.18);
+
+  // One tick per day, at noon, so the labels sit under the middle of their day
+  // rather than on the midnight boundary between two.
+  const ticks = rows.filter((r) => r.isNoon).map((r) => r.i);
 
   return (
-    <div className="h-48 w-full">
+    <div className="h-52 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
+        <ComposedChart data={rows} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke="#eef0f1" />
           <XAxis
-            dataKey="label"
+            dataKey="i"
+            type="number"
+            domain={[0, rows.length - 1]}
+            ticks={ticks}
+            tickFormatter={(i) => rows[i as number]?.label ?? ""}
             tick={{ fontSize: 11, fill: "#5c6b73" }}
             stroke="#d4d8da"
             tickLine={false}
@@ -89,43 +142,38 @@ export default function ForecastChart({
             tick={{ fontSize: 11, fill: "#5c6b73" }}
             stroke="#d4d8da"
             tickLine={false}
-            width={44}
+            // Wide enough for three digits. At 44 with a negative left margin
+            // the labels were clipped, so 122 rendered as "22".
+            width={38}
           />
           <Tooltip
             formatter={(v) => [`${Math.round(Number(v))} ${unit}`.trim(), ""]}
-            labelFormatter={(l) => String(l)}
+            labelFormatter={(i) => rows[i as number]?.clock ?? ""}
           />
-          {splitAt < points.length && splitAt > 0 && (
-            <ReferenceLine
-              x={data[splitAt - 1]?.label}
-              stroke="#d4d8da"
-              strokeDasharray="3 3"
-            />
+          {firstNormalIndex > 0 && (
+            <ReferenceLine x={firstNormalIndex} stroke="#d4d8da" strokeDasharray="3 3" />
           )}
           <Area
             dataKey="range"
             stroke="none"
             fill={FORECAST}
-            fillOpacity={0.13}
+            fillOpacity={0.15}
             isAnimationActive={false}
-            connectNulls
           />
           <Line
             dataKey="forecast"
             stroke={FORECAST}
-            strokeWidth={2.4}
-            dot={{ r: 3, fill: FORECAST, strokeWidth: 0 }}
+            strokeWidth={2}
+            dot={false}
             isAnimationActive={false}
-            connectNulls
           />
           <Line
             dataKey="normal"
             stroke={NORMAL}
-            strokeWidth={1.8}
+            strokeWidth={1.6}
             strokeDasharray="5 4"
-            dot={{ r: 3, fill: NORMAL, strokeWidth: 0 }}
+            dot={false}
             isAnimationActive={false}
-            connectNulls
           />
         </ComposedChart>
       </ResponsiveContainer>
@@ -138,7 +186,7 @@ export default function ForecastChart({
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block h-2.5 w-5 rounded-sm"
-            style={{ background: FORECAST, opacity: 0.18 }}
+            style={{ background: FORECAST, opacity: 0.2 }}
           />
           Likely range
         </span>
@@ -152,9 +200,6 @@ export default function ForecastChart({
           Seasonal normal
         </span>
       </div>
-      <p className="sr-only" style={{ color: INK }}>
-        Forecast values by day.
-      </p>
     </div>
   );
 }
