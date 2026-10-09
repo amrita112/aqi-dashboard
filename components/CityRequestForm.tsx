@@ -82,18 +82,17 @@ export default function CityRequestForm({ threshold = 50 }: { threshold?: number
     return (
       <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
         <p className="font-medium">
-          {state.already ? "You had already asked for" : "Thank you — we have counted your request for"}{" "}
+          {state.already ? "You had already asked for" : "Thank you. We have counted your request for"}{" "}
           {city.trim()}.
         </p>
         <p className="mt-1">
           {state.count} {state.count === 1 ? "person has" : "people have"} asked so far.
           {left > 0
             ? ` ${left} more and we will add it.`
-            : " That is past fifty, so it is on the list."}
+            : " That is 50 or more, so it is on the list."}
         </p>
         <p className="mt-2">
-          Ask friends and family in {city.trim()} to do the same — it is the number of people
-          that decides it, not the asking.
+          Ask your friends and family in {city.trim()} to do the same.
         </p>
       </div>
     );
@@ -114,9 +113,9 @@ export default function CityRequestForm({ threshold = 50 }: { threshold?: number
   return (
     <form onSubmit={submit} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
       <p className="text-sm text-gray-700">
-        We cover the cities where the government network is dense enough to forecast from. Tell
-        us where you are and we will count it: <strong>fifty requests for any place in India
-        and we add it</strong>.
+        Tell us where you would like us to cover. If we get{" "}
+        <strong>50 requests for any location in India</strong>, we will add it — so ask your
+        friends and family to do the same.
       </p>
 
       <div className="mt-3 space-y-2">

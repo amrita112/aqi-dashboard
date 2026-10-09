@@ -55,6 +55,7 @@ export default function AskScreen() {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [question, setQuestion] = useState("");
   const [history, setHistory] = useState<AskEntry[]>([]);
+  const [remaining, setRemaining] = useState<number | null>(null);
   const [state, setState] = useState<State>({ status: "idle" });
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const asked = useRef(false);
@@ -85,6 +86,9 @@ export default function AskScreen() {
       }
 
       setState({ status: "asking", question: trimmed });
+      // Cleared on send, not on success. The question is already on screen in
+      // the bubble above; leaving it in the box invited re-sending it.
+      setQuestion("");
       const p = loadPrefs();
       try {
         const res = await fetch("/api/ask", {
@@ -116,9 +120,11 @@ export default function AskScreen() {
           provenance: (body.data.provenance ?? null) as Provenance | null,
           asked_at: Date.now(),
         };
+        if (typeof body.meta?.remaining_today === "number") {
+          setRemaining(body.meta.remaining_today);
+        }
         setHistory((h) => addToHistory(entry, h));
         setState({ status: "answered", entry, cached: false });
-        setQuestion("");
       } catch {
         setState({
           status: "error",
@@ -275,6 +281,25 @@ export default function AskScreen() {
           </div>
         )}
       </div>
+
+      {/* SAID OUT LOUD, both of them. Amrita watched someone refer back to
+          their previous question and get an answer that made no sense, because
+          every question is answered on its own — there is no conversation here
+          to refer to. And the allowance was invisible until it ran out, which
+          is the worst moment to learn about it. */}
+      <p className="mt-4 px-1 text-xs text-gray-500">
+        Each question is answered on its own — it cannot see what you asked before, so
+        include the place and the day you mean.
+        {remaining !== null && (
+          <>
+            {" "}
+            <span className="font-medium text-gray-700">
+              {remaining} {remaining === 1 ? "question" : "questions"} left today.
+            </span>{" "}
+            A future version will let you pay for unlimited questions.
+          </>
+        )}
+      </p>
 
       {/* Pinned to the bottom, where a thumb and a phone keyboard expect it. */}
       <form

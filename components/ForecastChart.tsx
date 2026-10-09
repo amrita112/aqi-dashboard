@@ -28,7 +28,6 @@ import {
   Line,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -65,9 +64,12 @@ function clockOf(hour: number): string {
 export default function ForecastChart({
   days,
   unit,
+  onHover,
 }: {
   days: ForecastDayInput[];
   unit: string;
+  /** Hovered point, for the caller to show beside the card title. */
+  onHover?: (text: string | null) => void;
 }) {
   const rows: Row[] = [];
   let firstNormalIndex = -1;
@@ -129,7 +131,27 @@ export default function ForecastChart({
     <div className="w-full">
       <div className="h-52 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={rows} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
+        <ComposedChart
+          data={rows}
+          margin={{ top: 8, right: 10, left: 0, bottom: 0 }}
+          // THE READOUT GOES IN THE HEADER, not in a floating box. The tooltip
+          // sat on top of the line it was describing, and listed the shaded
+          // band as a second row — a [low, high] pair, which formats as
+          // "NaN µg/m³". Reporting the hovered point in the card header leaves
+          // the chart unobscured and has nothing to mis-format.
+          onMouseMove={(state) => {
+            if (!onHover) return;
+            const i = state?.activeTooltipIndex;
+            const r = typeof i === "number" ? rows[i] : undefined;
+            const v = r?.forecast ?? r?.normal;
+            onHover(
+              r && v !== null && v !== undefined
+                ? `${r.clock} · ${Math.round(v)}${unit ? ` ${unit}` : ""}`
+                : null,
+            );
+          }}
+          onMouseLeave={() => onHover?.(null)}
+        >
           <CartesianGrid vertical={false} stroke="#eef0f1" />
           <XAxis
             dataKey="i"
@@ -149,10 +171,6 @@ export default function ForecastChart({
             // Wide enough for three digits. At 44 with a negative left margin
             // the labels were clipped, so 122 rendered as "22".
             width={38}
-          />
-          <Tooltip
-            formatter={(v) => [`${Math.round(Number(v))} ${unit}`.trim(), ""]}
-            labelFormatter={(i) => rows[i as number]?.clock ?? ""}
           />
           {firstNormalIndex > 0 && (
             <ReferenceLine x={firstNormalIndex} stroke="#d4d8da" strokeDasharray="3 3" />

@@ -101,6 +101,8 @@ export default function HomeScreen() {
   const [stations, setStations] = useState<StationRef[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showStations, setShowStations] = useState(false);
+  /** The point under the cursor, shown in the Forecast card's header. */
+  const [hovered, setHovered] = useState<string | null>(null);
 
   useEffect(() => {
     const p = loadPrefs();
@@ -217,20 +219,22 @@ export default function HomeScreen() {
                 </ul>
               )}
 
-              {/* The place, not the city — the point they dropped in setup. */}
-              <Link
-                href="/settings"
-                className="mt-3 inline-flex items-center gap-1 border-t border-gray-100 pt-3 text-sm font-medium text-gray-900"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+              {/* The place, not the city — the point they dropped in setup.
+                  NO CHEVRON: it promised a dropdown and opened a page, which is
+                  the kind of small lie that makes people stop trusting the
+                  other controls. A plain "Change" says where it goes. */}
+              <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3 text-sm">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11z" />
                   <circle cx="12" cy="10" r="2.5" />
                 </svg>
-                {prefs.anchor.name}
-                <svg viewBox="0 0 24 24" className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </Link>
+                <span className="min-w-0 truncate font-medium text-gray-900">
+                  {prefs.anchor.name}
+                </span>
+                <Link href="/settings" className="shrink-0 text-blue-700 underline">
+                  Change
+                </Link>
+              </div>
             </div>
           </div>
         </section>
@@ -239,15 +243,20 @@ export default function HomeScreen() {
       {/* Forecast. */}
       {points.length >= 2 && (
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-baseline justify-between">
+          <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide">Forecast</h2>
-            <span className="text-xs text-gray-500">
+            {/* The hovered reading lives here, in the gap that was empty
+                anyway, instead of in a box on top of the line. */}
+            <span className="min-w-0 flex-1 truncate text-center text-xs font-medium text-gray-900">
+              {hovered}
+            </span>
+            <span className="shrink-0 text-xs text-gray-500">
               {short}
               {unit ? ` · ${unit}` : ""}
             </span>
           </div>
           <div className="mt-2">
-            <ForecastChart days={points} unit={unit} />
+            <ForecastChart days={points} unit={unit} onHover={setHovered} />
           </div>
 
           {tomorrow && (

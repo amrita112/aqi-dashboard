@@ -21,7 +21,6 @@ import {
   Line,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -29,11 +28,13 @@ import {
 export interface SeriesPoint {
   /** Axis label; empty for points between ticks. */
   label: string;
-  /** Tooltip label, always present. */
+  /** Readout label, always present. */
   full: string;
   value: number | null;
   low?: number | null;
   high?: number | null;
+  /** True where the number is the seasonal average rather than a prediction. */
+  seasonal?: boolean;
 }
 
 export interface Series {
@@ -52,6 +53,7 @@ export default function TrendsChart({
   threshold,
   height = 208,
   showKey = true,
+  onHover,
 }: {
   series: Series[];
   unit: string;
@@ -61,6 +63,8 @@ export default function TrendsChart({
   height?: number;
   /** Off when the caller already shows the colours, e.g. as place pills. */
   showKey?: boolean;
+  /** Hovered point, for the caller to show beside the card title. */
+  onHover?: (text: string | null) => void;
 }) {
   const live = series.filter((s) => s.points.some((p) => p.value !== null));
   if (!live.length) return null;
@@ -76,7 +80,17 @@ export default function TrendsChart({
     };
     for (const s of live) {
       const q = s.points[i];
-      row[s.key] = q?.value ?? null;
+      // SEASONAL SEGMENTS ARE DASHED, as on the home screen. Drawn solid, a
+      // seasonal average looks like a forecast, which is the one thing the
+      // rest of this app is careful never to imply.
+      const seasonal = q?.seasonal === true;
+      row[s.key] = seasonal ? null : (q?.value ?? null);
+      row[`${s.key}__seasonal`] = seasonal ? (q?.value ?? null) : null;
+      // The join: the last real point also starts the dashed run, so the two
+      // meet instead of leaving a gap.
+      const prev = s.points[i - 1];
+      if (seasonal && prev && prev.seasonal !== true) row[s.key] = q?.value ?? null;
+      if (!seasonal && prev?.seasonal === true) row[`${s.key}__seasonal`] = q?.value ?? null;
       if (q?.low != null && q?.high != null) row[`${s.key}__band`] = [q.low, q.high];
     }
     return row;
@@ -104,7 +118,29 @@ export default function TrendsChart({
     <div className="w-full">
       <div style={{ height }} className="w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
+          <ComposedChart
+            data={rows}
+            margin={{ top: 8, right: 10, left: 0, bottom: 0 }}
+            // Reported in the card header rather than a floating box: the box
+            // covered the line it described, and listed the shaded band as a
+            // [low, high] pair, which formats as "NaN".
+            onMouseMove={(state) => {
+              if (!onHover) return;
+              const i = state?.activeTooltipIndex;
+              const r = typeof i === "number" ? rows[i] : undefined;
+              if (!r) return onHover(null);
+              const parts = live
+                .map((s) => {
+                  const v = (r[s.key] ?? r[`${s.key}__seasonal`]) as number | null;
+                  return v === null || v === undefined
+                    ? null
+                    : `${live.length > 1 ? `${s.label}: ` : ""}${Math.round(v)}`;
+                })
+                .filter(Boolean);
+              onHover(parts.length ? `${r.full} · ${parts.join("  ")}${unit ? ` ${unit}` : ""}` : null);
+            }}
+            onMouseLeave={() => onHover?.(null)}
+          >
             <CartesianGrid vertical={false} stroke="#eef0f1" />
             <XAxis
               dataKey="i"
@@ -123,13 +159,6 @@ export default function TrendsChart({
               stroke="#d4d8da"
               tickLine={false}
               width={40}
-            />
-            <Tooltip
-              formatter={(v, name) => [
-                `${Math.round(Number(v))}${unit ? ` ${unit}` : ""}`,
-                live.find((s) => s.key === name)?.label ?? String(name),
-              ]}
-              labelFormatter={(i) => String(rows[i as number]?.full ?? "")}
             />
             {threshold != null && (
               <ReferenceLine
@@ -156,6 +185,18 @@ export default function TrendsChart({
                 name={s.key}
                 stroke={s.color}
                 strokeWidth={2}
+                dot={false}
+                connectNulls={false}
+                isAnimationActive={false}
+              />
+            ))}
+            {live.map((s) => (
+              <Line
+                key={`${s.key}-seasonal`}
+                dataKey={`${s.key}__seasonal`}
+                stroke={s.color}
+                strokeWidth={1.6}
+                strokeDasharray="5 4"
                 dot={false}
                 connectNulls={false}
                 isAnimationActive={false}

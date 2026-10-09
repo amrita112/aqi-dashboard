@@ -17,7 +17,7 @@ export interface Tab {
 }
 
 /**
- * The tab bar. Five: Today, Map, Trends, Ask, Settings.
+ * The tab bar. Five: Home, Map, Trends, Ask, Settings.
  *
  * Settings is a tab rather than buried, because the three setup answers are
  * the only thing a person can get wrong, and changing your location is a
@@ -31,7 +31,7 @@ export interface Tab {
 export const TABS: Tab[] = [
   {
     href: "/",
-    label: "Today",
+    label: "Home",
     // House
     icon: "M3 10.5 12 3l9 7.5M5.25 9.75V20.25h13.5V9.75",
   },

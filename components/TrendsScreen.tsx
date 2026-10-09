@@ -95,6 +95,8 @@ export default function TrendsScreen() {
   const [error, setError] = useState<string | null>(null);
   /** Which pill is open for editing, or null. */
   const [editing, setEditing] = useState<number | null>(null);
+  const [fHover, setFHover] = useState<string | null>(null);
+  const [hHover, setHHover] = useState<string | null>(null);
 
   useEffect(() => {
     const p = loadPrefs();
@@ -185,6 +187,7 @@ export default function TrendsScreen() {
               value: h.value,
               low: h.band_low,
               high: h.band_high,
+              seasonal: d.mode === "seasonal_normal",
             });
           });
         });
@@ -199,6 +202,7 @@ export default function TrendsScreen() {
                 value: h.value,
                 low: h.band_low,
                 high: h.band_high,
+                seasonal: d.mode === "seasonal_normal",
               });
             });
           } else {
@@ -208,6 +212,7 @@ export default function TrendsScreen() {
               value: d.value,
               low: d.band_low,
               high: d.band_high,
+              seasonal: d.mode === "seasonal_normal",
             });
           }
         });
@@ -225,12 +230,14 @@ export default function TrendsScreen() {
           key: pl.key,
           label: pl.label,
           color: SERIES_COLORS[idx] ?? "#5c6b73",
+          // THE DAY'S MIN AND MAX ARE GONE. A band that wide on measured data
+          // dominated the card and said little: the spread of one day's hours
+          // is not the same kind of thing as a forecast's uncertainty, and
+          // drawing both the same way invited reading it as one.
           points: rows.map((r) => ({
             label: humanDate(r.date),
             full: humanDate(r.date),
             value: r.mean,
-            low: r.min,
-            high: r.max,
           })),
         };
       }),
@@ -329,7 +336,10 @@ export default function TrendsScreen() {
       {/* ── Forecast ───────────────────────────────────────────────────────── */}
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-semibold">Forecast</h2>
+          <h2 className="shrink-0 font-semibold">Forecast</h2>
+          <span className="min-w-0 flex-1 truncate text-center text-xs font-medium text-gray-900">
+            {fHover}
+          </span>
           <select
             value={fRange}
             onChange={(e) => setFRange(e.target.value as ForecastRange)}
@@ -357,7 +367,13 @@ export default function TrendsScreen() {
             // a cautious extra; it is a wrong number wearing the authority of
             // the person's own setting. The home screen keeps its warning, where
             // the measure is always theirs.
-            <TrendsChart series={forecastSeries} unit={unit} bandLabel="likely range" showKey={false} />
+            <TrendsChart
+              series={forecastSeries}
+              unit={unit}
+              bandLabel="likely range"
+              showKey={false}
+              onHover={setFHover}
+            />
           )}
         </div>
       </section>
@@ -365,7 +381,10 @@ export default function TrendsScreen() {
       {/* ── History ────────────────────────────────────────────────────────── */}
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-semibold">History</h2>
+          <h2 className="shrink-0 font-semibold">History</h2>
+          <span className="min-w-0 flex-1 truncate text-center text-xs font-medium text-gray-900">
+            {hHover}
+          </span>
           <select
             value={hRange}
             onChange={(e) => setHRange(Number(e.target.value) as HistoryRange)}
@@ -382,12 +401,7 @@ export default function TrendsScreen() {
               No daily history held for this place in that window.
             </p>
           ) : (
-            <TrendsChart
-              series={historySeries}
-              unit={unit}
-              bandLabel="day's lowest to highest"
-              showKey={false}
-            />
+            <TrendsChart series={historySeries} unit={unit} showKey={false} onHover={setHHover} />
           )}
         </div>
       </section>

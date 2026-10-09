@@ -149,7 +149,11 @@ export default function SettingsScreen() {
               }}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2"
             >
-              <option value="">Choose a city…</option>
+              {/* disabled, so it reads as a prompt rather than an option
+                  that clears the city you already have. */}
+              <option value="" disabled>
+                Choose a city…
+              </option>
               {(cities ?? []).map((c) => (
                 <option key={c.city} value={c.city}>
                   {c.city} ({c.station_count} stations)
@@ -293,6 +297,22 @@ export default function SettingsScreen() {
         </p>
       </section>
 
+      {/* Its own card, not a bullet buried in a list: Amrita looked for this
+          and could not find it. */}
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          Your city not listed?
+        </h2>
+        <p className="mt-2 text-sm text-gray-700">
+          Send us a message saying you would like your location added, and ask your friends
+          and family to do the same. If we get 50 requests for any location in India, we will
+          add it.
+        </p>
+        <div className="mt-3">
+          <CityRequestForm />
+        </div>
+      </section>
+
       {/* ── Beyond the three answers ──────────────────────────────────────── */}
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
@@ -320,12 +340,7 @@ export default function SettingsScreen() {
               measuring street by street.
             </p>
           </li>
-          <li>
-            <CityRequestForm />
-            <p className="text-gray-600">
-              We cover seven cities. Fifty requests for anywhere else in India and we add it.
-            </p>
-          </li>
+
         </ul>
       </section>
 
