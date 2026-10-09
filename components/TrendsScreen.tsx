@@ -153,7 +153,12 @@ export default function TrendsScreen() {
     setForecasts({});
     setHistories({});
     setError(null);
-    void Promise.all(places.map(load));
+    // SKIP THE PLACEHOLDER. "+ Compare" adds an empty slot before the person
+    // has chosen anything, and fetching for it asked the API for a place with
+    // no coordinates — which answered, correctly, "Provide either monitor_id,
+    // or lat and lng", and that sentence appeared on screen as though the app
+    // were broken. It is a slot waiting to be filled, not an error.
+    void Promise.all(places.filter((pl) => Object.keys(pl.query).length > 0).map(load));
   }, [places, load]);
 
   const unit = MEASUREMENT_COPY[measurement].unit;
@@ -311,14 +316,6 @@ export default function TrendsScreen() {
             });
             setEditing(null);
           }}
-          onRemove={
-            editing === 1
-              ? () => {
-                  setPlaces((prev) => prev.slice(0, 1));
-                  setEditing(null);
-                }
-              : undefined
-          }
           onCancel={() => {
             // A pill added but never chosen should not linger as "Choose a place".
             setPlaces((prev) => prev.filter((pl) => pl.key !== "pending"));

@@ -94,7 +94,6 @@ export default function PlaceEditor({
   cities,
   onPick,
   onCancel,
-  onRemove,
   otherLabel,
 }: {
   index: number;
@@ -102,7 +101,6 @@ export default function PlaceEditor({
   cities: EditorCity[];
   onPick: (p: TrendsPlace) => void;
   onCancel: () => void;
-  onRemove?: () => void;
   /** The other slot's label, so the button can name the comparison. */
   otherLabel: string;
 }) {
@@ -122,16 +120,9 @@ export default function PlaceEditor({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
           {index === 0 ? "First place" : "Compare with"}
         </h2>
-        <div className="flex gap-3 text-sm">
-          {onRemove && (
-            <button type="button" onClick={onRemove} className="text-red-700 underline">
-              Remove
-            </button>
-          )}
-          <button type="button" onClick={onCancel} className="text-gray-600 underline">
-            Cancel
-          </button>
-        </div>
+        <button type="button" onClick={onCancel} className="text-sm text-gray-600 underline">
+          Cancel
+        </button>
       </div>
 
 
