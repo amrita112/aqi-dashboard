@@ -61,8 +61,13 @@ export default function StationMap({
   // the tall one. A prop rather than a second component, so both stay the same
   // map with the same data and the same caveats.
   heightClass = "h-[60vh]",
+  // The Map TAB owns the screen, so it carries the app name and the pollutant
+  // switch. Embedded under the home forecast it is one card among several, and
+  // the name printed again mid-page reads as a second app starting.
+  showHeader = true,
 }: {
   heightClass?: string;
+  showHeader?: boolean;
 } = {}) {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [stations, setStations] = useState<Station[] | null>(null);
@@ -123,25 +128,24 @@ export default function StationMap({
 
   return (
     <div className="space-y-0">
-      <header className="mb-3 flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
-        <select
-          value={measurement}
-          onChange={(e) => {
-            setMeasurement(e.target.value as Measurement);
-            setSelected(null);
-          }}
-          aria-label="Which pollutant to show"
-          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium"
-        >
-          <option value="aqi">{MEASUREMENT_COPY.aqi.short}</option>
-          <option value="pm25">{MEASUREMENT_COPY.pm25.short}</option>
-        </select>
-      </header>
+      {showHeader && (
+        <header className="mb-3 flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
+          <select
+            value={measurement}
+            onChange={(e) => {
+              setMeasurement(e.target.value as Measurement);
+              setSelected(null);
+            }}
+            aria-label="Which pollutant to show"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium"
+          >
+            <option value="aqi">{MEASUREMENT_COPY.aqi.short}</option>
+            <option value="pm25">{MEASUREMENT_COPY.pm25.short}</option>
+          </select>
+        </header>
+      )}
 
-      {/* The map gives up height when a station card opens, so the card is on
-          screen rather than below the fold. Without this the chart was clipped
-          by the tab bar and the person had to know to scroll. */}
       <div
         className={`${selected ? "h-[38vh]" : heightClass} w-full overflow-hidden rounded-lg border border-gray-200 transition-[height] duration-200`}
       >

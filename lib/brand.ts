@@ -14,10 +14,10 @@
  * ever sees the placeholder.
  */
 
-export const APP_NAME = "Saaf Hawa";
+export const APP_NAME = "Hawology";
 
 /** Shown under a home-screen icon, where roughly 12 characters survive. */
-export const APP_SHORT_NAME = "Saaf Hawa";
+export const APP_SHORT_NAME = "Hawology";
 
 export const APP_DESCRIPTION =
   "Tomorrow's air quality for seven Indian cities, built from the public monitoring network — and honest about how old the data is.";

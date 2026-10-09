@@ -26,7 +26,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  // "%s · Saaf Hawa" on every page that sets its own title. iOS takes the
+  // "%s · <APP_NAME>" on every page that sets its own title. iOS takes the
   // home-screen label from here, truncated hard, which is why the app name
   // goes last rather than first.
   title: { default: APP_NAME, template: `%s · ${APP_NAME}` },

@@ -289,7 +289,7 @@ export default function HomeScreen() {
       )}
 
       <section className="overflow-hidden rounded-xl border border-gray-200 lg:col-span-2">
-        <HomeMap heightClass="h-56 lg:h-80" />
+        <HomeMap heightClass="h-56 lg:h-80" showHeader={false} />
       </section>
 
       <div className="lg:col-span-2">
