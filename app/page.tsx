@@ -24,7 +24,7 @@ export const metadata = {
 
 export default function Home() {
   return (
-    <main className="mx-auto max-w-lg px-5 py-8">
+    <main className="mx-auto max-w-lg lg:max-w-5xl px-5 py-8">
       <HomeScreen />
     </main>
   );

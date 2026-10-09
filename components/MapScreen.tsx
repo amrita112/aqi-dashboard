@@ -34,6 +34,6 @@ export default function MapScreen() {
     /* The header lives in StationMap now, with the pollutant selector beside
        it. This wrapper exists only so /map can stay a server component and
        export metadata, which a client component cannot. */
-    <main className="mx-auto max-w-lg px-5 py-8">{ready && <StationMap />}</main>
+    <main className="mx-auto max-w-lg px-5 py-8 lg:max-w-5xl">{ready && <StationMap />}</main>
   );
 }

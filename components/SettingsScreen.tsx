@@ -104,11 +104,13 @@ export default function SettingsScreen() {
   const suggested = city?.alert_default?.[prefs.measurement]?.threshold ?? null;
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
+    <div className="space-y-5 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0">
+      <h1 className="text-2xl font-bold tracking-tight lg:col-span-2">{APP_NAME}</h1>
 
       {saved && (
-        <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-900">{saved}</p>
+        <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-900 lg:col-span-2">
+          {saved}
+        </p>
       )}
 
       {/* ── Location ──────────────────────────────────────────────────────── */}
@@ -330,7 +332,7 @@ export default function SettingsScreen() {
         </ul>
       </section>
 
-      <section className="px-1">
+      <section className="px-1 lg:col-span-2">
         <button
           type="button"
           onClick={() => {

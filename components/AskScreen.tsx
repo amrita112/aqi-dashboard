@@ -153,7 +153,11 @@ export default function AskScreen() {
     state.status === "answered" ? suggestNext(state.entry.tools, place) : null;
 
   return (
-    <div className="flex min-h-[calc(100vh-7rem)] flex-col">
+    // CAPPED WIDTH EVEN ON A LAPTOP. The cards stretch usefully; a line of
+    // text does not — an answer running the full width of a monitor is harder
+    // to read, not easier. The column stays at a comfortable measure and the
+    // extra space is left empty.
+    <div className="mx-auto flex min-h-[calc(100vh-7rem)] w-full max-w-2xl flex-col">
       <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
 
       <div className="mt-4 flex-1 space-y-4">

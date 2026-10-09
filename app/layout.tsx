@@ -71,10 +71,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
       >
         <Navbar />
-        {/* pb-20 so the fixed bottom bar never covers the last card on a page.
-            TabBar renders nothing outside the forecast app, where the padding
-            is harmless. */}
-        <div className="pb-20">{children}</div>
+        {/* pb-20 clears the fixed bottom bar on a phone; lg:pl-56 clears the
+            sidebar it becomes on a laptop. Both are harmless on the pages
+            where TabBar renders nothing — padding against a bar that is not
+            there costs only space. */}
+        <div className="pb-20 lg:pb-8 lg:pl-56">{children}</div>
         <TabBar />
         <ServiceWorkerRegistration />
       </body>

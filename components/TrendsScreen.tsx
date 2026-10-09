@@ -290,12 +290,12 @@ export default function TrendsScreen() {
   if (!prefs) return <p className="text-gray-500">Loading…</p>;
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
+    <div className="space-y-5 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0">
+      <h1 className="text-2xl font-bold tracking-tight lg:col-span-2">{APP_NAME}</h1>
 
       {/* Places as pills, as in the mockup: the first solid, the second
           outlined in its own colour, both tappable to change. */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 lg:col-span-2">
         {places.map((pl, idx) => {
           const colour = SERIES_COLORS[idx] ?? "#5c6b73";
           const open = editing === idx;
@@ -344,6 +344,7 @@ export default function TrendsScreen() {
       </div>
 
       {editing !== null && (
+        <div className="lg:col-span-2">
         <PlaceEditor
           index={editing}
           prefs={prefs}
@@ -364,9 +365,12 @@ export default function TrendsScreen() {
             setEditing(null);
           }}
         />
+        </div>
       )}
 
-      {error && <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      {error && (
+        <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800 lg:col-span-2">{error}</p>
+      )}
 
       {/* ── Forecast ───────────────────────────────────────────────────────── */}
       <section className="rounded-xl border border-gray-200 bg-white p-4">

@@ -3,10 +3,16 @@
 /**
  * The bottom tab bar.
  *
- * At the bottom rather than the top because this is built to be installed to a
- * phone's home screen, and the bottom of a phone is where a thumb is. On iOS a
+ * On a phone: pinned to the BOTTOM, because this is built to be installed to a
+ * home screen and the bottom of a phone is where a thumb is. On iOS a
  * home-screen web app has no browser chrome at all, so this is the only
  * navigation the person has.
+ *
+ * On a laptop: a LEFT SIDEBAR. A full-width strip of five icons along the
+ * bottom of a 27-inch monitor is a phone layout stretched, not a desktop one,
+ * and the bottom edge of a large screen is the furthest point from where
+ * anyone is looking. Same component, same links, same active state — only the
+ * placement changes, so the two can never disagree about which tab is current.
  *
  * Hidden during first run. /setup is a focused three-question flow with its own
  * Back and Continue; a tab bar underneath would invite someone to wander off
@@ -38,23 +44,31 @@ export default function TabBar() {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur"
+      className={
+        "fixed z-40 border-gray-200 bg-white/95 backdrop-blur " +
+        // Phone: full width along the bottom.
+        "inset-x-0 bottom-0 border-t " +
+        // Laptop: a fixed-width rail down the left, full height.
+        "lg:inset-y-0 lg:right-auto lg:bottom-auto lg:w-56 lg:border-r lg:border-t-0"
+      }
       // iPhones with a home indicator need the bar lifted clear of it, or the
       // last few pixels of the tap target sit under the system gesture area.
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      <ul className="mx-auto flex max-w-lg">
+      <ul className="mx-auto flex max-w-lg lg:mx-0 lg:h-full lg:max-w-none lg:flex-col lg:justify-start lg:gap-1 lg:p-3 lg:pt-8">
         {TABS.map((tab) => {
           const active = isCurrentTab(tab.href, pathname);
           return (
-            <li key={tab.href} className="flex-1">
+            <li key={tab.href} className="flex-1 lg:flex-none">
               <Link
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
                 // min-h-14 keeps every tap target above the ~44px minimum that
                 // a finger needs.
-                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 px-2 py-2 text-xs ${
-                  active ? "text-blue-700" : "text-gray-500 hover:text-gray-800"
+                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 px-2 py-2 text-xs lg:min-h-0 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-lg lg:px-3 lg:py-2.5 lg:text-sm ${
+                  active
+                    ? "text-blue-700 lg:bg-blue-50 lg:font-medium"
+                    : "text-gray-500 hover:text-gray-800 lg:hover:bg-gray-100"
                 }`}
               >
                 <svg

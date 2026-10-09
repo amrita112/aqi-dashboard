@@ -16,7 +16,7 @@ export const metadata = {
 
 export default function AskPage() {
   return (
-    <main className="mx-auto max-w-lg px-5 py-8">
+    <main className="mx-auto max-w-lg lg:max-w-5xl px-5 py-8">
       <Suspense fallback={<p className="text-gray-500">Loading…</p>}>
         <AskScreen />
       </Suspense>

@@ -155,14 +155,18 @@ export default function HomeScreen() {
   const cleanest = cleanestWindow(today?.hourly ?? null);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
+    // TWO COLUMNS ON A LAPTOP, one on a phone. The same cards in the same
+    // order, laid out side by side instead of stacked — nothing is added for
+    // the bigger screen, because a dashboard with more things on it than the
+    // phone has would be a second product to keep correct.
+    <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0">
+      <h1 className="text-2xl font-bold tracking-tight lg:col-span-2">{APP_NAME}</h1>
 
       {/* The question box leads, because it is the thing this app does that
           nothing else does. */}
       <Link
         href="/ask"
-        className="block rounded-xl border border-gray-200 bg-white p-5 text-center shadow-sm transition hover:bg-gray-50"
+        className="block rounded-xl border border-gray-200 bg-white p-5 text-center shadow-sm transition hover:bg-gray-50 lg:col-span-2"
       >
         <span className="block text-lg font-semibold">Ask AI: When should I go out?</span>
         <span className="mt-1 block text-sm text-gray-500">
@@ -171,7 +175,7 @@ export default function HomeScreen() {
       </Link>
 
       {error && (
-        <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
+        <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800 lg:col-span-2">{error}</p>
       )}
 
       {/* Expected today. */}
@@ -284,11 +288,13 @@ export default function HomeScreen() {
         </section>
       )}
 
-      <section className="overflow-hidden rounded-xl border border-gray-200">
-        <HomeMap heightClass="h-56" />
+      <section className="overflow-hidden rounded-xl border border-gray-200 lg:col-span-2">
+        <HomeMap heightClass="h-56 lg:h-80" />
       </section>
 
-      <InstallHint />
+      <div className="lg:col-span-2">
+        <InstallHint />
+      </div>
     </div>
   );
 }

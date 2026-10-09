@@ -20,7 +20,7 @@ export const metadata = {
 
 export default function SettingsPage() {
   return (
-    <main className="mx-auto max-w-lg px-5 py-8">
+    <main className="mx-auto max-w-lg lg:max-w-5xl px-5 py-8">
       <SettingsScreen />
     </main>
   );
