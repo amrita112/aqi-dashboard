@@ -63,6 +63,12 @@ interface HistoryRow {
   max: number | null;
 }
 
+interface HourlyRow {
+  date: string;
+  hour: number;
+  value: number;
+}
+
 /** "9 Oct" */
 function humanDate(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
@@ -92,6 +98,7 @@ export default function TrendsScreen() {
   const [hRange, setHRange] = useState<HistoryRange>(30);
   const [forecasts, setForecasts] = useState<Record<string, Day[] | null>>({});
   const [histories, setHistories] = useState<Record<string, HistoryRow[] | null>>({});
+  const [hourlies, setHourlies] = useState<Record<string, HourlyRow[] | null>>({});
   const [error, setError] = useState<string | null>(null);
   /** Which pill is open for editing, or null. */
   const [editing, setEditing] = useState<number | null>(null);
@@ -136,10 +143,22 @@ export default function TrendsScreen() {
       const h = new URLSearchParams(base);
       h.set("days", String(hRange));
 
-      const [fr, hr] = await Promise.all([
+      // AT 7 DAYS THE HISTORY IS HOURLY, which is the whole reason to pick 7
+      // over 30: a week of daily dots says less than a week of shape. At 30
+      // days hourly would be ~720 points on a phone and the daily rollup is
+      // both cheaper and more readable.
+      const wantHourly = hRange === 7;
+      const [fr, hr, hh] = await Promise.all([
         fetch(`/api/forecast?${f}`).then((r) => r.json()).catch(() => null),
         fetch(`/api/history?${h}`).then((r) => r.json()).catch(() => null),
+        wantHourly
+          ? fetch(`/api/history-hourly?${h}`).then((r) => r.json()).catch(() => null)
+          : Promise.resolve(null),
       ]);
+      setHourlies((prev) => ({
+        ...prev,
+        [place.key]: hh && !hh.error && Array.isArray(hh.data) ? hh.data : null,
+      }));
       setForecasts((prev) => ({ ...prev, [place.key]: fr?.error ? [] : (fr?.data?.days ?? []) }));
       setHistories((prev) => ({
         ...prev,
@@ -154,6 +173,7 @@ export default function TrendsScreen() {
     if (!places.length) return;
     setForecasts({});
     setHistories({});
+    setHourlies({});
     setError(null);
     // SKIP THE PLACEHOLDER. "+ Compare" adds an empty slot before the person
     // has chosen anything, and fetching for it asked the API for a place with
@@ -225,23 +245,38 @@ export default function TrendsScreen() {
   const historySeries: Series[] = useMemo(
     () =>
       places.map((pl, idx) => {
-        const rows = histories[pl.key] ?? [];
+        const hourly = hourlies[pl.key];
+        const colour = SERIES_COLORS[idx] ?? "#5c6b73";
+
+        // THE DAY'S MIN AND MAX ARE GONE from both views. A band that wide on
+        // measured data dominated the card and said little: the spread of one
+        // day's hours is not the same kind of thing as a forecast's
+        // uncertainty, and drawing both the same way invited reading it as one.
+        if (hRange === 7 && hourly?.length) {
+          return {
+            key: pl.key,
+            label: pl.label,
+            color: colour,
+            points: hourly.map((r) => ({
+              label: r.hour === 12 ? humanDate(r.date) : "",
+              full: `${humanDate(r.date)}, ${clock(r.hour)}`,
+              value: r.value,
+            })),
+          };
+        }
+
         return {
           key: pl.key,
           label: pl.label,
-          color: SERIES_COLORS[idx] ?? "#5c6b73",
-          // THE DAY'S MIN AND MAX ARE GONE. A band that wide on measured data
-          // dominated the card and said little: the spread of one day's hours
-          // is not the same kind of thing as a forecast's uncertainty, and
-          // drawing both the same way invited reading it as one.
-          points: rows.map((r) => ({
+          color: colour,
+          points: (histories[pl.key] ?? []).map((r) => ({
             label: humanDate(r.date),
             full: humanDate(r.date),
             value: r.mean,
           })),
         };
       }),
-    [places, histories],
+    [places, histories, hourlies, hRange],
   );
 
   const forecastDates = useMemo(() => {

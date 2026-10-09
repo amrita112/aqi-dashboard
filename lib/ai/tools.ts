@@ -134,7 +134,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     function: {
       name: "compare",
       description:
-        "Compare two places over the same past window. Use for 'is Delhi worse than Mumbai'.",
+        "Compare two places over one past window, as two averages. Use for 'is Delhi worse than Mumbai this week'. It returns one number per place, NOT a trend: if the question is about how two places compare OVER TIME — day by day, or across the forecast — say that the Trends tab plots two places together and let them do that there, rather than reading out a series.",
       parameters: {
         type: "object",
         properties: {

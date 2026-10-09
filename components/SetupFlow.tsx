@@ -16,7 +16,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import CityRequestForm from "@/components/CityRequestForm";
 import { useRouter } from "next/navigation";
 import {
@@ -229,20 +228,7 @@ export default function SetupFlow() {
           </div>
 
           <p className="mt-4 text-xs text-gray-500">
-            You can change this later.{" "}
-            {/* A NEW TAB, so the half-finished setup survives. Following the
-                link in place lost the city and the pin -- there is nowhere to
-                put in-progress answers, since prefs are only written at the
-                end, so the fix is not to navigate away at all. */}
-            <Link
-              href="/learn/aqi-vs-pm25"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              Click here to learn more
-            </Link>
-            .
+            You can change this later.
           </p>
 
           <Next onClick={() => setStep("threshold")} onBack={() => setStep("location")} />

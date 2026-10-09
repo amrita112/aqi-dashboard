@@ -221,11 +221,6 @@ export default function SettingsScreen() {
             );
           })}
         </div>
-        <p className="mt-3 text-xs text-gray-500">
-          <Link href="/learn/aqi-vs-pm25" className="underline">
-            What is the difference?
-          </Link>
-        </p>
       </section>
 
       {/* ── Threshold ─────────────────────────────────────────────────────── */}
@@ -319,15 +314,6 @@ export default function SettingsScreen() {
           About the data
         </h2>
         <ul className="mt-3 space-y-3 text-sm">
-          <li>
-            <Link href="/learn/aqi-vs-pm25" className="font-medium text-blue-700 underline">
-              About the data
-            </Link>
-            <p className="text-gray-600">
-              Where these numbers come from, how old they are, how the forecast works, and
-              what it cannot tell you.
-            </p>
-          </li>
           <li>
             {/* THE PETITION HAD NO LINK LEFT. It used to sit in the data-age box
                 on the home screen, which the 7 Oct review removed — so the page

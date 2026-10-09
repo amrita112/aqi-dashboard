@@ -15,6 +15,11 @@ import Collapsible from "@/components/Collapsible";
 const REPO = "https://github.com/amrita112/aqi-dashboard";
 
 export const metadata = {
+  // UNLINKED FOR THE ALPHA. The page is written but the text needs an editing
+  // pass, and an explainer that is half-right is worse than one that is not
+  // there — this is the page making the app's honesty argument. Nothing links
+  // to it; restoring it is two <Link>s, in SettingsScreen and SetupFlow.
+  robots: { index: false, follow: false },
   title: "About the data",
   description:
     "Where these numbers come from, what India's Air Quality Index measures, how far ahead a forecast is worth trusting, and what this app cannot tell you.",
