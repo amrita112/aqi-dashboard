@@ -21,6 +21,7 @@ import {
   Line,
   ReferenceLine,
   ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -142,6 +143,12 @@ export default function TrendsChart({
             onMouseLeave={() => onHover?.(null)}
           >
             <CartesianGrid vertical={false} stroke="#eef0f1" />
+            {/* A Tooltip that draws NOTHING. Recharts only tracks
+                activeTooltipIndex while a Tooltip is mounted, so removing it took the
+                hover readout with it: onMouseMove fired with nothing to report. This
+                keeps the tracking and the cursor line and renders no box, because the
+                reading goes in the card header. */}
+            <Tooltip content={() => null} cursor={{ stroke: "#9aa5ab", strokeWidth: 1 }} />
             <XAxis
               dataKey="i"
               type="number"
