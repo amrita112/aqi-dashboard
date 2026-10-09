@@ -301,6 +301,8 @@ export default function TrendsScreen() {
           index={editing}
           prefs={prefs}
           cities={cities}
+          // The other slot, so the confirm button can name the comparison.
+          otherLabel={places[editing === 0 ? 1 : 0]?.label ?? prefs.anchor.name}
           onPick={(place) => {
             setPlaces((prev) => {
               const next = [...prev];

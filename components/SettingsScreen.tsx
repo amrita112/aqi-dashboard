@@ -301,10 +301,11 @@ export default function SettingsScreen() {
         <ul className="mt-3 space-y-3 text-sm">
           <li>
             <Link href="/learn/aqi-vs-pm25" className="font-medium text-blue-700 underline">
-              Where these numbers come from
+              About the data
             </Link>
             <p className="text-gray-600">
-              What AQI measures, how it differs from PM2.5, and the limits of the data.
+              Where these numbers come from, how old they are, how the forecast works, and
+              what it cannot tell you.
             </p>
           </li>
           <li>

@@ -9,11 +9,15 @@
 
 import Link from "next/link";
 import { APP_NAME } from "@/lib/brand";
+import Collapsible from "@/components/Collapsible";
+
+/** Public, so "raise an issue" is a real option rather than an invitation to email. */
+const REPO = "https://github.com/amrita112/aqi-dashboard";
 
 export const metadata = {
-  title: "AQI or PM2.5?",
+  title: "About the data",
   description:
-    "What India's Air Quality Index actually measures, how it differs from the PM2.5 concentration, and which one answers your question.",
+    "Where these numbers come from, what India's Air Quality Index measures, how far ahead a forecast is worth trusting, and what this app cannot tell you.",
 };
 
 /** Measured across our seven cities on 2026-10-08. See notes in lib/ai/tools.ts. */
@@ -42,11 +46,179 @@ const SCALE = [
 export default function AqiVsPm25Page() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
-      <h1 className="text-3xl font-bold tracking-tight">AQI or PM2.5?</h1>
+      <h1 className="text-3xl font-bold tracking-tight">About the data</h1>
       <p className="mt-4 text-lg text-gray-700">
+        Where these numbers come from, how much to trust them, and what they cannot tell you.
+      </p>
+
+      <h2 className="mt-10 text-xl font-semibold">AQI or PM2.5?</h2>
+      <p className="mt-3 text-gray-700">
         They are not two measurements of the same thing. One is a scale, the other is an
         amount, and they answer different questions.
       </p>
+
+      <div className="mt-8">
+        <Collapsible title="Where these numbers come from" defaultOpen>
+          <p>
+            Every reading in this app is a measurement made by someone else. We operate no
+            sensors. The chain is: India&apos;s Central Pollution Control Board and the state
+            boards run the monitoring stations; OpenAQ collects and republishes what they
+            publish; this app reads OpenAQ, converts everything to common units, and computes
+            the index the same way CPCB defines it.
+          </p>
+          <p>
+            Historical data for fitting the forecast comes from the XKDR Forum&apos;s archive of
+            the same network, which reaches back to 2015 and is more complete than what the
+            live feed exposes.
+          </p>
+          <p>
+            Nothing here is crowdsourced, estimated from satellite imagery, or modelled from
+            traffic. If a number is on screen, a government instrument produced it.
+          </p>
+        </Collapsible>
+
+        <Collapsible title="How old the data is, and why that matters most">
+          <p>
+            This is the limitation that shapes everything else in the app, so it is worth
+            being blunt about. Government monitors report to the public feed on a delay. We
+            measured it station by station in October 2026: the typical reading is about{" "}
+            <strong>4.6 days old</strong> by the time anyone outside the network can see it,
+            and the slowest station took 7.7 days.
+          </p>
+          <p>
+            That is not a bug in this app, and widening the net does not fix it. It is how
+            fast the data is published.
+          </p>
+          <p>
+            The consequence is specific. A forecast is only as good as the most recent reading
+            behind it, and skill decays sharply as that reading ages. Measured per station for
+            next-day PM2.5 in Delhi, against simply quoting the seasonal average:
+          </p>
+          <ul>
+            <li>same-day reading: about a third better than the seasonal average</li>
+            <li>one day old: about a fifth better</li>
+            <li>two days old: about a tenth better</li>
+            <li>four days old: no better at all</li>
+          </ul>
+          <p>
+            So when the app says <em>&quot;typical for this time of year — no recent reading to
+            predict from&quot;</em>, it is not hedging. It is telling you that the number on
+            screen is a seasonal average and should not be read as a prediction.
+          </p>
+        </Collapsible>
+
+        <Collapsible title="How far the data spreads: a few dozen points per city">
+          <p>
+            Delhi NCR has 63 government monitors for a metropolitan area of more than thirty
+            million people. Bengaluru has eleven. Air quality varies street by street — near
+            traffic, near construction, near burning — and a few dozen points cannot describe
+            that.
+          </p>
+          <p>
+            This app averages the three stations nearest the place you chose, rather than
+            quoting the single closest one. Three is a compromise: one station is noisy and
+            sometimes simply absent, while a city-wide average hides exactly the local
+            differences that would change what you do today.
+          </p>
+          <p>
+            It means the number you see is the air in your <em>neighbourhood</em>, not at your
+            doorstep, and that the distance to those three stations matters. The map shows the
+            ring they are averaged over.
+          </p>
+        </Collapsible>
+
+        <Collapsible title="How the forecast works">
+          <p>
+            Deliberately simple, because the data does not support anything more elaborate.
+            Two pieces, multiplied:
+          </p>
+          <ul>
+            <li>
+              <strong>A daily level.</strong> For each station we fit a seasonal climatology —
+              the typical value for that day of the year, smoothed — and then carry forward the
+              most recent departure from it, damped by a weight fitted on past years.
+              Yesterday being unusually bad is evidence that today will be too, but weaker
+              evidence the older it gets.
+            </li>
+            <li>
+              <strong>An hourly shape.</strong> A ratio curve per city, per month, per hour,
+              learned from years of history and multiplied onto the daily level. It is a ratio
+              rather than a fixed profile, so a shape learned in a clean month still applies in
+              a dirty one.
+            </li>
+          </ul>
+          <p>
+            It is tested against two baselines it has to beat to earn its place: persistence
+            (tomorrow equals today) and climatology (tomorrow equals the seasonal average).
+            Beating climatology is what the app reports as skill. Persistence is the harder
+            baseline at one day out, and collapses beyond that — which is most of why the model
+            is worth having.
+          </p>
+          <p>
+            Beyond about four days, nothing we can do beats the seasonal average, so that is
+            what the app shows, labelled as such and drawn with a dashed line.
+          </p>
+        </Collapsible>
+
+        <Collapsible title="What this app cannot tell you">
+          <p>
+            Being clear about this is more useful than pretending otherwise:
+          </p>
+          <ul>
+            <li>
+              <strong>What the air is like right now.</strong> Readings are days old. The app
+              says how old, and that age is usually the most important thing on the screen.
+            </li>
+            <li>
+              <strong>The air at your exact address.</strong> The nearest station may be
+              kilometres away, across a main road, or downwind of something you are not.
+            </li>
+            <li>
+              <strong>Anywhere without a monitor.</strong> A neighbourhood with no station
+              cannot be reported on, and the app will say so rather than guess.
+            </li>
+            <li>
+              <strong>Indoor air</strong>, which is what most people breathe most of the time
+              and is a different measurement entirely.
+            </li>
+            <li>
+              <strong>Health advice.</strong> Band names are CPCB&apos;s descriptions of
+              concentration, not clinical guidance for you specifically.
+            </li>
+          </ul>
+        </Collapsible>
+
+        <Collapsible title="The code, and how to report something wrong">
+          <p>
+            The app is open source, including the ingest jobs, the forecasting code and the
+            notebooks used to validate it. If you think a number is wrong, the fastest way to
+            get it looked at is to say so there, with the place and the date.
+          </p>
+          <p>
+            <a
+              className="font-medium text-blue-700 underline"
+              href={REPO}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Browse the code on GitHub
+            </a>
+            {" · "}
+            <a
+              className="font-medium text-blue-700 underline"
+              href={`${REPO}/issues/new`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Raise an issue
+            </a>
+          </p>
+          <p>
+            Useful things to include: the city or station, the date, what the app showed and
+            what you expected. A screenshot settles most questions immediately.
+          </p>
+        </Collapsible>
+      </div>
 
       <h2 className="mt-10 text-xl font-semibold">PM2.5 is an amount</h2>
       <p className="mt-3 text-gray-700">

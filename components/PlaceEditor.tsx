@@ -58,6 +58,24 @@ export function cityPlace(c: EditorCity): TrendsPlace {
   };
 }
 
+/** A point inside a city: the three stations nearest it. */
+export function pointPlace(
+  c: EditorCity,
+  picked: { latitude: number; longitude: number; label: string },
+): TrendsPlace {
+  return {
+    // Coordinates in the key, so two points in one city are distinct series
+    // rather than overwriting each other.
+    key: `pt:${picked.latitude.toFixed(4)},${picked.longitude.toFixed(4)}`,
+    label: `${c.city} · ${picked.label}`,
+    query: {
+      lat: String(picked.latitude),
+      lng: String(picked.longitude),
+      k: String(NEAREST_K),
+    },
+  };
+}
+
 export function myPlace(prefs: Prefs): TrendsPlace {
   return {
     key: "mine",
@@ -77,6 +95,7 @@ export default function PlaceEditor({
   onPick,
   onCancel,
   onRemove,
+  otherLabel,
 }: {
   index: number;
   prefs: Prefs;
@@ -84,11 +103,13 @@ export default function PlaceEditor({
   onPick: (p: TrendsPlace) => void;
   onCancel: () => void;
   onRemove?: () => void;
+  /** The other slot's label, so the button can name the comparison. */
+  otherLabel: string;
 }) {
   const [cityName, setCityName] = useState<string | null>(
     index === 0 ? prefs.city : (cities[0]?.city ?? null),
   );
-  const [mode, setMode] = useState<"city" | "point">("city");
+  const [narrowing, setNarrowing] = useState(false);
   const [picked, setPicked] = useState<import("@/components/LocationPicker").PickedPlace | null>(
     null,
   );
@@ -113,16 +134,6 @@ export default function PlaceEditor({
         </div>
       </div>
 
-      {index !== 0 && (
-        <button
-          type="button"
-          onClick={() => onPick(myPlace(prefs))}
-          className="mt-3 w-full rounded-lg border border-gray-300 p-3 text-left text-sm"
-        >
-          <span className="font-medium">{prefs.anchor.name}</span>
-          <span className="block text-gray-600">my saved place</span>
-        </button>
-      )}
 
       <label htmlFor={`city-${index}`} className="mt-4 block text-sm font-medium text-gray-700">
         City
@@ -146,23 +157,22 @@ export default function PlaceEditor({
 
       {city && (
         <>
-          <div className="mt-3 flex gap-2">
-            {(["city", "point"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium ${
-                  mode === m ? "bg-gray-900 text-white" : "border border-gray-300 text-gray-700"
-                }`}
-              >
-                {m === "city" ? "Whole city" : "A point on the map"}
-              </button>
-            ))}
-          </div>
+          {/* NO "whole city" BUTTON. Choosing a city above already means the
+              city; offering it again as a mode made the city dropdown look
+              like it had done nothing. Narrowing to a point is the only extra
+              choice, so it is the only extra control. */}
+          {!narrowing && !picked && (
+            <button
+              type="button"
+              onClick={() => setNarrowing(true)}
+              className="mt-3 w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-800"
+            >
+              Choose a specific location in {city.city}
+            </button>
+          )}
 
-          {mode === "point" ? (
-            <div className="mt-3 space-y-3">
+          {(narrowing || picked) && (
+            <div className="mt-3 space-y-2">
               <LocationPicker
                 centre={{ latitude: city.lat, longitude: city.lng }}
                 city={city.city}
@@ -171,37 +181,30 @@ export default function PlaceEditor({
               />
               <button
                 type="button"
-                disabled={!picked}
                 onClick={() => {
-                  if (!picked) return;
-                  onPick({
-                    // The coordinates are in the key, so two points in one city
-                    // are distinct series rather than overwriting each other.
-                    key: `pt:${picked.latitude.toFixed(4)},${picked.longitude.toFixed(4)}`,
-                    label: `${city.city} · ${picked.label}`,
-                    query: {
-                      lat: String(picked.latitude),
-                      lng: String(picked.longitude),
-                      k: String(NEAREST_K),
-                    },
-                  });
+                  setNarrowing(false);
+                  setPicked(null);
                 }}
-                className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white disabled:opacity-40"
+                className="text-sm text-gray-600 underline"
               >
-                Use this place
+                Use the whole of {city.city} instead
               </button>
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onPick(cityPlace(city))}
-              className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white"
-            >
-              Use {city.city} average
-            </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => onPick(picked ? pointPlace(city, picked) : cityPlace(city))}
+            className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white"
+          >
+            {/* Says what is about to happen, rather than "Use this place" —
+                which left it unclear what was being compared with what. */}
+            Compare {otherLabel} to{" "}
+            {picked ? `${city.city} · ${picked.label}` : `${city.city} (city average)`}
+          </button>
         </>
       )}
+
     </div>
   );
 }
