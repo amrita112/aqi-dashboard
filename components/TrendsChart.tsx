@@ -51,6 +51,7 @@ export default function TrendsChart({
   bandLabel,
   threshold,
   height = 208,
+  showKey = true,
 }: {
   series: Series[];
   unit: string;
@@ -58,6 +59,8 @@ export default function TrendsChart({
   bandLabel?: string;
   threshold?: number | null;
   height?: number;
+  /** Off when the caller already shows the colours, e.g. as place pills. */
+  showKey?: boolean;
 }) {
   const live = series.filter((s) => s.points.some((p) => p.value !== null));
   if (!live.length) return null;
@@ -163,12 +166,13 @@ export default function TrendsChart({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
-        {live.map((s) => (
-          <span key={s.key} className="flex items-center gap-1.5">
-            <span className="inline-block h-0.5 w-5" style={{ background: s.color }} />
-            {s.label}
-          </span>
-        ))}
+        {showKey &&
+          live.map((s) => (
+            <span key={s.key} className="flex items-center gap-1.5">
+              <span className="inline-block h-0.5 w-5" style={{ background: s.color }} />
+              {s.label}
+            </span>
+          ))}
         {hasBand && bandLabel && (
           <span className="flex items-center gap-1.5">
             <span

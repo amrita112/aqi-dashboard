@@ -191,7 +191,7 @@ export async function POST(request: Request) {
           const tried = toolsUsed.map((t) => t.name).join(", ") || "none";
           console.error(`Empty answer. Question: ${question}. Tools: ${tried}`);
           return fail(
-            "Something went wrong producing that answer. Please ask again — it usually works the second time.",
+            "Something went wrong producing that answer. Please ask again — it may work the second time.",
             502,
           );
         }

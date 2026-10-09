@@ -257,16 +257,15 @@ export default function TrendsScreen() {
               key={`${pl.key}-${idx}`}
               type="button"
               onClick={() => setEditing(open ? null : idx)}
-              className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium ${
-                idx === 0
-                  ? "bg-gray-900 text-white"
-                  : "border-2 bg-white"
-              }`}
-              style={idx === 0 ? undefined : { borderColor: colour, color: colour }}
+              /* THE PILL IS THE LEGEND. Each one carries its series' colour,
+                 so the chart needs no key underneath and the eye makes the
+                 link in one step instead of two. */
+              className="inline-flex items-center gap-2 rounded-full border-2 bg-white px-3.5 py-2 text-sm font-medium"
+              style={{ borderColor: colour, color: colour }}
             >
               <span
                 className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ background: idx === 0 ? "#ffffff" : colour }}
+                style={{ background: colour }}
               />
               {pl.label}
             </button>
@@ -359,7 +358,7 @@ export default function TrendsScreen() {
             // a cautious extra; it is a wrong number wearing the authority of
             // the person's own setting. The home screen keeps its warning, where
             // the measure is always theirs.
-            <TrendsChart series={forecastSeries} unit={unit} bandLabel="likely range" />
+            <TrendsChart series={forecastSeries} unit={unit} bandLabel="likely range" showKey={false} />
           )}
         </div>
       </section>
@@ -384,7 +383,12 @@ export default function TrendsScreen() {
               No daily history held for this place in that window.
             </p>
           ) : (
-            <TrendsChart series={historySeries} unit={unit} bandLabel="day's lowest to highest" />
+            <TrendsChart
+              series={historySeries}
+              unit={unit}
+              bandLabel="day's lowest to highest"
+              showKey={false}
+            />
           )}
         </div>
       </section>

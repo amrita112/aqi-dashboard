@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import CityRequestForm from "@/components/CityRequestForm";
 import { useRouter } from "next/navigation";
 import {
   savePrefs,
@@ -182,6 +183,12 @@ export default function SetupFlow() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Offered here because this is the screen where someone discovers
+              we do not cover them, and the worst moment to have nothing to say. */}
+          <div className="mt-4">
+            <CityRequestForm />
           </div>
 
           <Next disabled={!place} onClick={() => setStep("measurement")} />

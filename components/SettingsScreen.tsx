@@ -25,6 +25,7 @@ import {
   type Prefs,
 } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
+import CityRequestForm from "@/components/CityRequestForm";
 
 const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
   ssr: false,
@@ -290,6 +291,41 @@ export default function SettingsScreen() {
           Note: notifications are not enabled in the beta version of the app. This saves your
           preferences, so that they are in place when we update the app to send notifications.
         </p>
+      </section>
+
+      {/* ── Beyond the three answers ──────────────────────────────────────── */}
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          About the data
+        </h2>
+        <ul className="mt-3 space-y-3 text-sm">
+          <li>
+            <Link href="/learn/aqi-vs-pm25" className="font-medium text-blue-700 underline">
+              Where these numbers come from
+            </Link>
+            <p className="text-gray-600">
+              What AQI measures, how it differs from PM2.5, and the limits of the data.
+            </p>
+          </li>
+          <li>
+            {/* THE PETITION HAD NO LINK LEFT. It used to sit in the data-age box
+                on the home screen, which the 7 Oct review removed — so the page
+                existed with nothing pointing at it. */}
+            <Link href="/petition" className="font-medium text-blue-700 underline">
+              Back hyperlocal measurement
+            </Link>
+            <p className="text-gray-600">
+              A few dozen government monitors cover each city. Add your name to the case for
+              measuring street by street.
+            </p>
+          </li>
+          <li>
+            <CityRequestForm />
+            <p className="text-gray-600">
+              We cover seven cities. Fifty requests for anywhere else in India and we add it.
+            </p>
+          </li>
+        </ul>
       </section>
 
       <section className="px-1">
