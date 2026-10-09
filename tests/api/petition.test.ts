@@ -24,17 +24,16 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: () => ({
     rpc,
     from: () => ({
+      // The route AWAITS insert() directly now. It used to chain
+      // .select().single() to read the withdrawal token back, which needs
+      // SELECT on a table that deliberately grants none — so the real database
+      // refused it even though the row had been written. The token is
+      // generated in the route instead, and this mock follows the real shape.
       insert: (row: unknown) => {
         insert(row);
-        return {
-          select: () => ({
-            single: async () =>
-              insert.mock.results.at(-1)?.value ?? {
-                data: { withdrawal_token: "11111111-1111-1111-1111-111111111111" },
-                error: null,
-              },
-          }),
-        };
+        return Promise.resolve(
+          insert.mock.results.at(-1)?.value ?? { data: null, error: null },
+        );
       },
     }),
   }),
@@ -59,10 +58,7 @@ const freshIp = () => `10.0.0.${++ipCounter}`;
 beforeEach(() => {
   rpc.mockReset();
   insert.mockReset();
-  insert.mockReturnValue({
-    data: { withdrawal_token: "11111111-1111-1111-1111-111111111111" },
-    error: null,
-  });
+  insert.mockReturnValue({ data: null, error: null });
 });
 
 describe("GET — the only public fact", () => {

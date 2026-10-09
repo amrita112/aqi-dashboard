@@ -65,18 +65,23 @@ export async function POST(request: Request) {
   }
 
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("petition_signatures")
-    .insert({
-      name,
-      email,
-      city,
-      kind: "city_request",
-      wants_updates: false,
-      purpose: CITY_REQUEST_PURPOSE,
-    })
-    .select("withdrawal_token")
-    .single();
+  // THE TOKEN IS GENERATED HERE, NOT READ BACK. Asking Postgres to RETURN the
+  // inserted row needs SELECT on the table, and this table deliberately has no
+  // SELECT policy at all — so `.insert().select()` failed with "new row
+  // violates row-level security policy", which reads like the insert was
+  // refused when in fact it succeeded and only the read-back was denied.
+  //
+  // Supplying the UUID means we already know it and never have to ask.
+  const withdrawalToken = crypto.randomUUID();
+  const { error } = await supabase.from("petition_signatures").insert({
+    name,
+    email,
+    city,
+    kind: "city_request",
+    wants_updates: false,
+    purpose: CITY_REQUEST_PURPOSE,
+    withdrawal_token: withdrawalToken,
+  });
 
   if (error) {
     // 23505 is the unique index on (lower(email), kind): asking twice is not an
@@ -95,6 +100,6 @@ export async function POST(request: Request) {
     already: false,
     threshold: CITY_REQUEST_THRESHOLD,
     // Returned once and never again, exactly as the petition does.
-    withdrawal_token: data?.withdrawal_token ?? null,
+    withdrawal_token: withdrawalToken,
   });
 }

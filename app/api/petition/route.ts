@@ -79,13 +79,22 @@ export async function POST(request: Request) {
   }
 
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("petition_signatures")
-    .insert({ name, email, city, wants_updates: wantsUpdates, purpose: PETITION_PURPOSE })
-    // Only the token comes back. Selecting the row would return the personal
-    // data we just wrote, which there is no reason to echo.
-    .select("withdrawal_token")
-    .single();
+  // THE TOKEN IS GENERATED HERE, NOT READ BACK. Asking Postgres to RETURN the
+  // inserted row needs SELECT on the table, and this table deliberately has no
+  // SELECT policy at all — so `.insert().select()` failed with "new row
+  // violates row-level security policy", which reads like the insert was
+  // refused when in fact it succeeded and only the read-back was denied.
+  //
+  // Supplying the UUID means we already know it and never have to ask.
+  const withdrawalToken = crypto.randomUUID();
+  const { error } = await supabase.from("petition_signatures").insert({
+    name,
+    email,
+    city,
+    wants_updates: wantsUpdates,
+    purpose: PETITION_PURPOSE,
+    withdrawal_token: withdrawalToken,
+  });
 
   if (error) {
     // 23505 is the unique violation on email. Told plainly, because "you have
@@ -100,7 +109,7 @@ export async function POST(request: Request) {
     {
       signed: true,
       // Shown once. There is no way to retrieve it later.
-      withdrawal_token: data.withdrawal_token,
+      withdrawal_token: withdrawalToken,
     },
     {
       purpose: PETITION_PURPOSE,
