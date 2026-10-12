@@ -159,14 +159,14 @@ export default function HomeScreen() {
     // order, laid out side by side instead of stacked — nothing is added for
     // the bigger screen, because a dashboard with more things on it than the
     // phone has would be a second product to keep correct.
-    <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0">
+    <div className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0">
       <h1 className="text-2xl font-bold tracking-tight lg:col-span-2">{APP_NAME}</h1>
 
       {/* The question box leads, because it is the thing this app does that
           nothing else does. */}
       <Link
         href="/ask"
-        className="block rounded-xl border border-gray-200 bg-white p-5 text-center shadow-sm transition hover:bg-gray-50 lg:col-span-2"
+        className="block rounded-xl border border-gray-200 bg-white p-3.5 text-center shadow-sm transition hover:bg-gray-50 lg:col-span-2"
       >
         <span className="block text-lg font-semibold">Ask AI: When should I go out?</span>
         <span className="mt-1 block text-sm text-gray-500">
@@ -178,75 +178,67 @@ export default function HomeScreen() {
         <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800 lg:col-span-2">{error}</p>
       )}
 
-      {/* Expected today. */}
+      {/* EXPECTED TODAY, sized from the September sketch: a small centred box
+          carrying the number and the place, not a full-width card with three
+          lines of explanation. Measured off the mockup, this is about 15% of
+          the screen against the forecast's 29% and the map's 28% — the number
+          is the headline, and the sentence about three nearest stations is
+          support that belongs behind the info button. */}
       {today && (
-        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start gap-4">
-            <div
-              className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl"
-              style={{ backgroundColor: today.band.color, color: today.band.textColor }}
-            >
-              <span className="text-3xl font-bold leading-none">
-                {Math.round(today.value)}
-              </span>
-              <span className="mt-1 text-[10px] font-semibold uppercase tracking-wide">
-                {today.band.label}
-              </span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="font-semibold">Expected today</h2>
-              <p className="mt-1 text-sm text-gray-600">
-                {short}
-                {unit ? ` (${unit})` : ""}, average forecast from {stations.length || NEAREST_K}{" "}
-                nearest monitoring stations{" "}
-                <button
-                  type="button"
-                  onClick={() => setShowStations((v) => !v)}
-                  aria-label="Which stations?"
-                  className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-400 text-[10px] font-semibold text-gray-600 align-middle"
-                >
-                  i
-                </button>
-              </p>
-
-              {showStations && (
-                <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2 text-xs text-gray-600">
-                  {stations.length === 0 && <li>Station list unavailable.</li>}
-                  {stations.map((s) => (
-                    <li key={s.monitor_id} className="flex justify-between gap-3">
-                      <span className="truncate">{s.name}</span>
-                      <span className="shrink-0 tabular-nums">
-                        {s.distance_km.toFixed(1)} km
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* The place, not the city — the point they dropped in setup.
-                  NO CHEVRON: it promised a dropdown and opened a page, which is
-                  the kind of small lie that makes people stop trusting the
-                  other controls. A plain "Change" says where it goes. */}
-              <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3 text-sm">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11z" />
-                  <circle cx="12" cy="10" r="2.5" />
-                </svg>
-                <span className="min-w-0 truncate font-medium text-gray-900">
-                  {prefs.anchor.name}
-                </span>
-                <Link href="/settings" className="shrink-0 text-blue-700 underline">
-                  Change
-                </Link>
-              </div>
-            </div>
+        <section className="flex flex-col items-center">
+          <div
+            className="flex min-w-[8.5rem] flex-col items-center justify-center rounded-2xl px-7 py-3"
+            style={{ backgroundColor: today.band.color, color: today.band.textColor }}
+          >
+            <span className="text-4xl font-bold leading-none">{Math.round(today.value)}</span>
+            <span className="mt-1 text-[10px] font-semibold uppercase tracking-wide">
+              {today.band.label}
+            </span>
           </div>
+
+          <div className="mt-2 flex items-center gap-1.5 text-sm">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11z" />
+              <circle cx="12" cy="10" r="2.5" />
+            </svg>
+            <span className="min-w-0 truncate font-medium text-gray-900">
+              {prefs.anchor.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowStations((v) => !v)}
+              aria-label="Which stations?"
+              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-gray-400 text-[10px] font-semibold text-gray-600"
+            >
+              i
+            </button>
+            <Link href="/settings" className="shrink-0 text-blue-700 underline">
+              Change
+            </Link>
+          </div>
+
+          {showStations && (
+            <div className="mt-2 w-full rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-600">
+              <p>
+                {short} today, averaged over the {stations.length || NEAREST_K} nearest
+                monitoring stations:
+              </p>
+              <ul className="mt-2 space-y-1">
+                {stations.map((st) => (
+                  <li key={st.monitor_id} className="flex justify-between gap-3">
+                    <span className="truncate">{st.name}</span>
+                    <span className="shrink-0 tabular-nums">{st.distance_km.toFixed(1)} km</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
       {/* Forecast. */}
       {points.length >= 2 && (
-        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <section className="rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide">Forecast</h2>
             {/* The hovered reading lives here, in the gap that was empty
@@ -260,7 +252,7 @@ export default function HomeScreen() {
             </span>
           </div>
           <div className="mt-2">
-            <ForecastChart days={points} unit={unit} onHover={setHovered} />
+            <ForecastChart days={points} unit={unit} onHover={setHovered} heightClass="h-[26vh] min-h-[150px] max-h-[240px]" />
           </div>
 
           {tomorrow && (
@@ -289,7 +281,7 @@ export default function HomeScreen() {
       )}
 
       <section className="overflow-hidden rounded-xl border border-gray-200 lg:col-span-2">
-        <HomeMap heightClass="h-56 lg:h-80" showHeader={false} />
+        <HomeMap heightClass="h-[26vh] min-h-[150px] max-h-[260px] lg:h-80" showHeader={false} />
       </section>
 
       <div className="lg:col-span-2">

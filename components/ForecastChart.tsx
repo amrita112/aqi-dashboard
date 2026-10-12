@@ -67,11 +67,18 @@ export default function ForecastChart({
   days,
   unit,
   onHover,
+  heightClass = "h-52",
 }: {
   days: ForecastDayInput[];
   unit: string;
   /** Hovered point, for the caller to show beside the card title. */
   onHover?: (text: string | null) => void;
+  /**
+   * Plot height. A share of the viewport rather than a fixed height, so the
+   * home screen keeps the sketch's proportions on a tall phone and a short
+   * one; clamped at both ends so it cannot collapse or balloon.
+   */
+  heightClass?: string;
 }) {
   const rows: Row[] = [];
   let firstNormalIndex = -1;
@@ -140,7 +147,7 @@ export default function ForecastChart({
     // sized box it overflowed the bottom and printed on top of whatever
     // followed -- on the map card, the "cleanest hours" line.
     <div className="w-full">
-      <div className="h-52 w-full">
+      <div className={`${heightClass} w-full`}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={rows}
