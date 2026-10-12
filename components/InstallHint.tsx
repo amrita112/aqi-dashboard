@@ -60,18 +60,51 @@ function isStandalone(): boolean {
   return Boolean(appleStandalone) || window.matchMedia("(display-mode: standalone)").matches;
 }
 
+/** The event Chrome fires when it is willing to install; not in TS's lib. */
+interface InstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
 export default function InstallHint() {
   const [show, setShow] = useState(false);
+  // Chrome only. Set when the browser has decided the app is installable, which
+  // is the only moment prompt() may be called.
+  const [chromePrompt, setChromePrompt] = useState<InstallPromptEvent | null>(null);
 
   useEffect(() => {
-    if (isStandalone() || !isIosSafari()) return;
+    if (isStandalone()) return;
     try {
       if (window.localStorage.getItem(DISMISSED_KEY)) return;
     } catch {
       // Storage blocked: show it, but it cannot be remembered as dismissed.
       // Better than hiding a one-off hint entirely.
     }
-    setShow(true);
+
+    // ANDROID GETS A REAL BUTTON, which is the whole fix. Chrome fires
+    // beforeinstallprompt when it is willing to install, and suppresses its own
+    // banner if nothing handles it — so without this listener Amrita got no
+    // prompt at all and had to find Install through the three-dot menu.
+    //
+    // Note "Install" and "Create shortcut" are different things in that menu:
+    // a shortcut opens a browser tab, which is not what anyone wants here.
+    const onPrompt = (e: Event) => {
+      e.preventDefault();
+      setChromePrompt(e as InstallPromptEvent);
+      setShow(true);
+    };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+
+    // iOS never fires it and has no API, so Safari still gets instructions.
+    if (isIosSafari()) setShow(true);
+
+    // Nothing left to offer once it is installed.
+    const onInstalled = () => setShow(false);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
   }, []);
 
   if (!show) return null;
@@ -90,12 +123,33 @@ export default function InstallHint() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-semibold text-blue-950">Keep this on your home screen</h2>
-          <p className="mt-1 text-sm text-blue-950/90">
-            Tap{" "}
-            <ShareIcon />{" "}
-            <strong>Share</strong> at the bottom of Safari, then{" "}
-            <strong>Add to Home Screen</strong>. It opens full screen, like an app.
-          </p>
+          {chromePrompt ? (
+            <>
+              <p className="mt-1 text-sm text-blue-950/90">
+                It opens full screen, like an app, and works the same offline message when
+                you have no signal.
+              </p>
+              <button
+                type="button"
+                onClick={async () => {
+                  await chromePrompt.prompt();
+                  const { outcome } = await chromePrompt.userChoice;
+                  // The event is single-use either way: Chrome will fire a new
+                  // one if it is still willing later.
+                  setChromePrompt(null);
+                  if (outcome === "accepted") setShow(false);
+                }}
+                className="mt-3 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white"
+              >
+                Install
+              </button>
+            </>
+          ) : (
+            <p className="mt-1 text-sm text-blue-950/90">
+              Tap <ShareIcon /> <strong>Share</strong> at the bottom of Safari, then{" "}
+              <strong>Add to Home Screen</strong>. It opens full screen, like an app.
+            </p>
+          )}
         </div>
         <button
           type="button"

@@ -217,7 +217,15 @@ export default function TrendsScreen() {
           if (hours.length === 24) {
             hours.forEach((h) => {
               points.push({
-                label: h.hour === 12 ? humanDate(d.target_date) : "",
+                // The date at noon, a bare hour at 6am and 6pm. Showing the
+                // diurnal curve is useless if the reader cannot place a peak
+                // against the clock.
+                label:
+                  h.hour === 12
+                    ? humanDate(d.target_date)
+                    : h.hour === 6 || h.hour === 18
+                      ? clock(h.hour)
+                      : "",
                 full: `${humanDate(d.target_date)}, ${clock(h.hour)}`,
                 value: h.value,
                 low: h.band_low,
@@ -258,7 +266,12 @@ export default function TrendsScreen() {
             label: pl.label,
             color: colour,
             points: hourly.map((r) => ({
-              label: r.hour === 12 ? humanDate(r.date) : "",
+              label:
+                r.hour === 12
+                  ? humanDate(r.date)
+                  : r.hour === 6 || r.hour === 18
+                    ? clock(r.hour)
+                    : "",
               full: `${humanDate(r.date)}, ${clock(r.hour)}`,
               value: r.value,
             })),
@@ -277,6 +290,15 @@ export default function TrendsScreen() {
         };
       }),
     [places, histories, hourlies, hRange],
+  );
+
+  // A place that has been asked for but not answered yet. `undefined` means
+  // the fetch has not resolved; `[]` means it resolved to nothing.
+  const historyLoading = places.some(
+    (pl) =>
+      Object.keys(pl.query).length > 0 &&
+      histories[pl.key] === undefined &&
+      hourlies[pl.key] === undefined,
   );
 
   const forecastDates = useMemo(() => {
@@ -435,9 +457,14 @@ export default function TrendsScreen() {
           </select>
         </div>
         <div className="mt-3">
-          {historySeries.every((s) => !s.points.length) ? (
+          {historyLoading ? (
+            <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
+          ) : historySeries.every((s) => !s.points.length) ? (
+            /* Only said once the fetch has actually come back. It used to show
+               while loading, so every place looked like it had no history for a
+               second or two. */
             <p className="py-10 text-center text-sm text-gray-500">
-              No daily history held for this place in that window.
+              No history held for this place in that window.
             </p>
           ) : (
             <TrendsChart series={historySeries} unit={unit} showKey={false} onHover={setHHover} />

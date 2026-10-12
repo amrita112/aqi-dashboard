@@ -95,10 +95,19 @@ export default function AskScreen() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            question: p
-              ? `${trimmed}\n\n(I am in ${p.city}, near ${p.anchor.name}. ` +
-                `I want answers in ${p.measurement === "pm25" ? "PM2.5 concentration (µg/m³)" : "AQI"} unless I ask otherwise.)`
-              : trimmed,
+            question: p ? `${trimmed}\n\n(I am in ${p.city}, near ${p.anchor.name}.)` : trimmed,
+            // The coordinates travel as data, so a place with no station of its
+            // own still resolves to the three nearest — the same thing the home
+            // screen does for the same pin.
+            place: p
+              ? {
+                  latitude: p.anchor.latitude,
+                  longitude: p.anchor.longitude,
+                  label: p.anchor.name,
+                  city: p.city,
+                  measurement: p.measurement,
+                }
+              : undefined,
           }),
         });
         const body = await res.json();

@@ -41,52 +41,60 @@ def rgb(hex_colour: str) -> tuple[int, int, int]:
 
 
 def draw_icon(size: int, *, maskable: bool) -> Image.Image:
-    """One icon.
+    """One icon: a rising trend line over the AQI colour bands.
 
-    `maskable` shrinks the mark into the centre 80%, because Android may crop
-    a maskable icon to a circle, a squircle or a rounded square depending on
-    the launcher. Anything outside that safe zone can be cut off.
+    WHY A TREND LINE. The previous mark was a gauge, which says "a reading" —
+    and a reading is the thing this app is least able to give you, because the
+    data is days old. A trend says "where this is going", which is what the app
+    actually does and what its forecast and trends screens are for.
+
+    The line climbs because that is the honest shape of October in these
+    cities, and it is drawn over a strip of the real CPCB band colours, so the
+    icon carries the scale the app uses without a single letter of text.
+
+    `maskable` shrinks the mark into the centre, because Android may crop a
+    maskable icon to a circle, a squircle or a rounded square depending on the
+    launcher, and anything outside that safe zone can be cut off.
     """
     s = size * SS
     img = Image.new("RGBA", (s, s), (*INK, 255))
     d = ImageDraw.Draw(img)
 
-    # Safe zone: a maskable icon keeps the mark well inside the canvas.
-    inset = s * (0.26 if maskable else 0.18)
-    # The arc covers left, top and right but not the bottom 120 degrees, so its
-    # visual weight sits high in a square box. Shifting the box DOWN brings the
-    # mark back to the optical centre.
-    drop = s * 0.055
-    box = (inset, inset + drop, s - inset, s - inset + drop)
-    width = int(s * (0.115 if maskable else 0.13))
+    inset = s * (0.30 if maskable else 0.22)
+    left, right = inset, s - inset
+    width = right - left
 
-    # A 240-degree gauge, opening at the bottom, split evenly across the six
-    # bands. Drawn clockwise from the lower left.
-    start, sweep = 150.0, 240.0
-    step = sweep / len(BANDS)
+    # The band strip along the bottom: Good through Severe, left to right. Low
+    # enough to read as a scale the line sits above rather than a block.
+    strip_h = s * 0.085
+    strip_top = s - inset - strip_h
+    seg = width / len(BANDS)
     for i, colour in enumerate(BANDS):
-        a0 = start + i * step
-        # Half a degree of overlap, or antialiasing leaves hairlines between
-        # the segments after downsampling.
-        d.arc(box, a0 - 0.5, a0 + step + 0.5, fill=(*rgb(colour), 255), width=width)
+        d.rectangle(
+            (left + i * seg, strip_top, left + (i + 1) * seg, strip_top + strip_h),
+            fill=(*rgb(colour), 255),
+        )
 
-    # The needle sits at the middle of the scale rather than pointing at a
-    # value: the icon should not claim a reading.
-    cx = s / 2
-    cy = s / 2 + drop
-    angle = math.radians(start + sweep / 2)
-    r_outer = (s / 2 - inset) - width * 0.35
-    hub = s * 0.058
-    # From the hub, NOT from a radius outside it. A gap between needle and hub
-    # reads as an exclamation mark -- a warning sign rather than a gauge, which
-    # is the wrong thing entirely for an app whose whole argument is not
-    # overclaiming.
-    d.line(
-        [(cx, cy),
-         (cx + r_outer * math.cos(angle), cy + r_outer * math.sin(angle))],
-        fill=(*NEEDLE, 255), width=int(s * 0.05),
-    )
-    d.ellipse([cx - hub, cy - hub, cx + hub, cy + hub], fill=(*NEEDLE, 255))
+    # The trend. Fixed points rather than data: an icon is a logo, and one that
+    # changed with the forecast would be unrecognisable from one day to the next.
+    top = inset + s * 0.01
+    # Small gap only: the strip reads as the axis the line is plotted against,
+    # and a wide gap made them look like two unrelated marks.
+    plot_h = strip_top - top - s * 0.02
+    shape = [0.70, 0.86, 0.52, 0.64, 0.30, 0.12]
+    pts = [
+        (left + (i / (len(shape) - 1)) * width, top + f * plot_h)
+        for i, f in enumerate(shape)
+    ]
+
+    d.line(pts, fill=NEEDLE, width=int(s * 0.055), joint="curve")
+
+    # A dot on the last point, in the band the line has climbed into, so the
+    # mark ends on the colour it is warning about.
+    r = s * 0.052
+    x, y = pts[-1]
+    d.ellipse((x - r, y - r, x + r, y + r), fill=(*rgb(BANDS[3]), 255), outline=NEEDLE,
+              width=int(s * 0.016))
 
     return img.resize((size, size), Image.LANCZOS)
 

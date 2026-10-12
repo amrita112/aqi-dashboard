@@ -20,6 +20,7 @@ import {
   ComposedChart,
   Line,
   ReferenceLine,
+  Label,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -114,6 +115,9 @@ export default function TrendsChart({
     : undefined;
 
   const hasBand = live.some((s) => s.points.some((p) => p.low != null && p.high != null));
+  // A seasonal tail is drawn dashed; say so only when one is present.
+  const hasSeasonal = live.some((s) => s.points.some((p) => p.seasonal === true));
+  const hasSolid = live.some((s) => s.points.some((p) => p.seasonal !== true && p.value !== null));
 
   return (
     <div className="w-full">
@@ -140,7 +144,11 @@ export default function TrendsChart({
                 .filter(Boolean);
               onHover(parts.length ? `${r.full} · ${parts.join("  ")}${unit ? ` ${unit}` : ""}` : null);
             }}
-            onMouseLeave={() => onHover?.(null)}
+            // NO onMouseLeave. On a touchscreen the leave event fires immediately
+          // after the tap, so the reading appeared and vanished in the same frame
+          // — which is what Amrita saw on her phone: the cursor line stayed, the
+          // number never did. Leaving the last value up is also better on a
+          // mouse: it is still the answer to the last thing you pointed at.
           >
             <CartesianGrid vertical={false} stroke="#eef0f1" />
             {/* A Tooltip that draws NOTHING. Recharts only tracks
@@ -165,8 +173,17 @@ export default function TrendsChart({
               tick={{ fontSize: 11, fill: "#5c6b73" }}
               stroke="#d4d8da"
               tickLine={false}
-              width={40}
-            />
+              width={52}
+            >
+              {/* AQI and µg/m³ are different scales with the same shape; an
+                  unlabelled axis gave the reader no way to tell them apart. */}
+              <Label
+                value={unit ? `${unit}` : "AQI"}
+                angle={-90}
+                position="insideLeft"
+                style={{ fontSize: 10, fill: "#5c6b73", textAnchor: "middle" }}
+              />
+            </YAxis>
             {threshold != null && (
               <ReferenceLine
                 y={threshold}
@@ -221,6 +238,12 @@ export default function TrendsChart({
               {s.label}
             </span>
           ))}
+        {hasSolid && (
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-0.5 w-5" style={{ background: live[0].color }} />
+            Forecast
+          </span>
+        )}
         {hasBand && bandLabel && (
           <span className="flex items-center gap-1.5">
             <span
@@ -228,6 +251,17 @@ export default function TrendsChart({
               style={{ background: live[0].color, opacity: 0.2 }}
             />
             {bandLabel}
+          </span>
+        )}
+        {hasSeasonal && (
+          <span className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-0.5 w-5"
+              style={{
+                backgroundImage: `repeating-linear-gradient(to right, ${live[0].color} 0 5px, transparent 5px 9px)`,
+              }}
+            />
+            Seasonal normal
           </span>
         )}
       </div>

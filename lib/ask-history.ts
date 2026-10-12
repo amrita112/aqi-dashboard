@@ -87,24 +87,31 @@ export function clearHistory(): void {
  * round trip against a three-per-minute limit, and it could propose a question
  * the tools cannot answer. Keyed off the tool, every suggestion is one we know
  * we can serve.
+ *
+ * EVERY ONE IS SELF-CONTAINED, and this is not a style preference. Each
+ * question is answered on its own with no memory of the last — so "How does
+ * that compare with last week?" was a promise the app cannot keep, and tapping
+ * it produced an answer about nothing in particular. The words "that", "then"
+ * and "it" cannot appear as the subject; the place and the day are named every
+ * time. There is a test.
  */
 export function suggestNext(tools: string[], place: string): string | null {
   const last = tools[tools.length - 1];
   switch (last) {
     case "rest_of_today":
-      return "What about tomorrow?";
+      return `Which hours are cleanest tomorrow in ${place}?`;
     case "best_hour":
-      return "I can't go out then. What about the day after?";
+      return `Which hours are cleanest the day after tomorrow in ${place}?`;
     case "forecast":
-      return `Which hours are cleanest in ${place}?`;
+      return `Which hours are cleanest today in ${place}?`;
     case "rank_places":
-      return "How does that compare with last week?";
+      return `What is the forecast for ${place} this week?`;
     case "history":
-      return "Is it getting better or worse?";
+      return `What is the forecast for ${place} tomorrow?`;
     case "compare":
-      return `What is the forecast for ${place}?`;
+      return `What is the forecast for ${place} tomorrow?`;
     case "current_aqi":
-      return "Should I go out later today?";
+      return `Which hours are cleanest today in ${place}?`;
     default:
       return null;
   }

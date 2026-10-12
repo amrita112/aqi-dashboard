@@ -315,6 +315,34 @@ export default function SettingsScreen() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
           About the data
         </h2>
+        {/* CITED, because both sources ask to be and because the app's whole
+            argument is that its numbers are someone else's measurements rather
+            than our estimates. Saying they both carry CPCB data matters too:
+            otherwise two names look like two independent confirmations. */}
+        <p className="mt-2 text-sm text-gray-700">
+          Readings come from India&apos;s Central Pollution Control Board monitoring network,
+          reaching us two ways:{" "}
+          <a
+            href="https://openaq.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            OpenAQ
+          </a>{" "}
+          for recent measurements, and the{" "}
+          <a
+            href="https://xkdr.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            XKDR Forum
+          </a>
+          &apos;s archive for the years of history the forecast is fitted on. Both republish
+          CPCB data, so they are one source arriving by two routes rather than two independent
+          ones.
+        </p>
         <ul className="mt-3 space-y-3 text-sm">
           <li>
             {/* THE PETITION HAD NO LINK LEFT. It used to sit in the data-age box

@@ -118,11 +118,10 @@ export default function SetupFlow() {
       measurement,
       threshold: notify ? threshold : null,
     });
-    // Land on the Ask tab, not Home. The first thing someone wants after
-    // answering three questions is to try the thing the app is for, and the
-    // old behaviour flashed Ask and then replaced it with Home, which looked
-    // like a bug.
-    router.push("/ask");
+    // Home, not Ask. Reversed after the 12 Oct review: the first thing someone
+    // wants after telling the app where they are is to see the number for that
+    // place, not a blank question box.
+    router.push("/");
   }
 
   if (loadError) {

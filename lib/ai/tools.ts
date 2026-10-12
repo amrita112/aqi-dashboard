@@ -14,6 +14,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolDefinition } from "@/lib/ai/provider";
 import {
+  nearestMonitors,
   resolveLocation,
   getCurrent,
   getForecast,
@@ -156,6 +157,40 @@ export const TOOL_NAMES = TOOL_DEFINITIONS.map((t) => t.function.name);
 
 type ToolResult = Record<string, unknown>;
 
+/**
+ * The place a tool argument refers to.
+ *
+ * Tries the named place first, so "Mumbai" still means Mumbai. Falls back to
+ * the person's own coordinates when the name resolves to nothing — which is
+ * the common case for a neighbourhood with no station of its own, and exactly
+ * the case the home screen already handles by averaging the nearest three.
+ */
+async function resolveFor(
+  supabase: SupabaseClient,
+  text: string,
+  ctx: AskContext,
+): Promise<ResolvedLocation | null> {
+  const named = text.trim() ? await resolveLocation(supabase, text) : null;
+  if (named) return named;
+  if (typeof ctx.latitude !== "number" || typeof ctx.longitude !== "number") return null;
+
+  const monitors = await nearestMonitors(
+    supabase,
+    ctx.latitude,
+    ctx.longitude,
+    MAX_STATIONS_PER_CITY_QUERY,
+  );
+  if (!monitors.length) return null;
+  return {
+    kind: "point",
+    city: ctx.city ?? monitors[0].city,
+    // Named as the person named it, so the answer says "Mayur Vihar" rather
+    // than the nearest CPCB site, which they did not ask about.
+    label: text.trim() || ctx.label || monitors[0].name,
+    monitors,
+  };
+}
+
 function notFound(location: string): ToolResult {
   return {
     error: "unknown_location",
@@ -225,14 +260,38 @@ function dailySeries(
   return daily.filter((_, i) => i % stride === 0);
 }
 
+/**
+ * Who is asking, and from where.
+ *
+ * WITHOUT THIS THE TOOLS ONLY KNEW TEXT. "Which hours are cleanest in Mayur
+ * Vihar?" was declined, because Mayur Vihar has no monitoring station and
+ * resolveLocation matches only city and station names — while the person
+ * asking had dropped a pin there at setup and the app was already showing them
+ * a number for it, averaged over the three nearest stations. Declining to
+ * answer a question about the place you are standing in, which the home screen
+ * answers, is the kind of inconsistency that makes the whole thing feel broken.
+ *
+ * It also carries the chosen measure, so `history` stops defaulting to PM2.5
+ * for someone reading AQI everywhere else.
+ */
+export interface AskContext {
+  latitude?: number;
+  longitude?: number;
+  /** What the person calls the place, e.g. "Mayur Vihar Delhi". */
+  label?: string;
+  city?: string;
+  measurement?: string;
+}
+
 export async function executeTool(
   supabase: SupabaseClient,
   name: string,
   args: Record<string, unknown>,
+  ctx: AskContext = {},
 ): Promise<ToolResult> {
   switch (name) {
     case "current_aqi": {
-      const loc = await resolveLocation(supabase, String(args.location ?? ""));
+      const loc = await resolveFor(supabase, String(args.location ?? ""), ctx);
       if (!loc) return notFound(String(args.location ?? ""));
       const readings = (
         await Promise.all(sample(loc).map((m) => getCurrent(supabase, m)))
@@ -265,9 +324,9 @@ export async function executeTool(
     }
 
     case "forecast": {
-      const loc = await resolveLocation(supabase, String(args.location ?? ""));
+      const loc = await resolveFor(supabase, String(args.location ?? ""), ctx);
       if (!loc) return notFound(String(args.location ?? ""));
-      const pollutant = (args.pollutant as string) ?? "aqi";
+      const pollutant = (args.pollutant as string) ?? ctx.measurement ?? "aqi";
       const days = Math.min(7, Math.max(1, Number(args.days ?? 1)));
       const perStation = await Promise.all(
         sample(loc).map((m) => getForecast(supabase, m, pollutant, days)),
@@ -312,9 +371,9 @@ export async function executeTool(
     }
 
     case "best_hour": {
-      const loc = await resolveLocation(supabase, String(args.location ?? ""));
+      const loc = await resolveFor(supabase, String(args.location ?? ""), ctx);
       if (!loc) return notFound(String(args.location ?? ""));
-      const pollutant = (args.pollutant as string) ?? "aqi";
+      const pollutant = (args.pollutant as string) ?? ctx.measurement ?? "aqi";
       const forecasts = await Promise.all(
         sample(loc).map((m) => getForecast(supabase, m, pollutant, 1)),
       );
@@ -369,9 +428,9 @@ export async function executeTool(
     }
 
     case "rest_of_today": {
-      const loc = await resolveLocation(supabase, String(args.location ?? ""));
+      const loc = await resolveFor(supabase, String(args.location ?? ""), ctx);
       if (!loc) return notFound(String(args.location ?? ""));
-      const pollutant = (args.pollutant as string) ?? "aqi";
+      const pollutant = (args.pollutant as string) ?? ctx.measurement ?? "aqi";
       const today = istToday();
       const forecasts = await Promise.all(
         sample(loc).map((m) => getForecast(supabase, m, pollutant, 1, { includeToday: true })),
@@ -444,9 +503,9 @@ export async function executeTool(
     }
 
     case "rank_places": {
-      const loc = await resolveLocation(supabase, String(args.location ?? ""));
+      const loc = await resolveFor(supabase, String(args.location ?? ""), ctx);
       if (!loc) return notFound(String(args.location ?? ""));
-      const pollutant = (args.pollutant as string) ?? "aqi";
+      const pollutant = (args.pollutant as string) ?? ctx.measurement ?? "aqi";
       const today = istToday();
       const picks = loc.monitors.slice(0, MAX_STATIONS_PER_CITY_QUERY);
 
@@ -488,9 +547,12 @@ export async function executeTool(
     }
 
     case "history": {
-      const loc = await resolveLocation(supabase, String(args.location ?? ""));
+      const loc = await resolveFor(supabase, String(args.location ?? ""), ctx);
       if (!loc) return notFound(String(args.location ?? ""));
-      const pollutant = (args.pollutant as string) ?? "pm25";
+      // Follows the person's own setting rather than defaulting to PM2.5,
+      // which is why "compare with last week" reported no AQI data for
+      // someone reading AQI on every other screen.
+      const pollutant = (args.pollutant as string) ?? ctx.measurement ?? "aqi";
       const days = Math.min(365, Math.max(1, Number(args.days ?? 7)));
       const series = await Promise.all(
         sample(loc).map((m) => getHistory(supabase, m, pollutant, daysAgo(days), istToday())),
@@ -514,7 +576,10 @@ export async function executeTool(
     }
 
     case "compare": {
-      const pollutant = (args.pollutant as string) ?? "pm25";
+      // Follows the person's own setting rather than defaulting to PM2.5,
+      // which is why "compare with last week" reported no AQI data for
+      // someone reading AQI on every other screen.
+      const pollutant = (args.pollutant as string) ?? ctx.measurement ?? "aqi";
       const days = Math.min(365, Math.max(1, Number(args.days ?? 7)));
       const sides = await Promise.all(
         [args.location_a, args.location_b].map(async (raw) => {

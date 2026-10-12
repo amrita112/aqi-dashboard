@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { fail, ok, badRequest, rateLimit, callerKey } from "@/lib/api/respond";
 import { chat, aiConfig, AiProviderError, undouble, type ChatMessage } from "@/lib/ai/provider";
-import { TOOL_DEFINITIONS, executeTool } from "@/lib/ai/tools";
+import { TOOL_DEFINITIONS, executeTool, type AskContext } from "@/lib/ai/tools";
 import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
 import { quotaMessage, type QuotaKind } from "@/lib/ai/quota";
 import { bestChart, provenanceFrom } from "@/lib/ai/chart";
@@ -95,9 +95,13 @@ export async function POST(request: Request) {
   }
 
   let question: string;
+  let place: Record<string, unknown> = {};
   try {
-    const body = (await request.json()) as { question?: unknown };
+    const body = (await request.json()) as { question?: unknown; place?: unknown };
     question = typeof body.question === "string" ? body.question.trim() : "";
+    if (body.place && typeof body.place === "object") {
+      place = body.place as Record<string, unknown>;
+    }
   } catch {
     return badRequest("Body must be JSON: { question: string }");
   }
@@ -129,6 +133,17 @@ export async function POST(request: Request) {
   if (!perDay.allowed) return outOfQuestions("per_day", perDay.resetAt);
   const global = rateLimit("ask:day:global", GLOBAL_PER_DAY, DAY);
   if (!global.allowed) return outOfQuestions("shared_day", global.resetAt);
+
+  // Where the person is and what they read, sent as fields rather than prose.
+  // Buried in the question text it was advice the model could ignore; as a tool
+  // argument it is simply what the tools use.
+  const ctx: AskContext = {
+    latitude: typeof place.latitude === "number" ? place.latitude : undefined,
+    longitude: typeof place.longitude === "number" ? place.longitude : undefined,
+    label: typeof place.label === "string" ? place.label.slice(0, 80) : undefined,
+    city: typeof place.city === "string" ? place.city.slice(0, 60) : undefined,
+    measurement: place.measurement === "pm25" ? "pm25" : "aqi",
+  };
 
   const supabase = createClient();
   const messages: ChatMessage[] = [
@@ -219,7 +234,7 @@ export async function POST(request: Request) {
           args = {};
         }
         toolsUsed.push({ name: call.function.name, args });
-        const result = await executeTool(supabase, call.function.name, args);
+        const result = await executeTool(supabase, call.function.name, args, ctx);
         toolResults.push({ name: call.function.name, result });
         messages.push({
           role: "tool",

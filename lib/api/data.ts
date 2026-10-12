@@ -41,8 +41,12 @@ export interface MonitorRow {
 }
 
 export interface ResolvedLocation {
-  /** `station` when the text named one; `city` when it named a whole city. */
-  kind: "station" | "city";
+  /**
+   * `station` when the text named one, `city` when it named a whole city, and
+   * `point` when nothing matched and the asker's own coordinates were used —
+   * which is how a neighbourhood with no station of its own gets an answer.
+   */
+  kind: "station" | "city" | "point";
   city: string;
   label: string;
   monitors: MonitorRow[];

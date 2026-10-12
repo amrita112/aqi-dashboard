@@ -27,6 +27,7 @@ import {
   ComposedChart,
   Line,
   ReferenceLine,
+  Label,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -49,7 +50,7 @@ const NORMAL = "#5c6b73";
 interface Row {
   i: number;
   label: string;
-  isNoon: boolean;
+  isTick: boolean;
   forecast: number | null;
   normal: number | null;
   range: [number, number] | null;
@@ -94,8 +95,9 @@ export default function ForecastChart({
       const hi = h.band_high ?? null;
       rows.push({
         i: rows.length,
-        label: d.label,
-        isNoon: h.hour === 12,
+        // The day's name at noon, a bare hour at 6am and 6pm, nothing between.
+        label: h.hour === 12 ? d.label : h.hour === 6 || h.hour === 18 ? clockOf(h.hour) : "",
+        isTick: h.hour === 6 || h.hour === 12 || h.hour === 18,
         forecast: seasonal ? null : h.value,
         normal: seasonal ? h.value : null,
         range: lo !== null && hi !== null ? [lo, hi] : null,
@@ -121,9 +123,17 @@ export default function ForecastChart({
   // drawn as a flat line against a zero baseline.
   const pad = Math.max(6, (hi - lo) * 0.18);
 
-  // One tick per day, at noon, so the labels sit under the middle of their day
-  // rather than on the midnight boundary between two.
-  const ticks = rows.filter((r) => r.isNoon).map((r) => r.i);
+  // TICKS AT SIX-HOURLY MARKS, not one per day. With the diurnal curve drawn,
+  // a label only at noon left no way to read WHEN a peak was — Amrita's point
+  // that showing the within-day shape is useless if the reader cannot place it
+  // against the clock. Days still get their name; the marks between get an
+  // hour.
+  const ticks = rows.filter((r) => r.isTick).map((r) => r.i);
+
+  // What is actually drawn, so the key below can describe only that.
+  const hasForecast = rows.some((r) => r.forecast !== null);
+  const hasNormal = rows.some((r) => r.normal !== null);
+  const hasBand = rows.some((r) => r.range !== null);
 
   return (
     // The fixed height belongs to the PLOT ONLY. With the legend inside the
@@ -151,7 +161,11 @@ export default function ForecastChart({
                 : null,
             );
           }}
-          onMouseLeave={() => onHover?.(null)}
+          // NO onMouseLeave. On a touchscreen the leave event fires immediately
+          // after the tap, so the reading appeared and vanished in the same frame
+          // — which is what Amrita saw on her phone: the cursor line stayed, the
+          // number never did. Leaving the last value up is also better on a
+          // mouse: it is still the answer to the last thing you pointed at.
         >
           <CartesianGrid vertical={false} stroke="#eef0f1" />
           {/* A Tooltip that draws NOTHING. Recharts only tracks
@@ -177,8 +191,18 @@ export default function ForecastChart({
             tickLine={false}
             // Wide enough for three digits. At 44 with a negative left margin
             // the labels were clipped, so 122 rendered as "22".
-            width={38}
-          />
+            width={52}
+          >
+            {/* SAYS WHAT THE NUMBERS ARE. A chart of unlabelled values could
+                be AQI or µg/m³, which are different scales with the same
+                shape — the reader had no way to tell which. */}
+            <Label
+              value={unit ? `${unit}` : "AQI"}
+              angle={-90}
+              position="insideLeft"
+              style={{ fontSize: 10, fill: "#5c6b73", textAnchor: "middle" }}
+            />
+          </YAxis>
           {firstNormalIndex > 0 && (
             <ReferenceLine x={firstNormalIndex} stroke="#d4d8da" strokeDasharray="3 3" />
           )}
@@ -208,27 +232,37 @@ export default function ForecastChart({
       </ResponsiveContainer>
       </div>
 
+      {/* ONLY WHAT IS ON THE CHART. With every day a seasonal normal the key
+          still advertised "Forecast" and "Likely range", so it described a
+          picture the reader could not see and implied we had predictions we do
+          not have. */}
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-0.5 w-5" style={{ background: FORECAST }} />
-          Forecast
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-2.5 w-5 rounded-sm"
-            style={{ background: FORECAST, opacity: 0.2 }}
-          />
-          Likely range
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-0.5 w-5"
-            style={{
-              backgroundImage: `repeating-linear-gradient(to right, ${NORMAL} 0 5px, transparent 5px 9px)`,
-            }}
-          />
-          Seasonal normal
-        </span>
+        {hasForecast && (
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-0.5 w-5" style={{ background: FORECAST }} />
+            Forecast
+          </span>
+        )}
+        {hasBand && (
+          <span className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-2.5 w-5 rounded-sm"
+              style={{ background: FORECAST, opacity: 0.2 }}
+            />
+            Likely range
+          </span>
+        )}
+        {hasNormal && (
+          <span className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-0.5 w-5"
+              style={{
+                backgroundImage: `repeating-linear-gradient(to right, ${NORMAL} 0 5px, transparent 5px 9px)`,
+              }}
+            />
+            Seasonal normal
+          </span>
+        )}
       </div>
     </div>
   );
