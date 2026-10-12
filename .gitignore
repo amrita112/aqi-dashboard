@@ -32,6 +32,8 @@ memory_commented.md
 # research notebooks — kept local (may embed API keys / sample data in outputs)
 /notebooks/
 !/notebooks/.gitkeep
+/notes
+/contrib
 
 # python
 __pycache__/
@@ -61,3 +63,5 @@ next-env.d.ts
 # here for local testing must never be committed.
 /contrib/forecasting/data
 /contrib/forecasting/cache_xkdr_*.parquet
+/contrib
+/contrib/forecasting

@@ -292,8 +292,8 @@ export default function AskScreen() {
           to refer to. And the allowance was invisible until it ran out, which
           is the worst moment to learn about it. */}
       <p className="mt-4 px-1 text-xs text-gray-500">
-        Each question is answered on its own — it cannot see what you asked before, so
-        include the place and the day you mean.
+        Each question is answered on its own. The AI cannot see what you asked before, so
+        it does not have your previous questions and its answers in context.
         {remaining !== null && (
           <>
             {" "}

@@ -14,13 +14,13 @@
  * ever sees the placeholder.
  */
 
-export const APP_NAME = "Hawology";
+export const APP_NAME = "AirGyaan";
 
 /** Shown under a home-screen icon, where roughly 12 characters survive. */
-export const APP_SHORT_NAME = "Hawology";
+export const APP_SHORT_NAME = "AirGyaan";
 
 export const APP_DESCRIPTION =
-  "Tomorrow's air quality for seven Indian cities, built from the public monitoring network — and honest about how old the data is.";
+  "A weather app for AQI, so you can take control of your exposure to hazardous air.";
 
 /**
  * The colour the OS paints around the app: status bar on Android, the frame on
