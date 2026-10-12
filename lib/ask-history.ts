@@ -99,11 +99,11 @@ export function suggestNext(tools: string[], place: string): string | null {
   const last = tools[tools.length - 1];
   switch (last) {
     case "rest_of_today":
-      return `Which hours are cleanest tomorrow in ${place}?`;
+      return `How will the air quality be tomorrow in ${place}?`;
     case "best_hour":
-      return `Which hours are cleanest the day after tomorrow in ${place}?`;
+      return `What do the next few days look like in ${place}?`;
     case "forecast":
-      return `Which hours are cleanest today in ${place}?`;
+      return `What's the best time of the day today in ${place}?`;
     case "rank_places":
       return `What is the forecast for ${place} this week?`;
     case "history":
@@ -111,7 +111,7 @@ export function suggestNext(tools: string[], place: string): string | null {
     case "compare":
       return `What is the forecast for ${place} tomorrow?`;
     case "current_aqi":
-      return `Which hours are cleanest today in ${place}?`;
+      return `What's the forecast for the next few hours in ${place}?`;
     default:
       return null;
   }

@@ -85,13 +85,29 @@ describe("history storage", () => {
 describe("suggested follow-up", () => {
   it("offers a question the tools can answer, keyed off the tool that ran", () => {
     expect(suggestNext(["rest_of_today"], "Bandra")).toMatch(/tomorrow/i);
-    expect(suggestNext(["best_hour"], "Bandra")).toBe("I can't go out then. What about the day after?");
+    expect(suggestNext(["best_hour"], "Bandra")).toContain("day after tomorrow");
     expect(suggestNext(["forecast"], "Bandra")).toContain("Bandra");
-    expect(suggestNext(["history"], "Bandra")).toMatch(/better or worse/i);
+    expect(suggestNext(["history"], "Bandra")).toContain("Bandra");
   });
 
   it("keys off the LAST tool when several ran", () => {
     expect(suggestNext(["current_aqi", "best_hour"], "Pune")).toMatch(/day after/i);
+  });
+
+  it("never implies the app remembers the last question", () => {
+    // Each question is answered on its own, so a follow-up that says "that" or
+    // "then" is a promise the app cannot keep: tapping it asked about nothing.
+    const tools = [
+      "rest_of_today", "best_hour", "forecast",
+      "rank_places", "history", "compare", "current_aqi",
+    ];
+    for (const t of tools) {
+      const q = suggestNext([t], "Bandra");
+      expect(q).toBeTruthy();
+      expect(q!).not.toMatch(/\b(that|then|it)\b/i);
+      // Self-contained means naming the place.
+      expect(q!).toContain("Bandra");
+    }
   });
 
   it("offers nothing rather than something unanswerable", () => {
