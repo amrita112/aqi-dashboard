@@ -29,6 +29,7 @@ import { loadPrefs, type Prefs } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
 import AnswerChart from "@/components/AnswerChart";
 import type { AnswerChart as ChartSpec, Provenance } from "@/lib/ai/chart";
+import { trackFailure, trackQuestion, type FailureReason } from "@/lib/analytics";
 import {
   addToHistory,
   loadHistory,
@@ -112,12 +113,24 @@ export default function AskScreen() {
         });
         const body = await res.json();
         if (!res.ok) {
+          const quota =
+            body?.error?.code === "out_of_questions" ? (body.error.quota as QuotaInfo) : null;
+          // A FIXED SET OF REASONS, never the question or the message. The
+          // point is to learn how often we decline and why, not to accumulate
+          // a record of what people are worried about.
+          const reason: FailureReason = quota
+            ? "out_of_questions"
+            : res.status === 503
+              ? "provider_error"
+              : "no_data";
+          trackFailure(reason);
+          trackQuestion(quota ? "quota" : "error", null);
           setState({
             status: "error",
             question: trimmed,
             message: body?.error?.message ?? "Something went wrong.",
             unavailable: res.status === 503,
-            quota: body?.error?.code === "out_of_questions" ? (body.error.quota as QuotaInfo) : null,
+            quota,
           });
           return;
         }
@@ -132,9 +145,16 @@ export default function AskScreen() {
         if (typeof body.meta?.remaining_today === "number") {
           setRemaining(body.meta.remaining_today);
         }
+        // The LAST tool is the one the sentence is about. "none" means the
+        // model answered without looking anything up, which is usually a
+        // refusal — worth knowing separately from a tool-backed answer.
+        const lastTool = entry.tools.length ? entry.tools[entry.tools.length - 1] : null;
+        trackQuestion(lastTool ? "answered" : "no_tool", lastTool);
         setHistory((h) => addToHistory(entry, h));
         setState({ status: "answered", entry, cached: false });
       } catch {
+        trackFailure("network");
+        trackQuestion("error", null);
         setState({
           status: "error",
           question: trimmed,

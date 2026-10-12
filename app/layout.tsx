@@ -12,6 +12,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import TabBar from "@/components/TabBar";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import { Analytics } from "@vercel/analytics/next";
 import { APP_NAME, APP_DESCRIPTION, THEME_COLOR } from "@/lib/brand";
 
 const geistSans = localFont({
@@ -78,6 +79,10 @@ export default function RootLayout({
         <div className="pb-20 lg:pb-8 lg:pl-56">{children}</div>
         <TabBar />
         <ServiceWorkerRegistration />
+        {/* Cookieless and identifier-free, so no consent banner and nothing
+            that follows anyone between visits. Page views alone answer "which
+            tab do people use", because every tab is a real route. */}
+        <Analytics />
       </body>
     </html>
   );

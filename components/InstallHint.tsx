@@ -27,6 +27,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { trackInstalled } from "@/lib/analytics";
 
 const DISMISSED_KEY = "aqi.installHint.dismissed";
 
@@ -98,8 +99,14 @@ export default function InstallHint() {
     // iOS never fires it and has no API, so Safari still gets instructions.
     if (isIosSafari()) setShow(true);
 
-    // Nothing left to offer once it is installed.
-    const onInstalled = () => setShow(false);
+    // THE NUMBER THAT MATTERS MOST. `appinstalled` is the only signal a PWA
+    // gives that someone actually added it to a home screen rather than
+    // bookmarking a tab — there is no download to count. Fired by the browser
+    // whichever route they took, so it also catches Android's own menu.
+    const onInstalled = () => {
+      trackInstalled("browser");
+      setShow(false);
+    };
     window.addEventListener("appinstalled", onInstalled);
     return () => {
       window.removeEventListener("beforeinstallprompt", onPrompt);
@@ -134,6 +141,10 @@ export default function InstallHint() {
                 onClick={async () => {
                   await chromePrompt.prompt();
                   const { outcome } = await chromePrompt.userChoice;
+                  // Separately from `appinstalled`, so the two can be compared:
+                  // this one says our button did it, rather than the browser
+                  // menu. If these diverge, the hint is not working.
+                  if (outcome === "accepted") trackInstalled("prompt");
                   // The event is single-use either way: Chrome will fire a new
                   // one if it is still willing later.
                   setChromePrompt(null);
