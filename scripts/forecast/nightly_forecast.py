@@ -47,6 +47,11 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.forecast.bias_correction import (  # noqa: E402
+    apply_offset,
+    city_day_errors,
+    decide,
+)
 from scripts.forecast.refit_params import APP_TO_ANALYSIS, MIN_HISTORY_DAYS  # noqa: E402
 from scripts.ingest.lib.config import TARGET_STATIONS_PATH, ist_today  # noqa: E402
 from scripts.ingest.lib.supabase_client import make_client  # noqa: E402
