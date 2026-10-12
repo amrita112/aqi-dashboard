@@ -142,6 +142,27 @@ export default function ForecastChart({
   const hasNormal = rows.some((r) => r.normal !== null);
   const hasBand = rows.some((r) => r.range !== null);
 
+  /**
+   * Report the point under the pointer to the caller, for mouse and finger
+   * alike. One function used by both events so they cannot drift apart.
+   */
+  // recharts types the index as number | string | null: a categorical chart
+  // can key its tooltip by label rather than position. Ours is numeric, hence
+  // the typeof check below rather than a cast.
+  const report = (
+    state: { activeTooltipIndex?: number | string | null } | undefined,
+  ) => {
+    if (!onHover) return;
+    const i = state?.activeTooltipIndex;
+    const r = typeof i === "number" ? rows[i] : undefined;
+    const v = r?.forecast ?? r?.normal;
+    onHover(
+      r && v !== null && v !== undefined
+        ? `${r.clock} · ${Math.round(v)}${unit ? ` ${unit}` : ""}`
+        : null,
+    );
+  };
+
   return (
     // The fixed height belongs to the PLOT ONLY. With the legend inside the
     // sized box it overflowed the bottom and printed on top of whatever
@@ -157,17 +178,14 @@ export default function ForecastChart({
           // band as a second row — a [low, high] pair, which formats as
           // "NaN µg/m³". Reporting the hovered point in the card header leaves
           // the chart unobscured and has nothing to mis-format.
-          onMouseMove={(state) => {
-            if (!onHover) return;
-            const i = state?.activeTooltipIndex;
-            const r = typeof i === "number" ? rows[i] : undefined;
-            const v = r?.forecast ?? r?.normal;
-            onHover(
-              r && v !== null && v !== undefined
-                ? `${r.clock} · ${Math.round(v)}${unit ? ` ${unit}` : ""}`
-                : null,
-            );
-          }}
+          onMouseMove={report}
+          // AND ON TOUCH, which is the only way most people will ever use this.
+          // recharts fires onMouseMove from a mouse ONLY; a finger dragged
+          // across the chart moved the cursor line but called nothing, so the
+          // readout stayed empty on a phone — the chart looked broken on the
+          // device it was designed for. recharts does track the active point on
+          // touchmove, so the same handler on the touch event is the whole fix.
+          onTouchMove={report}
           // NO onMouseLeave. On a touchscreen the leave event fires immediately
           // after the tap, so the reading appeared and vanished in the same frame
           // — which is what Amrita saw on her phone: the cursor line stayed, the

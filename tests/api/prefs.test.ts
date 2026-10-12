@@ -167,3 +167,27 @@ describe("the explanation shown at first run", () => {
     expect(MEASUREMENT_COPY.aqi.unit).toBe("");
   });
 });
+
+describe("clearPrefs", () => {
+  it("forgets everything the app stored, not just the three answers", () => {
+    // The point of the button in Settings is to put the device back where a
+    // first-time user starts. Leaving the install banner dismissed and old
+    // questions cached meant a reset could not be used to test first run.
+    savePrefs(VALID);
+    window.localStorage.setItem("aqi.ask.v1", JSON.stringify([{ q: "test" }]));
+    window.localStorage.setItem("aqi.installHint.dismissed", "1");
+
+    clearPrefs();
+
+    expect(window.localStorage.getItem(PREFS_KEY)).toBeNull();
+    expect(window.localStorage.getItem("aqi.ask.v1")).toBeNull();
+    expect(window.localStorage.getItem("aqi.installHint.dismissed")).toBeNull();
+  });
+
+  it("survives storage that throws", () => {
+    vi.spyOn(window.localStorage, "removeItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    expect(() => clearPrefs()).not.toThrow();
+  });
+});

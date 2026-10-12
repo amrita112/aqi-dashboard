@@ -162,6 +162,16 @@ export default function HomeScreen() {
     <div className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0">
       <h1 className="text-2xl font-bold tracking-tight lg:col-span-2">{APP_NAME}</h1>
 
+      {/* AT THE TOP, not at the bottom of the page. Someone looking at this in
+          a phone browser is the person who most needs to know it installs, and
+          at the foot of the screen — below the forecast and a map — it was
+          past the fold and nobody saw it. It renders nothing at all once the
+          app is installed, or once dismissed, so the cost to everyone else is
+          zero. */}
+      <div className="lg:col-span-2">
+        <InstallHint />
+      </div>
+
       {/* The question box leads, because it is the thing this app does that
           nothing else does. */}
       <Link
@@ -251,13 +261,23 @@ export default function HomeScreen() {
               {unit ? ` · ${unit}` : ""}
             </span>
           </div>
-          <div className="mt-2">
-            <ForecastChart days={points} unit={unit} onHover={setHovered} heightClass="h-[26vh] min-h-[150px] max-h-[240px]" />
+          <div className="mt-1.5">
+            <ForecastChart
+              days={points}
+              unit={unit}
+              onHover={setHovered}
+              /* SHORTER THAN IT WAS (26vh). The whole home screen did not fit
+                 on Amrita's phone, and the forecast card was the tallest thing
+                 on it: a plot, a legend, and two sentences under it. The curve
+                 is still legible at this height because what it has to show is
+                 one rise and one fall across a day. */
+              heightClass="h-[19vh] min-h-[112px] max-h-[180px]"
+            />
           </div>
 
           {tomorrow && (
             <p
-              className={`mt-4 border-t border-gray-100 pt-3 text-sm ${
+              className={`mt-3 border-t border-gray-100 pt-2.5 text-sm ${
                 overThreshold ? "font-semibold text-red-700" : "text-gray-900"
               }`}
             >
@@ -284,9 +304,6 @@ export default function HomeScreen() {
         <HomeMap heightClass="h-[26vh] min-h-[150px] max-h-[260px] lg:h-80" showHeader={false} />
       </section>
 
-      <div className="lg:col-span-2">
-        <InstallHint />
-      </div>
     </div>
   );
 }

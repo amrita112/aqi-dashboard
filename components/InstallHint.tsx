@@ -126,15 +126,18 @@ export default function InstallHint() {
   }
 
   return (
-    <aside className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+    <aside className="rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-semibold text-blue-950">Keep this on your home screen</h2>
           {chromePrompt ? (
             <>
-              <p className="mt-1 text-sm text-blue-950/90">
-                It opens full screen, like an app, and works the same offline message when
-                you have no signal.
+              {/* ONE LINE, not three. This sits at the top of the home screen
+                  now, and the home screen is already tight on a phone — a
+                  four-line banner above the number someone opened the app to
+                  read is the wrong trade. */}
+              <p className="mt-0.5 text-sm text-blue-950/90">
+                It opens full screen, like an app.
               </p>
               <button
                 type="button"
@@ -150,15 +153,15 @@ export default function InstallHint() {
                   setChromePrompt(null);
                   if (outcome === "accepted") setShow(false);
                 }}
-                className="mt-3 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white"
+                className="mt-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white"
               >
                 Install
               </button>
             </>
           ) : (
-            <p className="mt-1 text-sm text-blue-950/90">
+            <p className="mt-0.5 text-sm text-blue-950/90">
               Tap <ShareIcon /> <strong>Share</strong> at the bottom of Safari, then{" "}
-              <strong>Add to Home Screen</strong>. It opens full screen, like an app.
+              <strong>Add to Home Screen</strong>.
             </p>
           )}
         </div>

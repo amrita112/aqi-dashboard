@@ -119,6 +119,31 @@ export default function TrendsChart({
   const hasSeasonal = live.some((s) => s.points.some((p) => p.seasonal === true));
   const hasSolid = live.some((s) => s.points.some((p) => p.seasonal !== true && p.value !== null));
 
+  /**
+   * Report the point under the pointer. Shared by the mouse and touch events so
+   * a phone and a laptop can never show different things.
+   */
+  // recharts types the index as number | string | null: a categorical chart
+  // can key its tooltip by label rather than position. Ours is numeric, hence
+  // the typeof check below rather than a cast.
+  const report = (
+    state: { activeTooltipIndex?: number | string | null } | undefined,
+  ) => {
+    if (!onHover) return;
+    const i = state?.activeTooltipIndex;
+    const r = typeof i === "number" ? rows[i] : undefined;
+    if (!r) return onHover(null);
+    const parts = live
+      .map((s) => {
+        const v = (r[s.key] ?? r[`${s.key}__seasonal`]) as number | null;
+        return v === null || v === undefined
+          ? null
+          : `${live.length > 1 ? `${s.label}: ` : ""}${Math.round(v)}`;
+      })
+      .filter(Boolean);
+    onHover(parts.length ? `${r.full} · ${parts.join("  ")}${unit ? ` ${unit}` : ""}` : null);
+  };
+
   return (
     <div className="w-full">
       <div style={{ height }} className="w-full">
@@ -129,21 +154,11 @@ export default function TrendsChart({
             // Reported in the card header rather than a floating box: the box
             // covered the line it described, and listed the shaded band as a
             // [low, high] pair, which formats as "NaN".
-            onMouseMove={(state) => {
-              if (!onHover) return;
-              const i = state?.activeTooltipIndex;
-              const r = typeof i === "number" ? rows[i] : undefined;
-              if (!r) return onHover(null);
-              const parts = live
-                .map((s) => {
-                  const v = (r[s.key] ?? r[`${s.key}__seasonal`]) as number | null;
-                  return v === null || v === undefined
-                    ? null
-                    : `${live.length > 1 ? `${s.label}: ` : ""}${Math.round(v)}`;
-                })
-                .filter(Boolean);
-              onHover(parts.length ? `${r.full} · ${parts.join("  ")}${unit ? ` ${unit}` : ""}` : null);
-            }}
+            onMouseMove={report}
+            // AND ON TOUCH. recharts fires onMouseMove only for a mouse, so a
+            // finger dragged across the chart moved the cursor line and
+            // reported nothing — the readout never appeared on a phone.
+            onTouchMove={report}
             // NO onMouseLeave. On a touchscreen the leave event fires immediately
           // after the tap, so the reading appeared and vanished in the same frame
           // — which is what Amrita saw on her phone: the cursor line stayed, the

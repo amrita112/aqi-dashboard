@@ -86,6 +86,8 @@ export default function StationDetail({
   onClose: () => void;
 }) {
   const [range, setRange] = useState<DetailRange>("forecast7");
+  /** The point under the finger, shown under the station name. */
+  const [hovered, setHovered] = useState<string | null>(null);
   const [days, setDays] = useState<Day[] | null>(null);
   const [history, setHistory] = useState<{ date: string; value: number }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +165,13 @@ export default function StationDetail({
             {station.age_days !== null &&
               ` · measured ${station.age_days === 0 ? "today" : `${station.age_days} d ago`}`}
           </p>
+          {/* The reading under the finger. Here rather than in a floating box
+              over the line, matching the Home and Trends cards — and the
+              station chart had no readout at all before, so dragging across it
+              on a phone showed a cursor and no number. */}
+          {hovered && (
+            <p className="mt-0.5 truncate text-xs font-medium text-gray-900">{hovered}</p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <select
@@ -209,7 +218,7 @@ export default function StationDetail({
               No forecast stored for this station.
             </p>
           ) : (
-            <ForecastChart days={points} unit={unit} />
+            <ForecastChart days={points} unit={unit} onHover={setHovered} />
           )
         )}
       </div>

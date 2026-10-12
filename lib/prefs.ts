@@ -101,9 +101,28 @@ export function savePrefs(prefs: Omit<Prefs, "version" | "saved_at">): Prefs | n
   }
 }
 
+/**
+ * Forget everything this app has stored on the device.
+ *
+ * EVERY KEY, not just the preferences. Clearing only the answers left the app
+ * in a state no real first-time user is ever in: back at the setup questions,
+ * but with the install banner still dismissed and old questions in the Ask
+ * tab's history. That makes it impossible to test the first run honestly,
+ * which is the main reason this button exists.
+ *
+ * Any new localStorage key belongs in this list. Prefix-matching everything
+ * under "aqi." would catch them automatically, but it would also quietly wipe
+ * anything a future version stores that is NOT a preference, so the list is
+ * explicit.
+ */
 export function clearPrefs(): void {
+  const keys = [
+    PREFS_KEY,
+    "aqi.ask.v1", // the Ask tab's cached questions and answers
+    "aqi.installHint.dismissed", // the "Add to Home Screen" banner
+  ];
   try {
-    window.localStorage.removeItem(PREFS_KEY);
+    for (const key of keys) window.localStorage.removeItem(key);
   } catch {
     /* nothing to do */
   }
