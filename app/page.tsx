@@ -23,8 +23,10 @@ export const metadata = {
 };
 
 export default function Home() {
+  // Less padding on a phone than on a laptop: py-8 spent 64px of a 390px
+  // screen's height on empty margin. The laptop keeps it, having the room.
   return (
-    <main className="mx-auto max-w-lg lg:max-w-5xl px-5 py-8">
+    <main className="mx-auto max-w-lg lg:max-w-5xl px-5 py-4 lg:py-8">
       <HomeScreen />
     </main>
   );

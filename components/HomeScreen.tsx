@@ -178,8 +178,13 @@ export default function HomeScreen() {
         href="/ask"
         className="block rounded-xl border border-gray-200 bg-white p-3.5 text-center shadow-sm transition hover:bg-gray-50 lg:col-span-2"
       >
-        <span className="block text-lg font-semibold">Ask AI: When should I go out?</span>
-        <span className="mt-1 block text-sm text-gray-500">
+        {/* SMALLER TYPE, same box. The home screen still did not fit on a
+            phone, and this card is above the number someone opened the app to
+            read — it should point at the Ask tab, not compete with the
+            headline. Font size only; the padding and the two-line shape are
+            from the September sketch. */}
+        <span className="block text-base font-semibold">Ask AI: When should I go out?</span>
+        <span className="mt-0.5 block text-xs text-gray-500">
           Suggestions based on {short} data
         </span>
       </Link>
@@ -301,7 +306,10 @@ export default function HomeScreen() {
       )}
 
       <section className="overflow-hidden rounded-xl border border-gray-200 lg:col-span-2">
-        <HomeMap heightClass="h-[26vh] min-h-[150px] max-h-[260px] lg:h-80" showHeader={false} />
+        {/* SHORTER (was 26vh). The map on Home is orientation — where you are
+            and roughly what is around you — and the Map tab is where someone
+            goes to actually read it. The tab keeps its full 60vh. */}
+        <HomeMap heightClass="h-[18vh] min-h-[104px] max-h-[190px] lg:h-80" showHeader={false} />
       </section>
 
     </div>
