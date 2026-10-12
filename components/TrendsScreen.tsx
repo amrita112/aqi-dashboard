@@ -202,7 +202,11 @@ export default function TrendsScreen() {
             if (taken >= 24) return;
             taken += 1;
             points.push({
-              label: h.hour % 6 === 0 ? clock(h.hour) : "",
+              // DATE AND TIME ON SEPARATE TIERS. The date appears once, at the
+              // first hour of each calendar day it covers — this range crosses
+              // midnight, so there are two.
+              label: taken === 1 || h.hour === 0 ? humanDate(d.target_date) : "",
+              hourLabel: h.hour % 6 === 0 ? clock(h.hour) : "",
               full: `${humanDate(d.target_date)}, ${clock(h.hour)}`,
               value: h.value,
               low: h.band_low,
@@ -217,15 +221,11 @@ export default function TrendsScreen() {
           if (hours.length === 24) {
             hours.forEach((h) => {
               points.push({
-                // The date at noon, a bare hour at 6am and 6pm. Showing the
-                // diurnal curve is useless if the reader cannot place a peak
-                // against the clock.
-                label:
-                  h.hour === 12
-                    ? humanDate(d.target_date)
-                    : h.hour === 6 || h.hour === 18
-                      ? clock(h.hour)
-                      : "",
+                // The date at noon on the lower tier; the clock on its own
+                // tier above it. Interleaved on one axis these alternated two
+                // vocabularies in one line and read as noise.
+                label: h.hour === 12 ? humanDate(d.target_date) : "",
+                hourLabel: h.hour === 6 || h.hour === 18 ? clock(h.hour) : "",
                 full: `${humanDate(d.target_date)}, ${clock(h.hour)}`,
                 value: h.value,
                 low: h.band_low,
@@ -266,12 +266,8 @@ export default function TrendsScreen() {
             label: pl.label,
             color: colour,
             points: hourly.map((r) => ({
-              label:
-                r.hour === 12
-                  ? humanDate(r.date)
-                  : r.hour === 6 || r.hour === 18
-                    ? clock(r.hour)
-                    : "",
+              label: r.hour === 12 ? humanDate(r.date) : "",
+              hourLabel: r.hour === 6 || r.hour === 18 ? clock(r.hour) : "",
               full: `${humanDate(r.date)}, ${clock(r.hour)}`,
               value: r.value,
             })),

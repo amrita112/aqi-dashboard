@@ -33,6 +33,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { hoveredIndex } from "@/lib/chart-hover";
 
 export interface ForecastDayInput {
   target_date: string;
@@ -49,8 +50,7 @@ const NORMAL = "#5c6b73";
 
 interface Row {
   i: number;
-  label: string;
-  isTick: boolean;
+  hour: number;
   forecast: number | null;
   normal: number | null;
   range: [number, number] | null;
@@ -82,6 +82,8 @@ export default function ForecastChart({
 }) {
   const rows: Row[] = [];
   let firstNormalIndex = -1;
+  /** Where each day starts and ends in `rows`, for the day tier of the axis. */
+  const daySpans: { label: string; start: number; end: number }[] = [];
 
   for (const d of days) {
     const hours = d.hourly?.length
@@ -95,6 +97,7 @@ export default function ForecastChart({
           band_high: d.band_high,
         }));
 
+    const dayStart = rows.length;
     for (const h of hours) {
       const seasonal = d.mode === "seasonal_normal";
       if (seasonal && firstNormalIndex === -1) firstNormalIndex = rows.length;
@@ -102,14 +105,15 @@ export default function ForecastChart({
       const hi = h.band_high ?? null;
       rows.push({
         i: rows.length,
-        // The day's name at noon, a bare hour at 6am and 6pm, nothing between.
-        label: h.hour === 12 ? d.label : h.hour === 6 || h.hour === 18 ? clockOf(h.hour) : "",
-        isTick: h.hour === 6 || h.hour === 12 || h.hour === 18,
+        hour: h.hour,
         forecast: seasonal ? null : h.value,
         normal: seasonal ? h.value : null,
         range: lo !== null && hi !== null ? [lo, hi] : null,
         clock: `${d.label} ${clockOf(h.hour)}`,
       });
+    }
+    if (rows.length > dayStart) {
+      daySpans.push({ label: d.label, start: dayStart, end: rows.length - 1 });
     }
   }
 
@@ -130,12 +134,27 @@ export default function ForecastChart({
   // drawn as a flat line against a zero baseline.
   const pad = Math.max(6, (hi - lo) * 0.18);
 
-  // TICKS AT SIX-HOURLY MARKS, not one per day. With the diurnal curve drawn,
-  // a label only at noon left no way to read WHEN a peak was — Amrita's point
-  // that showing the within-day shape is useless if the reader cannot place it
-  // against the clock. Days still get their name; the marks between get an
-  // hour.
-  const ticks = rows.filter((r) => r.isTick).map((r) => r.i);
+  // TWO TIERS, DATE AND TIME IN DIFFERENT PLACES. One axis carrying
+  // "6am Today 6pm 6am Thu 6pm" alternated two kinds of label in one line and
+  // read as noise: fifteen labels across a 350px phone axis, in two different
+  // vocabularies, none of them grouped with the day it belonged to.
+  //
+  // Now the day name sits CENTRED UNDER ITS OWN DAY on the lower tier, with
+  // faint rules at midnight so the eye can see where one day ends. The hour
+  // tier sits between that and the plot.
+  //
+  // HOURS ONLY WHEN THEY FIT. Six-hourly marks across five days is fifteen
+  // labels, which collide at any readable font size; across one or two days it
+  // is three to six, which is comfortable. Beyond two days the clock comes
+  // from the readout above the chart instead, which gives the exact hour under
+  // the finger rather than the nearest label.
+  const dayTicks = daySpans.map((d) => Math.round((d.start + d.end) / 2));
+  const dayLabelAt = new Map(daySpans.map((d, k) => [dayTicks[k], d.label]));
+  const dayBoundaries = daySpans.slice(1).map((d) => d.start);
+  const showHours = daySpans.length <= 2;
+  const hourTicks = showHours
+    ? rows.filter((r) => r.hour % 6 === 0 && r.hour !== 0).map((r) => r.i)
+    : [];
 
   // What is actually drawn, so the key below can describe only that.
   const hasForecast = rows.some((r) => r.forecast !== null);
@@ -146,15 +165,12 @@ export default function ForecastChart({
    * Report the point under the pointer to the caller, for mouse and finger
    * alike. One function used by both events so they cannot drift apart.
    */
-  // recharts types the index as number | string | null: a categorical chart
-  // can key its tooltip by label rather than position. Ours is numeric, hence
-  // the typeof check below rather than a cast.
   const report = (
     state: { activeTooltipIndex?: number | string | null } | undefined,
   ) => {
     if (!onHover) return;
-    const i = state?.activeTooltipIndex;
-    const r = typeof i === "number" ? rows[i] : undefined;
+    const i = hoveredIndex(state, rows.length);
+    const r = i === null ? undefined : rows[i];
     const v = r?.forecast ?? r?.normal;
     onHover(
       r && v !== null && v !== undefined
@@ -199,12 +215,32 @@ export default function ForecastChart({
               keeps the tracking and the cursor line and renders no box, because the
               reading goes in the card header. */}
           <Tooltip content={() => null} cursor={{ stroke: "#9aa5ab", strokeWidth: 1 }} />
+          {/* The hour tier, nearest the plot. Declared first so it stacks
+              above the day tier; no axis line of its own, because two rules
+              under one chart look like two charts. */}
+          {showHours && (
+            <XAxis
+              xAxisId="hours"
+              dataKey="i"
+              type="number"
+              domain={[0, rows.length - 1]}
+              ticks={hourTicks}
+              tickFormatter={(i) => clockOf(rows[i as number]?.hour ?? 0)}
+              tick={{ fontSize: 10, fill: "#8b959b" }}
+              axisLine={false}
+              tickLine={false}
+              height={14}
+            />
+          )}
+          {/* The day tier. This is axis 0, the one the lines are plotted
+              against — the hour tier is decoration, so it is the one that may
+              be absent. */}
           <XAxis
             dataKey="i"
             type="number"
             domain={[0, rows.length - 1]}
-            ticks={ticks}
-            tickFormatter={(i) => rows[i as number]?.label ?? ""}
+            ticks={dayTicks}
+            tickFormatter={(i) => dayLabelAt.get(i as number) ?? ""}
             tick={{ fontSize: 11, fill: "#5c6b73" }}
             stroke="#d4d8da"
             tickLine={false}
@@ -228,6 +264,14 @@ export default function ForecastChart({
               style={{ fontSize: 10, fill: "#5c6b73", textAnchor: "middle" }}
             />
           </YAxis>
+          {/* MIDNIGHT. Faint, solid, unlabelled: with the day name centred
+              rather than printed at a tick, these are what say where one day
+              stops and the next begins. */}
+          {dayBoundaries.map((b) => (
+            <ReferenceLine key={`day-${b}`} x={b} stroke="#eef0f1" strokeWidth={1} />
+          ))}
+          {/* Where prediction stops. Darker and dashed, so it reads as a
+              different kind of line from the midnight rules. */}
           {firstNormalIndex > 0 && (
             <ReferenceLine x={firstNormalIndex} stroke="#d4d8da" strokeDasharray="3 3" />
           )}

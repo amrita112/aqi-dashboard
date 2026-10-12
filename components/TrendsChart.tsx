@@ -26,10 +26,20 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { hoveredIndex } from "@/lib/chart-hover";
 
 export interface SeriesPoint {
-  /** Axis label; empty for points between ticks. */
+  /** Day/date tier of the axis; empty for points between ticks. */
   label: string;
+  /**
+   * Hour tier of the axis, on a separate row from the date.
+   *
+   * One axis alternating "6am 12 Oct 6pm" mixed two vocabularies in one line
+   * and grouped neither with what it belonged to. Dates go on the lower tier,
+   * clock times on the upper one, and a caller that has no hours simply omits
+   * this and gets one tier.
+   */
+  hourLabel?: string;
   /** Readout label, always present. */
   full: string;
   value: number | null;
@@ -78,6 +88,7 @@ export default function TrendsChart({
     const row: Record<string, string | number | null | [number, number]> = {
       i,
       label: p.label,
+      hourLabel: p.hourLabel ?? "",
       full: p.full,
     };
     for (const s of live) {
@@ -114,6 +125,16 @@ export default function TrendsChart({
     ? rows.filter((r) => r.label !== "").map((r) => r.i as number)
     : undefined;
 
+  // The hour tier, present only when the caller supplied clock labels AND
+  // there are few enough to read. A seven-day hourly view asks for 6am and 6pm
+  // on every day, which is fourteen labels across a 350px phone axis — they
+  // collide, and a row of overlapping times is worse than no row at all. Past
+  // the cap the clock comes from the readout above the chart, which gives the
+  // exact hour under the finger rather than the nearest label.
+  const MAX_HOUR_LABELS = 8;
+  const allHourTicks = rows.filter((r) => r.hourLabel !== "").map((r) => r.i as number);
+  const hourTicks = allHourTicks.length <= MAX_HOUR_LABELS ? allHourTicks : [];
+
   const hasBand = live.some((s) => s.points.some((p) => p.low != null && p.high != null));
   // A seasonal tail is drawn dashed; say so only when one is present.
   const hasSeasonal = live.some((s) => s.points.some((p) => p.seasonal === true));
@@ -123,15 +144,12 @@ export default function TrendsChart({
    * Report the point under the pointer. Shared by the mouse and touch events so
    * a phone and a laptop can never show different things.
    */
-  // recharts types the index as number | string | null: a categorical chart
-  // can key its tooltip by label rather than position. Ours is numeric, hence
-  // the typeof check below rather than a cast.
   const report = (
     state: { activeTooltipIndex?: number | string | null } | undefined,
   ) => {
     if (!onHover) return;
-    const i = state?.activeTooltipIndex;
-    const r = typeof i === "number" ? rows[i] : undefined;
+    const i = hoveredIndex(state, rows.length);
+    const r = i === null ? undefined : rows[i];
     if (!r) return onHover(null);
     const parts = live
       .map((s) => {
@@ -172,6 +190,24 @@ export default function TrendsChart({
                 keeps the tracking and the cursor line and renders no box, because the
                 reading goes in the card header. */}
             <Tooltip content={() => null} cursor={{ stroke: "#9aa5ab", strokeWidth: 1 }} />
+            {/* The hour tier, nearest the plot and with no axis line of its
+                own. Declared first so it stacks above the date tier. */}
+            {hourTicks.length > 0 && (
+              <XAxis
+                xAxisId="hours"
+                dataKey="i"
+                type="number"
+                domain={[0, rows.length - 1]}
+                ticks={hourTicks}
+                tickFormatter={(i) => String(rows[i as number]?.hourLabel ?? "")}
+                tick={{ fontSize: 10, fill: "#8b959b" }}
+                axisLine={false}
+                tickLine={false}
+                height={14}
+                interval={0}
+              />
+            )}
+            {/* The date tier. Axis 0, the one the lines are plotted against. */}
             <XAxis
               dataKey="i"
               type="number"
