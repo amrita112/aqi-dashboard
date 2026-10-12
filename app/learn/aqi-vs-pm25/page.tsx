@@ -72,9 +72,26 @@ export default function AqiVsPm25Page() {
             the index the same way CPCB defines it.
           </p>
           <p>
-            Historical data for fitting the forecast comes from the XKDR Forum&apos;s archive of
-            the same network, which reaches back to 2015 and is more complete than what the
-            live feed exposes.
+            Historical data for fitting the forecast comes from the XKDR Forum&apos;s India Air
+            Quality Database, an archive of the same network reaching back to 2015, more
+            complete than what the live feed exposes. Cited as they ask:
+          </p>
+          {/* XKDR's own citation format, verbatim. They ask that the database
+              be cited and both of its sources credited; the second source is
+              why this app's stations are not purely CPCB ones. */}
+          <p className="border-l-2 border-gray-200 pl-3 text-sm text-gray-600">
+            XKDR Forum (2026). India Air Quality Database.{" "}
+            <a
+              href="https://airquality.xkdr.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              https://airquality.xkdr.org
+            </a>
+            <br />
+            Sources: Central Pollution Control Board (CPCB), Continuous Ambient Air Quality
+            Monitoring network; US Department of State air quality monitors, via AirNow.
           </p>
           <p>
             Nothing here is crowdsourced, estimated from satellite imagery, or modelled from

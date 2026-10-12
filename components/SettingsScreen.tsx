@@ -317,8 +317,9 @@ export default function SettingsScreen() {
         </h2>
         {/* CITED, because both sources ask to be and because the app's whole
             argument is that its numbers are someone else's measurements rather
-            than our estimates. Saying they both carry CPCB data matters too:
-            otherwise two names look like two independent confirmations. */}
+            than our estimates. Saying they mostly carry the same CPCB data
+            matters too: otherwise two names look like two independent
+            confirmations of a reading. */}
         <p className="mt-2 text-sm text-gray-700">
           Readings come from India&apos;s Central Pollution Control Board monitoring network,
           reaching us two ways:{" "}
@@ -330,19 +331,34 @@ export default function SettingsScreen() {
           >
             OpenAQ
           </a>{" "}
-          for recent measurements, and the{" "}
-          <a
-            href="https://xkdr.org"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
-            XKDR Forum
-          </a>
-          &apos;s archive for the years of history the forecast is fitted on. Both republish
-          CPCB data, so they are one source arriving by two routes rather than two independent
-          ones.
+          for recent measurements, and the XKDR Forum&apos;s India Air Quality Database for the
+          years of history the forecast is fitted on. Both carry the same CPCB stations, so for
+          any given reading they are one source arriving by two routes rather than two
+          independent ones.
         </p>
+
+        {/* XKDR'S OWN CITATION FORMAT, verbatim, because that is what they ask
+            for: the database cited and both of its sources credited. It is set
+            apart rather than woven into the prose above so it can be copied as
+            a citation — someone writing this up should not have to reassemble
+            it from a sentence. */}
+        <div className="mt-3 border-l-2 border-gray-200 pl-3 text-xs text-gray-600">
+          <p>
+            XKDR Forum (2026). India Air Quality Database.{" "}
+            <a
+              href="https://airquality.xkdr.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              https://airquality.xkdr.org
+            </a>
+          </p>
+          <p className="mt-1">
+            Sources: Central Pollution Control Board (CPCB), Continuous Ambient Air Quality
+            Monitoring network; US Department of State air quality monitors, via AirNow.
+          </p>
+        </div>
         <ul className="mt-3 space-y-3 text-sm">
           <li>
             {/* THE PETITION HAD NO LINK LEFT. It used to sit in the data-age box
