@@ -65,3 +65,5 @@ next-env.d.ts
 /contrib/forecasting/cache_xkdr_*.parquet
 /contrib
 /contrib/forecasting
+contrib/forecasting/baselines.py
+contrib/forecasting/forecast_feasibility.ipynb
