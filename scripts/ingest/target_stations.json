@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-04T10:48:33.916711+00:00",
+  "generated_at": "2026-10-11T11:04:29.087021+00:00",
   "source": "openaq",
   "pollutants": [
     "no2",
@@ -943,6 +943,32 @@
         }
       ],
       "monitor_id": "f2de683a-2f79-4474-94a0-a1cb3a9b554e"
+    },
+    {
+      "openaq_id": 6927,
+      "name": "Colaba, Mumbai - MPCB",
+      "latitude": 18.91,
+      "longitude": 72.82,
+      "city": "Mumbai",
+      "sensors": [
+        {
+          "sensor_id": 12235923,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12235925,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12235926,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12235928,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "01f1fa42-d93b-412c-b1ea-8d9bc3e41352"
     },
     {
       "openaq_id": 6929,
@@ -3039,32 +3065,6 @@
         }
       ],
       "monitor_id": "694b5f6c-190c-4a15-aa6a-2933574fb86a"
-    },
-    {
-      "openaq_id": 3409385,
-      "name": "RVCE-Mailasandra, Bengaluru - KSPCB",
-      "latitude": 12.921418,
-      "longitude": 77.502466,
-      "city": "Bangalore",
-      "sensors": [
-        {
-          "sensor_id": 12237570,
-          "parameter": "no2"
-        },
-        {
-          "sensor_id": 12237572,
-          "parameter": "pm10"
-        },
-        {
-          "sensor_id": 12237573,
-          "parameter": "pm25"
-        },
-        {
-          "sensor_id": 12237575,
-          "parameter": "so2"
-        }
-      ],
-      "monitor_id": "99790e88-812a-4f57-b52b-89ab2afb1aa4"
     },
     {
       "openaq_id": 3409388,
