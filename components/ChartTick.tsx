@@ -23,9 +23,17 @@ import type { ReactElement } from "react";
 const HOUR_FILL = "#8b959b";
 const DATE_FILL = "#5c6b73";
 
-/** Axis height to reserve, in px. Pass the same `showHours` as to the tick. */
+/**
+ * Axis height to reserve, in px. Pass the same `showHours` as to the tick.
+ *
+ * GENEROUS ON PURPOSE. Reserving only as much as the text needs had day names
+ * and dates sliced through the middle on every screen — the measurement is
+ * recharts' to make, not ours, and guessing it tightly loses the label
+ * entirely. A few px of white space below an axis costs nothing; half a date
+ * costs the axis.
+ */
 export function tickHeight(showHours: boolean): number {
-  return showHours ? 32 : 18;
+  return showHours ? 42 : 28;
 }
 
 interface TickProps {
@@ -46,7 +54,7 @@ export function twoTierTick(
   labelsAt: (index: number) => { hour?: string; date?: string },
   showHours: boolean,
 ): (props: TickProps) => ReactElement {
-  const dateDy = showHours ? 26 : 13;
+  const dateDy = showHours ? 29 : 15;
 
   return function Tick({ x = 0, y = 0, payload }: TickProps) {
     const raw = payload?.value;

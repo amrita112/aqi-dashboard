@@ -458,7 +458,8 @@ export async function executeTool(
           location: loc.label,
           error: "day_nearly_over",
           now_hour_ist: nowHour,
-          message: "Too little of today is left to advise on. Offer tomorrow instead.",
+          message:
+            "Too little of today is left to advise on. Do NOT answer with that alone: call current_aqi for the most recent measured reading and give it with its age, and offer tomorrow via best_hour.",
         };
       }
 

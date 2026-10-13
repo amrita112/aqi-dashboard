@@ -60,6 +60,23 @@ export interface Series {
 
 export const SERIES_COLORS = ["#c2410c", "#2a78d6"];
 
+/**
+ * What the chart reports under the finger.
+ *
+ * STRUCTURED, NOT A SENTENCE. With two places the readout was one grey string
+ * — "28 Sep · Pune (city average): 40 Delhi NCR · Lodhi Road: 24 µg/m³" —
+ * where the only cue separating one place from the next was a middle dot, and
+ * the names are long enough that the eye loses which number belongs to which.
+ * Handing the caller the parts lets each place be printed in its own line
+ * colour, which is the same cue the chart itself uses.
+ */
+export interface HoverReading {
+  /** The moment, e.g. "28 Sep" or "13 Oct, 7pm". */
+  when: string;
+  values: { label: string; value: string; color: string }[];
+  unit: string;
+}
+
 export default function TrendsChart({
   series,
   unit,
@@ -80,8 +97,8 @@ export default function TrendsChart({
   height?: number;
   /** Off when the caller already shows the colours, e.g. as place pills. */
   showKey?: boolean;
-  /** Hovered point, for the caller to show beside the card title. */
-  onHover?: (text: string | null) => void;
+  /** Hovered point, for the caller to render above the chart. */
+  onHover?: (reading: HoverReading | null) => void;
 }) {
   const live = series.filter((s) => s.points.some((p) => p.value !== null));
   if (!live.length) return null;
@@ -145,11 +162,20 @@ export default function TrendsChart({
 
   // One axis, two lines of text. See components/ChartTick for why this is not
   // two <XAxis> elements.
-  const dateTicks = ticks ?? rows.map((r) => r.i as number);
+  // THINNED. A 30-day history labels every row, and 30 dates across a phone's
+  // width overprinted into an unreadable smear. Seven is what fits.
+  const MAX_DATE_LABELS = 7;
+  const allDateTicks = ticks ?? rows.map((r) => r.i as number);
+  const dateStep = Math.ceil(allDateTicks.length / MAX_DATE_LABELS);
+  const dateTicks =
+    allDateTicks.length <= MAX_DATE_LABELS
+      ? allDateTicks
+      : allDateTicks.filter((_, k) => k % dateStep === 0);
+  const dateShown = new Set(dateTicks);
   const axisTicks = Array.from(new Set([...hourTicks, ...dateTicks])).sort((a, b) => a - b);
   const labelsAt = (i: number) => ({
     hour: (rows[i]?.hourLabel as string) || undefined,
-    date: (rows[i]?.label as string) || undefined,
+    date: dateShown.has(i) ? (rows[i]?.label as string) || undefined : undefined,
   });
 
   // A seasonal tail is drawn dashed; say so only when one is present.
@@ -181,15 +207,15 @@ export default function TrendsChart({
     const i = hoveredIndex(state, rows.length);
     const r = i === null ? undefined : rows[i];
     if (!r) return onHover(null);
-    const parts = live
+    const values = live
       .map((s) => {
         const v = (r[s.key] ?? r[`${s.key}__seasonal`]) as number | null;
         return v === null || v === undefined
           ? null
-          : `${live.length > 1 ? `${s.label}: ` : ""}${Math.round(v)}`;
+          : { label: s.label, value: String(Math.round(v)), color: s.color };
       })
-      .filter(Boolean);
-    onHover(parts.length ? `${r.full} · ${parts.join("  ")}${unit ? ` ${unit}` : ""}` : null);
+      .filter((v): v is { label: string; value: string; color: string } => v !== null);
+    onHover(values.length ? { when: String(r.full ?? ""), values, unit } : null);
   };
 
   return (

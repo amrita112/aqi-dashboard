@@ -21,7 +21,15 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Circle, Tooltip, useMapEvents } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Circle,
+  Tooltip,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { NEAREST_K } from "@/lib/prefs";
@@ -68,6 +76,22 @@ const STATION_DOT = L.divIcon({
   iconAnchor: [6, 6],
 });
 
+
+/**
+ * Move the map when the chosen city changes.
+ *
+ * Leaflet reads `center` ONCE, when the map is created, and ignores every
+ * later change to it — so picking a different city in Settings left the old
+ * city's map on screen, with the new city's name above it. React's prop looked
+ * like it was driving the map and was not.
+ */
+function Recentre({ centre }: { centre: { latitude: number; longitude: number } }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView([centre.latitude, centre.longitude], map.getZoom());
+  }, [map, centre.latitude, centre.longitude]);
+  return null;
+}
 
 function ClickCatcher({ onPick }: { onPick: (lat: number, lng: number) => void }) {
   useMapEvents({
@@ -165,6 +189,7 @@ export default function LocationPicker({
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          <Recentre centre={centre} />
           <ClickCatcher onPick={(lat, lng) => setPoint({ lat, lng })} />
           {point && <Marker position={[point.lat, point.lng]} icon={PIN} />}
           {/* The stations themselves. Named on hover/tap, so the list below and

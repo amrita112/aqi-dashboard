@@ -165,6 +165,12 @@ export default function SettingsScreen() {
 
             {city && centre && (
               <LocationPicker
+                /* KEYED ON THE CITY so a change starts a clean picker. The
+                   component keeps the dropped pin and the three nearest
+                   stations in its own state, seeded once from `value`; without
+                   this, choosing a different city left the previous city's pin
+                   and station list sitting on the new map. */
+                key={city.city}
                 centre={centre}
                 city={city.city}
                 value={picked}

@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { countQuestion, questionsAskedToday } from "@/lib/ask-count";
 import { loadPrefs, type Prefs } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
 import AnswerChart from "@/components/AnswerChart";
@@ -56,13 +57,18 @@ export default function AskScreen() {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [question, setQuestion] = useState("");
   const [history, setHistory] = useState<AskEntry[]>([]);
-  const [remaining, setRemaining] = useState<number | null>(null);
+  /** Daily allowance, from the server; the count itself is this device's. */
+  const [dailyLimit, setDailyLimit] = useState<number | null>(null);
+  const [askedToday, setAskedToday] = useState(0);
   const [state, setState] = useState<State>({ status: "idle" });
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const asked = useRef(false);
 
   useEffect(() => {
     setPrefs(loadPrefs());
+    // Read in an effect because localStorage does not exist while rendering on
+    // the server.
+    setAskedToday(questionsAskedToday());
     const h = loadHistory();
     setHistory(h);
     // Restore the most recent answer, so a remount — a hot reload in
@@ -142,9 +148,9 @@ export default function AskScreen() {
           provenance: (body.data.provenance ?? null) as Provenance | null,
           asked_at: Date.now(),
         };
-        if (typeof body.meta?.remaining_today === "number") {
-          setRemaining(body.meta.remaining_today);
-        }
+        if (typeof body.meta?.daily_limit === "number") setDailyLimit(body.meta.daily_limit);
+        // Counted here, not read back from the server — see lib/ask-count.
+        setAskedToday(countQuestion());
         // The LAST tool is the one the sentence is about. "none" means the
         // model answered without looking anything up, which is usually a
         // refusal — worth knowing separately from a tool-backed answer.
@@ -323,11 +329,12 @@ export default function AskScreen() {
       <p className="mt-4 px-1 text-xs text-gray-500">
         Each question is answered on its own. The AI cannot see what you asked before, so
         it does not have your previous questions and its answers in context.
-        {remaining !== null && (
+        {dailyLimit !== null && (
           <>
             {" "}
             <span className="font-medium text-gray-700">
-              {remaining} {remaining === 1 ? "question" : "questions"} left today.
+              {Math.max(0, dailyLimit - askedToday)}{" "}
+              {dailyLimit - askedToday === 1 ? "question" : "questions"} left today.
             </span>{" "}
             A future version will let you pay for unlimited questions.
           </>

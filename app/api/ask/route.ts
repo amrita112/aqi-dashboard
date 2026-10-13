@@ -70,7 +70,7 @@ function systemPrompt(): string {
     "1. Every number you state must come from a tool result. Never estimate, interpolate or recall a figure. If the tools did not return it, say you do not have it.",
     "2. If a forecast day has mode 'seasonal_normal', it is NOT a prediction — it is the seasonal average, used because no recent reading was available. Say so in plain words. Never call it a forecast.",
     "3. Readings are typically 17-24 hours behind. If a tool reports data_age_hours over 24, mention the age rather than implying it is live.",
-    "4. For 'now', 'today', 'this evening' or 'later today', use rest_of_today — NOT best_hour, which is tomorrow, and not current_aqi, which is the last measured reading and is often days old. Answering a question about today with tomorrow's numbers is wrong even when the numbers are close.",
+    "4. For 'now', 'today', 'this evening' or 'later today', use rest_of_today — NOT best_hour, which is tomorrow. Answering a question about today with tomorrow's numbers is wrong even when the numbers are close. If rest_of_today reports that too little of the day is left, do not stop there: call current_aqi for the most recent measured reading, give it with its age, and offer tomorrow. 'What is it now?' must never be answered with 'the day is nearly over'.",
     "5. If a tool returns an error field, explain it plainly. Do not retry with a made-up location.",
     "6. AQI here is India's CPCB scale, 0-500. It is driven by PM10 more often than PM2.5, which surprises people.",
     "7. Band names come from the tool's `band`, `cleanest_band` or `dirtiest_band` field. Never derive one from the number yourself. Use ONLY the CPCB band names, and only when a tool gave you one: Good, Satisfactory, Moderate, Poor, Very Poor, Severe. Never use US categories like 'unhealthy', 'unhealthy for sensitive groups' or 'hazardous' — they are a different scale and do not match what the rest of the app shows for the same number.",
@@ -78,7 +78,7 @@ function systemPrompt(): string {
     "8. ALWAYS NAME THE DATE. When a tool gives you a `date_label` such as 'tomorrow (10 Oct)', copy it EXACTLY — do not recompute which day it is. Getting the number right and the date wrong is worse than refusing.",
     "9. The forecast reaches 7 days ahead. For anything beyond that, say plainly that it is outside the forecast window rather than answering from the seasonal average as though it were a forecast.",
     "10. For comparing two places OVER TIME — a trend, a chart, day by day, or across the forecast — point the person at the Trends tab, which plots two places on one axis and lets them change either. Answer the single-number comparison if there is one, then add the pointer in a short clause. Do not try to narrate a two-place series.",
-    "11. Only places with a monitoring station can be reported on. If someone names a neighbourhood with no station, say so and offer the nearest place that does have one.",
+    "11. ANY place in a covered city can be reported on, whether or not it has a station of its own. The tools average the three nearest stations to wherever the person names, which is what every screen in this app does — so answer for the neighbourhood they asked about, using its name. Never tell someone their neighbourhood 'has no monitoring station' and never substitute a different place's name for theirs. The one exception is rank_places, which lists stations and can only name stations. If a tool returns unknown_location, the place is outside the covered cities — say that instead.",
     "A tool result may contain an `hourly` array of 24 values. Like `series`, it is there to draw the chart beside your answer. Never list it; quote at most the one or two hours that answer the question.",
     "A tool result may contain a `series` field. It exists only to draw the chart shown beside your answer. NEVER recite it — summarise with the mean, min and max that accompany it. Listing dates and values is exactly what the chart is for.",
     "Answer in at most two short sentences. No preamble, no bullet points, no markdown. Be specific and plain.",
@@ -219,7 +219,16 @@ export async function POST(request: Request) {
             chart: bestChart(toolResults),
             provenance: provenanceFrom(toolResults),
           },
-          { model: cfg.model, rounds: round, tokens, remaining_today: perDay.remaining },
+          {
+            model: cfg.model,
+            rounds: round,
+            tokens,
+            // Kept for logs and for the limiter's own reckoning. The SCREEN
+            // counts on the client instead: this figure comes from one
+            // serverless instance's memory and jumps when another answers.
+            remaining_today: perDay.remaining,
+            daily_limit: PER_IP_PER_DAY,
+          },
         );
       }
 
@@ -250,7 +259,16 @@ export async function POST(request: Request) {
     if (err instanceof AiProviderError) {
       // Groq's own limit, which we do not control and cannot predict the reset
       // of — same explanation, no countdown.
-      if (err.status === 429) return outOfQuestions("provider", null);
+      if (err.status === 429) {
+        // A minute-bucket 429 recovers while the person reads the message, so
+        // it gets the short-break wording and a countdown when the provider
+        // sent a Retry-After. A day-bucket one does not.
+        const minute = err.window === "minute";
+        return outOfQuestions(
+          minute ? "provider_minute" : "provider",
+          err.retryAfterSeconds ? Date.now() + err.retryAfterSeconds * 1000 : null,
+        );
+      }
       return fail(err.message, 502);
     }
     return fail(`Unexpected failure answering the question: ${(err as Error).message}`, 500);

@@ -292,7 +292,7 @@ export default function SetupFlow() {
                       >
                         {suggested}
                       </button>{" "}
-                      is the median value of {MEASUREMENT_COPY[measurement].short} in{" "}
+                      is the median daily peak {MEASUREMENT_COPY[measurement].short} in{" "}
                       {city?.city} between October and February. With this threshold, you will
                       get a notification on roughly half the days this season.
                     </p>

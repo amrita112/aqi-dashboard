@@ -105,15 +105,52 @@ export interface ChatResponse {
   usage: { prompt: number; completion: number } | null;
 }
 
+/**
+ * WHICH limit a 429 was, when the provider says.
+ *
+ * "minute" recovers while you wait; "day" does not. Treating every 429 as a
+ * daily exhaustion told someone who had asked four questions in thirty seconds
+ * that the service was finished for the day — beside our own counter saying
+ * 38 questions left, which is how the screen came to contradict itself.
+ */
+export type RateLimitWindow = "minute" | "day" | "unknown";
+
 export class AiProviderError extends Error {
   constructor(
     message: string,
     readonly status: number,
     readonly retryable: boolean,
+    /** For a 429: the provider's own window, as far as it told us. */
+    readonly window: RateLimitWindow = "unknown",
+    /** Seconds to wait, from the provider's Retry-After, when it sent one. */
+    readonly retryAfterSeconds: number | null = null,
   ) {
     super(message);
     this.name = "AiProviderError";
   }
+}
+
+/**
+ * Read the window out of a 429.
+ *
+ * Groq spells it out in the error text — "Rate limit reached ... on requests
+ * per minute (RPM)" or "... on tokens per day (TPD)" — and also sends
+ * x-ratelimit-* headers. The text is the more reliable of the two across
+ * OpenAI-compatible providers, so it is checked first and the headers are a
+ * fallback. Anything unrecognised stays "unknown", which the caller words
+ * cautiously rather than guessing.
+ */
+export function rateLimitWindowOf(text: string, headers: Headers): RateLimitWindow {
+  const t = text.toLowerCase();
+  if (/per\s*day|\b(rpd|tpd)\b/.test(t)) return "day";
+  if (/per\s*minute|\b(rpm|tpm)\b/.test(t)) return "minute";
+
+  // Headers name the window of whichever bucket is empty, e.g. "1m" or "1d".
+  const remainingDay = headers.get("x-ratelimit-remaining-requests");
+  const resetDay = headers.get("x-ratelimit-reset-requests") ?? "";
+  if (remainingDay === "0" && /d|h/.test(resetDay)) return "day";
+  if (/m|s/.test(resetDay) && remainingDay === "0") return "minute";
+  return "unknown";
 }
 
 export function aiConfig() {
@@ -204,6 +241,8 @@ export async function chat(
     if (response.status !== 429) {
       console.error(`AI provider ${response.status}: ${text.slice(0, 500)}`);
     }
+    const window = response.status === 429 ? rateLimitWindowOf(text, response.headers) : "unknown";
+    const retryAfter = Number(response.headers.get("retry-after"));
     throw new AiProviderError(
       response.status === 429
         ? "The free model quota is exhausted for now"
@@ -212,6 +251,8 @@ export async function chat(
           : "The model provider could not answer that just now.",
       response.status,
       response.status === 429 || response.status >= 500,
+      window,
+      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null,
     );
   }
 

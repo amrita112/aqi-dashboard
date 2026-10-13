@@ -24,6 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   loadPrefs,
   MEASUREMENT_COPY,
@@ -31,7 +32,12 @@ import {
   type Prefs,
 } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
-import TrendsChart, { SERIES_COLORS, type Series, type SeriesPoint } from "@/components/TrendsChart";
+import TrendsChart, {
+  SERIES_COLORS,
+  type HoverReading,
+  type Series,
+  type SeriesPoint,
+} from "@/components/TrendsChart";
 import PlaceEditor, {
   myPlace,
   type EditorCity,
@@ -69,6 +75,67 @@ interface HourlyRow {
   value: number;
 }
 
+/**
+ * The last `n` calendar dates in India, oldest first, ending today.
+ *
+ * THE AXIS IS THE WINDOW THE PERSON ASKED FOR, not the window we happen to
+ * hold. Plotting only the rows that came back drew "7 days" of history as a
+ * single day — 7 Oct, full width — which does not look like six missing days.
+ * It looks like the week was fine and ended on the 7th. Building the spine
+ * from the dates themselves makes a gap render as a gap.
+ */
+function lastDatesIst(n: number): string[] {
+  // IST is UTC+5:30 with no daylight saving, so shifting the instant and
+  // reading the UTC date gives the Indian calendar date wherever this runs.
+  const nowIst = new Date(Date.now() + 330 * 60_000);
+  const dates: string[] = [];
+  for (let back = n - 1; back >= 0; back--) {
+    const d = new Date(nowIst.getTime() - back * 86_400_000);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+/** Every hour of the last `days` days, with measured values dropped in. */
+function hourlyGrid(days: number, rows: HourlyRow[]): { date: string; hour: number; value: number | null }[] {
+  const have = new Map(rows.map((r) => [`${r.date}T${r.hour}`, r.value]));
+  const out: { date: string; hour: number; value: number | null }[] = [];
+  for (const date of lastDatesIst(days)) {
+    for (let hour = 0; hour < 24; hour++) {
+      out.push({ date, hour, value: have.get(`${date}T${hour}`) ?? null });
+    }
+  }
+  return out;
+}
+
+/** Every day of the last `days` days, with measured means dropped in. */
+function dailyGrid(days: number, rows: HistoryRow[]): { date: string; mean: number | null }[] {
+  const have = new Map(rows.map((r) => [r.date, r.mean]));
+  return lastDatesIst(days).map((date) => ({ date, mean: have.get(date) ?? null }));
+}
+
+/**
+ * The reading under the finger, each place in its own line colour.
+ *
+ * Height reserved whether or not anything is shown, so the chart below does
+ * not jump up and down as a finger moves across it.
+ */
+function Readout({ reading }: { reading: HoverReading | null }) {
+  if (!reading) return <p className="mt-1 min-h-[2rem] text-xs" aria-hidden />;
+  return (
+    <p className="mt-1 min-h-[2rem] text-xs font-medium">
+      <span className="text-gray-600">{reading.when}</span>
+      {reading.values.map((v) => (
+        <span key={v.label} className="ml-2 whitespace-nowrap" style={{ color: v.color }}>
+          {reading.values.length > 1 ? `${v.label}: ` : ""}
+          {v.value}
+        </span>
+      ))}
+      {reading.unit ? <span className="ml-1 text-gray-500">{reading.unit}</span> : null}
+    </p>
+  );
+}
+
 /** "9 Oct" */
 function humanDate(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
@@ -102,8 +169,8 @@ export default function TrendsScreen() {
   const [error, setError] = useState<string | null>(null);
   /** Which pill is open for editing, or null. */
   const [editing, setEditing] = useState<number | null>(null);
-  const [fHover, setFHover] = useState<string | null>(null);
-  const [hHover, setHHover] = useState<string | null>(null);
+  const [fHover, setFHover] = useState<HoverReading | null>(null);
+  const [hHover, setHHover] = useState<HoverReading | null>(null);
 
   useEffect(() => {
     const p = loadPrefs();
@@ -174,6 +241,12 @@ export default function TrendsScreen() {
     setForecasts({});
     setHistories({});
     setHourlies({});
+    // THE READING BELONGS TO THE CHART THAT WAS THERE. Switching pollutant,
+    // range or place left the last one standing: an AQI figure of 203 sitting
+    // above a PM2.5 axis that tops out at 150, which reads as a wrong number
+    // rather than a stale one.
+    setFHover(null);
+    setHHover(null);
     setError(null);
     // SKIP THE PLACEHOLDER. "+ Compare" adds an empty slot before the person
     // has chosen anything, and fetching for it asked the API for a place with
@@ -202,10 +275,10 @@ export default function TrendsScreen() {
             if (taken >= 24) return;
             taken += 1;
             points.push({
-              // DATE AND TIME ON SEPARATE TIERS. The date appears once, at the
-              // first hour of each calendar day it covers — this range crosses
-              // midnight, so there are two.
-              label: taken === 1 || h.hour === 0 ? humanDate(d.target_date) : "",
+              // TIMES ONLY. This is the one range short enough for the clock
+              // to be the useful axis; the two dates it spans are printed
+              // above the chart, so repeating them here earns nothing.
+              label: "",
               hourLabel: h.hour % 6 === 0 ? clock(h.hour) : "",
               full: `${humanDate(d.target_date)}, ${clock(h.hour)}`,
               value: h.value,
@@ -221,11 +294,10 @@ export default function TrendsScreen() {
           if (hours.length === 24) {
             hours.forEach((h) => {
               points.push({
-                // The date at noon on the lower tier; the clock on its own
-                // tier above it. Interleaved on one axis these alternated two
-                // vocabularies in one line and read as noise.
+                // DATES ONLY, past 24 hours. The clock marks under these were
+                // clutter at three days and unreadable at seven; the hour
+                // under the finger comes from the readout instead.
                 label: h.hour === 12 ? humanDate(d.target_date) : "",
-                hourLabel: h.hour === 6 || h.hour === 18 ? clock(h.hour) : "",
                 full: `${humanDate(d.target_date)}, ${clock(h.hour)}`,
                 value: h.value,
                 low: h.band_low,
@@ -265,9 +337,8 @@ export default function TrendsScreen() {
             key: pl.key,
             label: pl.label,
             color: colour,
-            points: hourly.map((r) => ({
+            points: hourlyGrid(hRange, hourly).map((r) => ({
               label: r.hour === 12 ? humanDate(r.date) : "",
-              hourLabel: r.hour === 6 || r.hour === 18 ? clock(r.hour) : "",
               full: `${humanDate(r.date)}, ${clock(r.hour)}`,
               value: r.value,
             })),
@@ -278,7 +349,7 @@ export default function TrendsScreen() {
           key: pl.key,
           label: pl.label,
           color: colour,
-          points: (histories[pl.key] ?? []).map((r) => ({
+          points: dailyGrid(hRange, histories[pl.key] ?? []).map((r) => ({
             label: humanDate(r.date),
             full: humanDate(r.date),
             value: r.mean,
@@ -417,7 +488,7 @@ export default function TrendsScreen() {
             and the part that got cut was the only part worth reading. A line
             of its own, allowed to wrap, with its height reserved so the chart
             does not jump as a finger moves. */}
-        <p className="mt-1 min-h-[2rem] text-xs font-medium text-gray-900">{fHover}</p>
+        <Readout reading={fHover} />
         <div className="mt-3">
           {forecastSeries.every((s) => !s.points.length) ? (
             <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
@@ -438,6 +509,7 @@ export default function TrendsScreen() {
             />
           )}
         </div>
+        {fRange !== "next24" && <TapHint />}
       </section>
 
       {/* ── History ────────────────────────────────────────────────────────── */}
@@ -454,17 +526,29 @@ export default function TrendsScreen() {
             <option value={30}>30 days</option>
           </select>
         </div>
-        <p className="mt-1 min-h-[2rem] text-xs font-medium text-gray-900">{hHover}</p>
+        <Readout reading={hHover} />
         <div className="mt-3">
           {historyLoading ? (
             <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
-          ) : historySeries.every((s) => !s.points.length) ? (
+          ) : historySeries.every((s) => s.points.every((p) => p.value === null)) ? (
             /* Only said once the fetch has actually come back. It used to show
                while loading, so every place looked like it had no history for a
                second or two. */
-            <p className="py-10 text-center text-sm text-gray-500">
-              No history held for this place in that window.
-            </p>
+            /* NOT JUST "nothing here". A blank window is the product of a
+               monitoring network with a few dozen stations per city, which is
+               the thing this app is arguing about — so it says why, and points
+               at the one action a reader can take. */
+            <div className="px-2 py-8 text-center text-sm text-gray-600">
+              <p>Nothing was measured near this place in that window.</p>
+              <p className="mt-2">
+                India has a few dozen government monitors per city, and they go
+                quiet for days at a time.{" "}
+                <Link href="/petition" className="font-medium text-blue-700 underline">
+                  Back the case for measuring street by street
+                </Link>
+                .
+              </p>
+            </div>
           ) : (
             <TrendsChart
               series={historySeries}
@@ -475,7 +559,24 @@ export default function TrendsScreen() {
             />
           )}
         </div>
+        {hRange === 7 && <TapHint />}
       </section>
     </div>
+  );
+}
+
+/**
+ * How to get the exact time off a chart whose axis only names days.
+ *
+ * Said once, quietly, and only on the ranges where the clock has been taken
+ * off the axis. Tapping a line to read it is not a convention anyone can be
+ * assumed to know, and the alternative — leaving six clock marks under three
+ * dates — is the clutter this replaced.
+ */
+function TapHint() {
+  return (
+    <p className="mt-1 text-center text-[11px] text-gray-400">
+      Tap the line for the value at an exact time.
+    </p>
   );
 }

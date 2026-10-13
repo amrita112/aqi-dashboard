@@ -18,6 +18,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Label,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -129,13 +130,25 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
           {chart.kind === "compare" ? (
             <BarChart
               data={data}
-              margin={{ top: 6, right: 8, left: -18, bottom: 0 }}
+              margin={{ top: 6, right: 8, left: -6, bottom: 0 }}
               onMouseMove={report}
               onTouchMove={report}
             >
               <CartesianGrid vertical={false} stroke="#eef0f1" />
               <XAxis dataKey="short" {...axis} />
-              <YAxis {...axis} width={44} />
+              <YAxis {...axis} width={44}>
+                {/* EVERY CHART IN THE APP SAYS WHAT ITS NUMBERS ARE. AQI and
+                    µg/m³ are different scales with the same shape, so an
+                    unlabelled axis leaves the reader no way to tell which one
+                    they are looking at — and these charts sit under an answer
+                    that may name either. */}
+                <Label
+                  value={chart.unit}
+                  angle={-90}
+                  position="insideLeft"
+                  style={{ fontSize: 10, fill: "#5c6b73", textAnchor: "middle" }}
+                />
+              </YAxis>
               <Tooltip content={() => null} cursor={{ fill: "#eef0f1" }} />
               <Bar dataKey="value" radius={[3, 3, 0, 0]}>
                 {/* Band colour per bar, so the comparison reads the way the
@@ -148,7 +161,7 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
           ) : (
             <LineChart
               data={data}
-              margin={{ top: 6, right: 8, left: -18, bottom: 0 }}
+              margin={{ top: 6, right: 8, left: -6, bottom: 0 }}
               onMouseMove={report}
               onTouchMove={report}
             >
@@ -164,7 +177,14 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
                 stroke="#d4d8da"
                 interval={0}
               />
-              <YAxis domain={scale.domain} ticks={scale.ticks} {...axis} width={44} />
+              <YAxis domain={scale.domain} ticks={scale.ticks} {...axis} width={44}>
+                <Label
+                  value={chart.unit}
+                  angle={-90}
+                  position="insideLeft"
+                  style={{ fontSize: 10, fill: "#5c6b73", textAnchor: "middle" }}
+                />
+              </YAxis>
               {/* Draws nothing: recharts only tracks the active point while a
                   Tooltip is mounted, and the reading goes in the header. */}
               <Tooltip content={() => null} cursor={{ stroke: "#9aa5ab", strokeWidth: 1 }} />

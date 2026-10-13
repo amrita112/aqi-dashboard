@@ -15,17 +15,25 @@
 
 /** A padded, round-numbered scale covering `lo`..`hi`. */
 export function niceScale(
-  lo: number,
+  loInput: number,
   hi: number,
   { targetTicks = 5, allowNegative = false }: { targetTicks?: number; allowNegative?: boolean } = {},
 ): { domain: [number, number]; ticks: number[] } {
   // A flat series, a single point, or no data at all: give the caller
   // something drawable rather than NaN or a zero-width domain.
+  let lo = loInput;
   if (!Number.isFinite(lo) || !Number.isFinite(hi)) return { domain: [0, 1], ticks: [0, 1] };
   if (hi <= lo) {
     const v = Number.isFinite(lo) ? lo : 0;
     return niceScale(v - 1, v + 1, { targetTicks, allowNegative });
   }
+
+  // CLAMP BEFORE CHOOSING THE STEP, not after. Callers pass an already-padded
+  // range, so a series whose minimum is 13 arrives here as -0.9 — and a check
+  // for "is the low end negative" then looked at the padding rather than at
+  // the data. The axis came back starting at -50, spending a sixth of the
+  // chart's height on concentrations that cannot exist.
+  if (!allowNegative && lo < 0) lo = 0;
 
   const rawStep = (hi - lo) / Math.max(1, targetTicks - 1);
   const magnitude = 10 ** Math.floor(Math.log10(rawStep));
@@ -38,9 +46,7 @@ export function niceScale(
 
   let start = Math.floor(lo / step) * step;
   const end = Math.ceil(hi / step) * step;
-  // Concentrations and index values are never negative; an axis that dips
-  // below zero to reach a round number wastes height on impossible readings.
-  if (!allowNegative && start < 0 && lo >= 0) start = 0;
+  if (!allowNegative && start < 0) start = 0;
 
   const ticks: number[] = [];
   // Floating-point steps (2.5, 0.1) accumulate error, so the guard is a

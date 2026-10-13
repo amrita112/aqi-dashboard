@@ -148,15 +148,15 @@ export default function ForecastChart({
   // faint rules at midnight so the eye can see where one day ends. The hour
   // tier sits between that and the plot.
   //
-  // HOURS ONLY WHEN THEY FIT. Six-hourly marks across five days is fifteen
-  // labels, which collide at any readable font size; across one or two days it
-  // is three to six, which is comfortable. Beyond two days the clock comes
-  // from the readout above the chart instead, which gives the exact hour under
-  // the finger rather than the nearest label.
+  // ONE KIND OF LABEL PER CHART. Times for a single day, dates for anything
+  // longer. Showing both on a three-day plot gave six clock marks under three
+  // dates — legible, and still clutter, because nobody reading a three-day
+  // forecast is placing a peak to the hour off the axis. They tap the line for
+  // that, which now reports the exact time.
   const dayTicks = daySpans.map((d) => Math.round((d.start + d.end) / 2));
   const dayLabelAt = new Map(daySpans.map((d, k) => [dayTicks[k], d.label]));
   const dayBoundaries = daySpans.slice(1).map((d) => d.start);
-  const showHours = daySpans.length <= 2;
+  const showHours = daySpans.length <= 1;
   const hourTicks = showHours
     ? rows.filter((r) => r.hour % 6 === 0 && r.hour !== 0).map((r) => r.i)
     : [];
@@ -168,7 +168,7 @@ export default function ForecastChart({
   const hourLabelAt = new Map(hourTicks.map((i) => [i, clockOf(rows[i].hour)]));
   const labelsAt = (i: number) => ({
     hour: hourLabelAt.get(i),
-    date: dayLabelAt.get(i),
+    date: showHours ? undefined : dayLabelAt.get(i),
   });
 
   // What is actually drawn, so the key below can describe only that.

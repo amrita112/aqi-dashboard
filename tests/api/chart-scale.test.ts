@@ -49,3 +49,16 @@ describe("niceScale", () => {
     for (const t of ticks) expect(String(t)).not.toMatch(/\d{6,}/);
   });
 });
+
+describe("padded callers", () => {
+  it("does not go negative when a caller pads a non-negative series", () => {
+    // The bug: callers pass niceScale(lo - pad, hi + pad), so a series whose
+    // minimum was 13 arrived as -0.9 and the axis came back starting at -50.
+    const lo = 13;
+    const hi = 90;
+    const pad = Math.max(5, (hi - lo) * 0.18);
+    const { domain, ticks } = niceScale(lo - pad, hi + pad);
+    expect(domain[0]).toBe(0);
+    expect(ticks.every((t) => t >= 0)).toBe(true);
+  });
+});

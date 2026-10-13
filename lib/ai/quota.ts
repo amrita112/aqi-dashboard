@@ -7,7 +7,9 @@
  *   per-minute, per-IP   asking faster than the provider's token bucket refills
  *   per-day, per-IP      one visitor's share of the shared budget
  *   daily global         everyone's share of the shared budget
- *   provider 429         Groq's own free-tier limit, which we do not control
+ *   provider 429         Groq's own free-tier limit, which we do not control —
+ *                        split by whether its own message says the empty
+ *                        bucket refills in a minute or tomorrow
  *
  * The honest framing is that this is a free app running on a free model quota
  * shared by everyone using it — not a fault, not a paywall tease, and not a
@@ -18,7 +20,12 @@
  * minutes and does not for the ones that recover tomorrow.
  */
 
-export type QuotaKind = "per_minute" | "per_day" | "shared_day" | "provider";
+export type QuotaKind =
+  | "per_minute"
+  | "per_day"
+  | "shared_day"
+  | "provider"
+  | "provider_minute";
 
 export interface QuotaMessage {
   kind: QuotaKind;
@@ -45,6 +52,11 @@ export function quotaMessage(kind: QuotaKind, resetAt: number | null = null): Qu
     per_day: "You have used your questions for today.",
     shared_day: "Today's shared pool of AI questions is used up.",
     provider: "The AI service this app uses has hit its free daily limit.",
+    // A PROVIDER 429 IS USUALLY THE PER-MINUTE BUCKET, not the daily one, and
+    // calling every one of them "daily" put "hit its free daily limit" on the
+    // screen next to "38 questions left today". Same voice, right timescale.
+    provider_minute:
+      "That was a few questions in quick succession for the AI service. It needs a short break.",
   };
   return {
     kind,
