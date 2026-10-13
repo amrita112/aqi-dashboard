@@ -9,7 +9,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
 import TabBar from "@/components/TabBar";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import { Analytics } from "@vercel/analytics/next";
@@ -71,7 +70,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
       >
-        <Navbar />
         {/* pb-20 clears the fixed bottom bar on a phone; lg:pl-56 clears the
             sidebar it becomes on a laptop. Both are harmless on the pages
             where TabBar renders nothing — padding against a bar that is not

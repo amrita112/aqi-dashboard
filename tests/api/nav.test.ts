@@ -12,21 +12,17 @@ import { describe, it, expect } from "vitest";
 import { TABS, isAppRoute, isCurrentTab } from "@/lib/nav";
 
 const FORECAST_APP = ["/", "/ask", "/setup", "/petition", "/trends", "/trends/delhi", "/map"];
-const LEGACY_APP = ["/dashboard", "/submit", "/login", "/signup"];
 
 describe("route ownership", () => {
-  it("claims the forecast app's routes", () => {
+  it("claims the app's routes", () => {
     for (const p of FORECAST_APP) expect(isAppRoute(p)).toBe(true);
   });
 
-  it("leaves the original app's routes to the top navbar", () => {
-    for (const p of LEGACY_APP) expect(isAppRoute(p)).toBe(false);
-  });
-
   it("does not let '/' swallow everything", () => {
-    // A naive startsWith('/') check would claim every route in the codebase,
-    // including the legacy pages, and put two navs on each of them.
-    expect(isAppRoute("/dashboard")).toBe(false);
+    // A naive startsWith('/') check would claim every path, including ones
+    // that should never show a tab bar. The deleted legacy screens used to be
+    // the reason this mattered; an unknown path is the reason it still does.
+    expect(isAppRoute("/nothing-here")).toBe(false);
   });
 
   it("covers every tab, or a tab would render with no bar to sit in", () => {

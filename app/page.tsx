@@ -1,9 +1,10 @@
 /**
  * / — the home screen.
  *
- * Replaces the original landing page for the crowdsourced-readings app. That
- * product's screens (/dashboard, /submit, /login, /signup) are still reachable
- * by URL and still work; they are simply no longer what the front door is for.
+ * Replaces the original landing page for the crowdsourced-readings app, whose
+ * screens were deleted before launch — they were unlinked but still deployed,
+ * and /signup was a working account-creation form for a feature this app does
+ * not have.
  *
  * A server shell around a client component: the user's chosen place lives in
  * localStorage, so the content has to be assembled in the browser. Someone with

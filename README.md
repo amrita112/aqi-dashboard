@@ -259,11 +259,9 @@ Conversions use standard 25 °C, 1 atm assumptions (matching NAQI and CPCB): 1 p
 ## Project structure
 
 ```
-app/              Next.js routes: /, /setup, /ask, /map, /trends, /settings, /petition
-                  plus /api/* — forecast, map, history, ask, current, city-request
-                  /dashboard, /submit, /login and /signup are LEGACY, left over
-                  from the crowdsourced prototype this grew out of. They still
-                  work and are not linked from the app
+app/              Next.js routes: /, /setup, /ask, /map, /trends, /settings,
+                  /petition, /privacy, /terms, plus /api/* — forecast, map,
+                  history, ask, event, current, city-request
 components/       Screens and charts. The charts are the fussiest part of this repo
                   and the comments explain why
 lib/              Supabase clients, AQI maths, preferences, brand

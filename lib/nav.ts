@@ -1,12 +1,15 @@
 /**
- * Which routes belong to the forecast app, and what the tabs are.
+ * Which routes belong to the app, and what the tabs are.
  *
- * Two products share this codebase. The original crowdsourced-readings app
- * (/dashboard, /submit, /login, /signup) still works and keeps its top Navbar.
- * The forecast app is everything below, and uses a bottom tab bar instead.
+ * This used to arbitrate between two products sharing one codebase — the
+ * original crowdsourced-readings screens kept a top Navbar, the forecast app
+ * a bottom tab bar, and the list below decided which. Those screens were
+ * deleted before launch, so now the list has one job: say which routes get
+ * the tab bar.
  *
- * Both navs read this one list, so they can never both decide a route is
- * theirs and stack two navigation bars on the same screen.
+ * It is an ALLOWLIST, which means a new page is a page with no way back until
+ * it is added here. On a home-screen install there is no address bar, so that
+ * is a dead end rather than an inconvenience — see the test that pins it.
  */
 
 export interface Tab {
