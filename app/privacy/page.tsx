@@ -58,8 +58,8 @@ export default function PrivacyPage() {
             <strong> on your device only</strong>. We never receive them.
           </li>
           <li>
-            <strong>Questions you type into the Ask tab are sent to an AI company
-            to be answered</strong>, along with the coordinates of your chosen place.
+            <strong>Questions you type into the Ask tab are sent to Groq to be
+            answered</strong>, along with the coordinates of your chosen place.
             This is the one part of the app that shares anything you have written.
           </li>
           <li>

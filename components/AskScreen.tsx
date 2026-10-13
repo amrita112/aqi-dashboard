@@ -349,8 +349,7 @@ export default function AskScreen() {
           about. Someone typing "is the air bad where my daughter goes to
           school" should know where that sentence goes before they send it. */}
       <p className="mt-2 px-1 text-xs text-gray-500">
-        Your question and the location you chose are sent to an AI company to be
-        answered.{" "}
+        Your question and the location you chose are sent to Groq to be answered.{" "}
         <Link href="/privacy" className="underline">
           What that means
         </Link>
