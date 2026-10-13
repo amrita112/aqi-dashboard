@@ -205,7 +205,19 @@ export async function POST(request: Request) {
           // days and carry seasonal normals into February. An empty answer is
           // our failure, not a malformed question.
           const tried = toolsUsed.map((t) => t.name).join(", ") || "none";
-          console.error(`Empty answer. Question: ${question}. Tools: ${tried}`);
+          // THE QUESTION ITSELF IS NOT LOGGED. It used to be, which quietly
+          // contradicted the rule written at the top of lib/analytics.ts: an
+          // app that argues air quality data should be public and personal
+          // data should not cannot keep a log of what its users are worried
+          // about, even a short-lived one. "Is the air bad where my daughter
+          // goes to school" is the sentence this is about.
+          //
+          // The length and the tools are what made this diagnosable anyway —
+          // the empty answers we chased were long questions and tool errors,
+          // neither of which needs the words.
+          console.error(
+            `Empty answer. Question length: ${question.length}. Tools: ${tried}. Rounds: ${round}.`,
+          );
           return fail(
             "Something went wrong producing that answer. Please ask again — it may work the second time.",
             502,

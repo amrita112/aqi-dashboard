@@ -243,6 +243,20 @@ def main() -> None:
         print("  Delete them with PRUNE_ORPHANS=yes once you are satisfied they are")
         print("  the known canonical_ts casualties and not a live linkage failure.")
 
+    # USAGE EVENTS AGE OUT HERE TOO. They are counts rather than measurements,
+    # so none of the rollup verification above applies to them — ninety days is
+    # simply longer than anyone has ever wanted to look back, and the table
+    # would otherwise grow forever against a 500 MB budget. Guarded by the same
+    # CONFIRM_DELETE as everything else in this job.
+    if confirm:
+        try:
+            removed = client_.rpc("purge_old_usage_events").execute().data
+            print(f"\nPurged {removed or 0:,} usage events older than 90 days.")
+        except Exception as exc:  # noqa: BLE001
+            # A counts table failing to prune must never fail the job that
+            # protects the actual data budget.
+            print(f"\nCould not purge usage events: {exc}")
+
     if skipped:
         print("\nSkipped days need attention — they are not safely rolled up:")
         for day, reason in skipped:

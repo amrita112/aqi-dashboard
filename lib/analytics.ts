@@ -18,9 +18,42 @@
  *
  * Vercel Analytics is cookieless and stores no identifier, so none of this is
  * tied to a person across visits.
+ *
+ * TWO SINKS, AND ONLY ONE OF THEM WORKS TODAY. Vercel puts CUSTOM EVENTS
+ * behind its Pro plan, and `track()` does not fail when they are unavailable —
+ * it silently drops everything. So for months this file looked healthy while
+ * recording nothing at all. Every call now ALSO posts to /api/event, which
+ * writes a row to Supabase (migration 19), and that is the sink to trust.
+ *
+ * The Vercel call is kept rather than removed because it costs nothing, breaks
+ * nothing, and starts working by itself the day the plan changes. It is not
+ * evidence of anything in the meantime.
  */
 
 import { track } from "@vercel/analytics";
+
+/**
+ * Post a count to our own store, and never let it matter if it fails.
+ *
+ * keepalive, because the most important event in this file — `installed` —
+ * often fires as the page is being replaced by the newly installed app, and an
+ * ordinary fetch is cancelled when that happens.
+ */
+function record(name: string, detail: string | null): void {
+  try {
+    void fetch("/api/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, detail }),
+      keepalive: true,
+    }).catch(() => {
+      // Offline, blocked, or the endpoint is down. A missing count is not
+      // worth a console error on someone else's phone.
+    });
+  } catch {
+    /* see above */
+  }
+}
 
 /** Tool names from lib/ai/tools.ts, plus the two non-tool outcomes. */
 export type AskOutcome =
@@ -47,6 +80,9 @@ export function trackQuestion(outcome: AskOutcome, tool: string | null): void {
   } catch {
     // Analytics must never break the thing it is measuring.
   }
+  // The tool is the more useful of the two for "which tools earn their keep",
+  // and an answer with no tool behind it is itself worth counting.
+  record("question", tool ?? (outcome === "answered" ? "none" : outcome));
 }
 
 /**
@@ -66,6 +102,7 @@ export function trackFailure(reason: FailureReason): void {
   } catch {
     /* see above */
   }
+  record("question_failed", reason);
 }
 
 /** The PWA was installed to a home screen. Fires once, when it happens. */
@@ -75,4 +112,5 @@ export function trackInstalled(source: "prompt" | "browser"): void {
   } catch {
     /* see above */
   }
+  record("installed", source);
 }

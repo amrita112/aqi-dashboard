@@ -15,7 +15,22 @@ vi.mock("@vercel/analytics", () => ({ track: (...a: unknown[]) => track(...a) })
 
 import { trackFailure, trackInstalled, trackQuestion } from "@/lib/analytics";
 
-beforeEach(() => track.mockReset());
+// Our own sink, stubbed. Without this the real fetch is left in flight and
+// happy-dom aborts it at teardown, which prints a stack trace per test.
+const fetchMock = vi.fn(() => Promise.resolve(new Response(null, { status: 200 })));
+
+beforeEach(() => {
+  track.mockReset();
+  fetchMock.mockClear();
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+/** The JSON bodies posted to /api/event during one test. */
+function posted(): { name: string; detail: string | null }[] {
+  return fetchMock.mock.calls.map(
+    (call) => JSON.parse(((call as unknown[])[1] as RequestInit).body as string),
+  );
+}
 
 describe("what is sent", () => {
   it("records the tool that answered, and nothing else", () => {
@@ -78,5 +93,59 @@ describe("what is never sent", () => {
     expect(() => trackFailure("network")).not.toThrow();
     expect(() => trackInstalled("prompt")).not.toThrow();
     track.mockReset();
+  });
+});
+
+describe("the Supabase sink", () => {
+  // Vercel puts custom events behind Pro and track() drops them silently when
+  // they are unavailable, so for months this file tested a sink that recorded
+  // nothing. These assert the one that actually stores a row.
+  it("posts every event to /api/event as well", () => {
+    trackQuestion("answered", "best_hour");
+    trackFailure("no_data");
+    trackInstalled("prompt");
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (const call of fetchMock.mock.calls) {
+      expect((call as unknown[])[0]).toBe("/api/event");
+    }
+    expect(posted()).toEqual([
+      { name: "question", detail: "best_hour" },
+      { name: "question_failed", detail: "no_data" },
+      { name: "installed", detail: "prompt" },
+    ]);
+  });
+
+  it("records an answer with no tool behind it as its outcome", () => {
+    // "answered with no tool" is usually a refusal, and is the case most
+    // worth being able to count.
+    trackQuestion("no_tool", null);
+    expect(posted()).toEqual([{ name: "question", detail: "no_tool" }]);
+  });
+
+  it("sends tokens the database CHECK constraint will accept", () => {
+    // Migration 19 constrains detail to ^[a-z0-9_]+$, at most 40 characters.
+    // A tool renamed to something with a hyphen or a space would be rejected
+    // at insert and the count would vanish silently.
+    trackQuestion("answered", "rest_of_today");
+    trackFailure("provider_error");
+    trackInstalled("browser");
+    for (const body of posted()) {
+      expect(["installed", "question", "question_failed"]).toContain(body.name);
+      if (body.detail !== null) expect(body.detail).toMatch(/^[a-z0-9_]{1,40}$/);
+    }
+  });
+
+  it("carries no question text, place or identifier", () => {
+    trackQuestion("answered", "compare");
+    for (const body of posted()) {
+      expect(Object.keys(body).sort()).toEqual(["detail", "name"]);
+    }
+  });
+
+  it("survives the endpoint being down", () => {
+    fetchMock.mockImplementationOnce(() => Promise.reject(new Error("offline")));
+    // Measuring the app must never break it.
+    expect(() => trackInstalled("browser")).not.toThrow();
   });
 });

@@ -76,8 +76,9 @@ Create a free project at [supabase.com](https://supabase.com). Then run the SQL 
 | `16-petition-signatures.sql` | Adds `petition_signatures` — the only table holding personal data, and the only one nobody can read through the app | Yes |
 | `17-forecast-bias-correction.sql` | Adds `value_raw` and a `forecast_bias` table, so a systematic under-forecast can be measured and corrected nightly | Yes |
 | `18-city-requests.sql` | Reuses the petition table for "add my city" requests via a `kind` column, with partial unique indexes per kind | Yes |
+| `19-usage-events.sql` | Adds `usage_events` — anonymous counts of installs, which AI tool answered, and why we declined | Yes |
 
-Files 1, 2, 5–18 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
+Files 1, 2, 5–19 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
 
 A few of these are worth a sentence, because the reason is not obvious from the name:
 
@@ -186,6 +187,45 @@ Seven GitHub Actions workflows keep the data current. They need
 
 Order matters: the rollup must finish before the forecast runs, which is why
 they sit half an hour apart.
+
+## Seeing how the app is used
+
+Vercel Web Analytics gives visitors, page views and top pages on the free tier.
+Because every tab is a real route, "which tab do people use" is answered there
+without any custom code. **Custom events are a Pro feature**, and `track()`
+drops them silently rather than failing when they are unavailable — so the three
+things worth knowing are written to Supabase instead (migration 19), via
+`POST /api/event`.
+
+Read them in the Supabase SQL editor:
+
+```sql
+-- Installs: the only signal a web app gets that someone added it to a home
+-- screen. `prompt` is our own button, `browser` is the browser's menu — if
+-- these diverge badly, the install hint is not doing its job.
+select detail, count(*) from usage_events
+where name = 'installed' and created_at > now() - interval '30 days'
+group by detail;
+
+-- Which of the seven tools actually answer questions.
+select detail as tool, count(*) from usage_events
+where name = 'question' and created_at > now() - interval '7 days'
+group by detail order by 2 desc;
+
+-- How often, and why, the AI box declines.
+select detail as reason, count(*) from usage_events
+where name = 'question_failed' and created_at > now() - interval '7 days'
+group by detail order by 2 desc;
+```
+
+The table holds an event name and one short token, and nothing else: no question
+text, no place, no IP, no session or device identifier. That is stricter than
+required and deliberate — but it means you can only ever ask for **totals over a
+window**, never "how many different people" or "did they come back". Rows are
+pruned after 90 days by the weekly job.
+
+It is a public write endpoint, so treat the numbers as a floor rather than a
+measurement.
 
 ## How AQI is calculated
 
