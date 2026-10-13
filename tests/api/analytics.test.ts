@@ -116,11 +116,13 @@ describe("the Supabase sink", () => {
     ]);
   });
 
-  it("records an answer with no tool behind it as its outcome", () => {
-    // "answered with no tool" is usually a refusal, and is the case most
-    // worth being able to count.
+  it("records an answer with no tool behind it as 'none'", () => {
+    // This test previously asserted detail: "no_tool", which was the bug
+    // rather than the intent — it came from `tool ?? outcome`, the same
+    // expression that recorded a quota refusal as `question / quota`. The
+    // detail column means "which tool", so an answer with no tool is "none".
     trackQuestion("no_tool", null);
-    expect(posted()).toEqual([{ name: "question", detail: "no_tool" }]);
+    expect(posted()).toEqual([{ name: "question", detail: "none" }]);
   });
 
   it("sends tokens the database CHECK constraint will accept", () => {
@@ -147,5 +149,29 @@ describe("the Supabase sink", () => {
     fetchMock.mockImplementationOnce(() => Promise.reject(new Error("offline")));
     // Measuring the app must never break it.
     expect(() => trackInstalled("browser")).not.toThrow();
+  });
+});
+
+describe("refusals are not answers", () => {
+  // The table holds a name and ONE short token. An outcome written into the
+  // token position reads as a tool name: `question / quota` looked exactly
+  // like "the quota tool answered this", which poisons the only question the
+  // table exists to answer.
+  it("records no question row when the app refused", () => {
+    trackQuestion("quota", null);
+    trackQuestion("error", null);
+    expect(posted().filter((b) => b.name === "question")).toEqual([]);
+  });
+
+  it("still records the refusal through the failure path", () => {
+    trackFailure("out_of_questions");
+    expect(posted()).toEqual([
+      { name: "question_failed", detail: "out_of_questions" },
+    ]);
+  });
+
+  it("counts an answer with no tool behind it, which is not a refusal", () => {
+    trackQuestion("no_tool", null);
+    expect(posted()).toEqual([{ name: "question", detail: "none" }]);
   });
 });

@@ -77,8 +77,9 @@ Create a free project at [supabase.com](https://supabase.com). Then run the SQL 
 | `17-forecast-bias-correction.sql` | Adds `value_raw` and a `forecast_bias` table, so a systematic under-forecast can be measured and corrected nightly | Yes |
 | `18-city-requests.sql` | Reuses the petition table for "add my city" requests via a `kind` column, with partial unique indexes per kind | Yes |
 | `19-usage-events.sql` | Adds `usage_events` — anonymous counts of installs, which AI tool answered, and why we declined | Yes |
+| `20-client-errors.sql` | Adds `client_errors` — what broke in someone's browser, which Vercel's server logs never see | Yes |
 
-Files 1, 2, 5–19 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
+Files 1, 2, 5–20 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
 
 A few of these are worth a sentence, because the reason is not obvious from the name:
 
@@ -226,6 +227,26 @@ pruned after 90 days by the weekly job.
 
 It is a public write endpoint, so treat the numbers as a floor rather than a
 measurement.
+
+### When something breaks
+
+Vercel's logs catch server errors. Nothing catches the ones that happen on a
+phone in Pune, so `client_errors` (migration 20) does, via
+`POST /api/client-error`: an `app/error.tsx` boundary for render failures and a
+window listener for event handlers, unawaited promises and timer callbacks.
+
+```sql
+select pathname, browser, message, count(*), max(created_at) as last_seen
+from client_errors where created_at > now() - interval '7 days'
+group by 1, 2, 3 order by 4 desc;
+```
+
+Deliberately NOT Sentry, whose free tier would work: it would be a second
+external recipient of user data in an app whose privacy page names exactly one,
+and free tiers are someone else's business decision. What is given up, stated
+so nobody goes looking for it: no source maps (stacks are minified), no
+grouping, no alerting. This answers "did anything break, where, how often".
+Sentry is the upgrade path if the volume ever justifies it.
 
 ## How AQI is calculated
 

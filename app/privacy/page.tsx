@@ -153,6 +153,21 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
+      <Section title="When something breaks">
+        <p>
+          If a screen fails to load, the app records what went wrong: the error
+          message, the technical trace that goes with it, which page it happened on,
+          and whether you were using Chrome, Safari or Firefox. That is how we find
+          out about faults nobody reports.
+        </p>
+        <p>
+          It records the page, never the full web address, so nothing you typed can
+          travel with it. There is no identifier attached and these are deleted after
+          30 days. They are stored on our own database, not sent to an error-tracking
+          company.
+        </p>
+      </Section>
+
       <Section title="Where the air quality data comes from">
         <p>
           Not from you. Every reading is a measurement made by India&apos;s Central

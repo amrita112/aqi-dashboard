@@ -80,9 +80,18 @@ export function trackQuestion(outcome: AskOutcome, tool: string | null): void {
   } catch {
     // Analytics must never break the thing it is measuring.
   }
-  // The tool is the more useful of the two for "which tools earn their keep",
-  // and an answer with no tool behind it is itself worth counting.
-  record("question", tool ?? (outcome === "answered" ? "none" : outcome));
+  // ONLY ANSWERS GET A `question` ROW. Our table carries a name and one short
+  // token and nothing else, so an outcome stuffed into the token position
+  // became indistinguishable from a tool name: a refusal for quota recorded as
+  // `question / quota`, which reads as "the quota tool answered this". Counting
+  // refusals as answers is the one thing that makes "which tools earn their
+  // keep" useless, and it is exactly what the table was for.
+  //
+  // Failures are not lost — trackFailure() records them as `question_failed`
+  // with their reason, which is where they belong and already worked.
+  if (outcome === "answered" || outcome === "no_tool") {
+    record("question", tool ?? "none");
+  }
 }
 
 /**

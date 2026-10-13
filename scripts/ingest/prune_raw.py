@@ -249,13 +249,17 @@ def main() -> None:
     # would otherwise grow forever against a 500 MB budget. Guarded by the same
     # CONFIRM_DELETE as everything else in this job.
     if confirm:
-        try:
-            removed = client_.rpc("purge_old_usage_events").execute().data
-            print(f"\nPurged {removed or 0:,} usage events older than 90 days.")
-        except Exception as exc:  # noqa: BLE001
-            # A counts table failing to prune must never fail the job that
-            # protects the actual data budget.
-            print(f"\nCould not purge usage events: {exc}")
+        for fn, label in (
+            ("purge_old_usage_events", "usage events older than 90 days"),
+            ("purge_old_client_errors", "client errors older than 30 days"),
+        ):
+            try:
+                removed = client_.rpc(fn).execute().data
+                print(f"\nPurged {removed or 0:,} {label}.")
+            except Exception as exc:  # noqa: BLE001
+                # A bookkeeping table failing to prune must never fail the job
+                # that protects the actual data budget.
+                print(f"\nCould not run {fn}: {exc}")
 
     if skipped:
         print("\nSkipped days need attention — they are not safely rolled up:")

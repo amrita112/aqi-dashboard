@@ -1,15 +1,16 @@
 /**
  * Root Layout — the outer shell that wraps every page.
  *
- * Two products share it. The original crowdsourced-readings app keeps the top
- * Navbar; the forecast app uses the bottom TabBar. Each stands down on the
- * other's routes — see lib/nav.ts — so they never stack.
+ * Carries the four things every screen needs and no screen should have to ask
+ * for: the tab bar, the service worker registration, page-view analytics, and
+ * the global error reporter. Everything else belongs to a route.
  */
 
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import TabBar from "@/components/TabBar";
+import ErrorReporter from "@/components/ErrorReporter";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import { Analytics } from "@vercel/analytics/next";
 import { APP_NAME, APP_DESCRIPTION, THEME_COLOR } from "@/lib/brand";
@@ -77,6 +78,9 @@ export default function RootLayout({
         <div className="pb-20 lg:pb-8 lg:pl-56">{children}</div>
         <TabBar />
         <ServiceWorkerRegistration />
+        {/* Catches what app/error.tsx cannot: event handlers, unawaited
+            promises, timer callbacks. Renders nothing. */}
+        <ErrorReporter />
         {/* Cookieless and identifier-free, so no consent banner and nothing
             that follows anyone between visits. Page views alone answer "which
             tab do people use", because every tab is a real route. */}
