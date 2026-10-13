@@ -1,13 +1,54 @@
-# AQI Dashboard
+# AirGyaan
 
-A crowdsourced Air Quality Index (AQI) dashboard for India. Users with home air quality monitors can submit readings tagged with their GPS location, and anyone can browse air quality data on an interactive map.
+An installable air quality app for seven Indian cities — Delhi NCR, Mumbai,
+Bengaluru, Hyderabad, Chennai, Kolkata and Pune. It answers one question well:
+**is it worth going outside, and when?**
 
-## Tech Stack
+It is a progressive web app, not an app store product. You open it in a browser,
+add it to your home screen, and it runs full screen with no account.
 
-- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS
-- **Database:** Supabase (Postgres + PostGIS)
-- **Charts:** Recharts
-- **Maps:** Leaflet + OpenStreetMap
+## What it does
+
+- **A forecast, not a reading, as the headline.** India's public monitoring feed
+  publishes on a lag of days, so "the current AQI" is usually yesterday's or last
+  week's. The home screen leads with today's forecast for your own neighbourhood,
+  hour by hour.
+- **Your place, not your city.** You drop a pin where you actually spend time, and
+  every number is averaged over the **three nearest monitoring stations** to that
+  point. City averages hide the thing you want to know.
+- **It says when it does not know.** A day with no recent reading behind it is
+  drawn dashed and labelled a *seasonal average*, never a forecast. Nothing in the
+  app presents a climatology as a prediction.
+- **A question box** over seven fixed tools. The model picks a tool and writes the
+  sentence; **every number comes from the database**, never from the model.
+- **A map** of the stations near you, including the ones with nothing recent —
+  drawn hollow, because where the gaps are is worth seeing.
+
+## How the forecast works
+
+`forecast(day, hour) = [climatology(day) + alpha x anomaly] x shape(city, month, hour)`
+
+A daily level from a blend of the seasonal climatology and the most recent
+reading's anomaly, multiplied by a diurnal shape fitted per city and month. The
+per-city choice between blend and persistence is stored rather than hardcoded,
+and a running bias correction is applied nightly.
+
+Measured, so you do not have to take it on faith: the model needs exactly **one**
+recent day (N=1 beats N=2 through 30 in every city), the diurnal shape cuts
+hourly error by about **16%** against quoting a flat daily number, and skill
+decays sharply as the anchoring reading ages — which is why the app is so
+insistent about data age.
+
+## Tech stack
+
+- **Frontend:** Next.js 14 (App Router), TypeScript (strict), Tailwind
+- **Database:** Supabase (Postgres + PostGIS, row-level security)
+- **Charts:** Recharts. **Maps:** Leaflet + OpenStreetMap
+- **AI:** Groq free tier, through a provider-swappable OpenAI-compatible client
+- **Scheduled jobs:** GitHub Actions. **Hosting:** Vercel
+
+Everything runs on a free tier, which is a design constraint rather than a
+temporary state.
 
 ## Getting Started
 
@@ -33,8 +74,10 @@ Create a free project at [supabase.com](https://supabase.com). Then run the SQL 
 | `14-readings-daily-source.sql` | Marks whether a daily row was rolled up from our raw readings or loaded from the XKDR history | Yes |
 | `15-timezone-conventions.sql` | Column comments recording which columns are UTC instants and which are IST calendar labels. Changes no data | Yes |
 | `16-petition-signatures.sql` | Adds `petition_signatures` — the only table holding personal data, and the only one nobody can read through the app | Yes |
+| `17-forecast-bias-correction.sql` | Adds `value_raw` and a `forecast_bias` table, so a systematic under-forecast can be measured and corrected nightly | Yes |
+| `18-city-requests.sql` | Reuses the petition table for "add my city" requests via a `kind` column, with partial unique indexes per kind | Yes |
 
-Files 1, 2, 5–16 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
+Files 1, 2, 5–18 set up the database structure. Files 3 and 4 populate it with sample data so you can see the dashboard in action without submitting your own readings.
 
 A few of these are worth a sentence, because the reason is not obvious from the name:
 
@@ -61,6 +104,18 @@ A few of these are worth a sentence, because the reason is not obvious from the 
   cost two bugs: `readings_daily.date` meant an IST day for XKDR rows and a UTC day for ours,
   and `diurnal_shape.hour` is an IST hour that the forecast code was reading as UTC, rotating
   every hourly profile by five and a half hours.
+- **17** exists because the forecast was measurably biased, not because the model
+  was wrong. Over 2,490 station-days it under-predicted during the autumn ramp:
+  both of its anchors — a seasonal climatology and a reading a median three days
+  old — look backwards, so a 30-115% climb over ten days outruns them. Chennai
+  was the natural control, the only city whose levels fell and the only one whose
+  bias improved. The correction is damped and capped, and `value_raw` keeps the
+  uncorrected number so the correction can always be audited or undone.
+- **18** reuses the petition table rather than adding a second one. A city request
+  has the same shape and the same obligations under the DPDP Act — name, email,
+  city, purpose, withdrawal token — so a separate table would have duplicated the
+  retention trigger, the withdrawal function and the RLS policies, which is three
+  chances for them to drift apart.
 - **16** is the only table in this project that holds personal data, so its row-level security
   is deliberately the inverse of every other table's. Everything else is `SELECT USING (true)`
   because air quality is public and the anon key ships to the browser. A list of named people
@@ -81,23 +136,56 @@ python3 -m scripts.forecast.nightly_forecast  # 7 days ahead per station
 
 ### 2. Configure environment variables
 
-Copy `.env.local.example` to `.env.local` (or create `.env.local`) and fill in your Supabase credentials:
+Copy `.env.local.example` to `.env.local` and fill it in:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+GROQ_API_KEY=...            # or AI_API_KEY; without it the Ask tab says so and the rest works
+SUPABASE_SERVICE_ROLE_KEY=  # LOCAL AND CI ONLY — see the warning below
 ```
 
-You can find these in your Supabase dashboard under Settings > API.
+The first two are in your Supabase dashboard under Settings > API.
+
+> **Never set `SUPABASE_SERVICE_ROLE_KEY` in your hosting provider.** It bypasses
+> row-level security entirely. The ingest and forecast jobs need it and run in
+> GitHub Actions; the web app does not and must not have it. The only table it
+> would expose is the one holding people's names and email addresses.
+
+The AI provider is swappable: Groq, Cerebras and OpenRouter are all
+OpenAI-compatible, so moving is a base URL and a model name (`AI_BASE_URL`,
+`AI_MODEL`). Free tiers disappear — GitHub Models was retired in July 2026 — so
+nothing hardcodes one.
 
 ### 3. Install and run
 
 ```bash
 npm install
-npm run dev
+npm run dev     # http://localhost:3000
+npm test        # 242 tests, no network or database needed
+npm run build   # type-check and production build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the dashboard.
+Python jobs run from the repo root as modules, e.g.
+`python3 -m scripts.forecast.nightly_forecast`. Most take `--dry-run`.
+
+### 4. Scheduled jobs
+
+Seven GitHub Actions workflows keep the data current. They need
+`SUPABASE_SERVICE_ROLE_KEY` and `OPENAQ_API_KEY` as repository secrets.
+
+| Workflow | When | What |
+|---|---|---|
+| `ingest_recent_readings` | every 6 h | Fetch recent measurements from OpenAQ |
+| `ingest-daily` | daily 04:00 UTC | The completeness pass behind the freshness one |
+| `rollup-daily` | daily 05:00 UTC | Collapse raw readings into `readings_daily` |
+| `forecast-nightly` | daily 05:30 UTC | Seven days ahead per station, with bias correction |
+| `forecast-refit` | monthly | Refit climatology, alphas, diurnal shape, modes |
+| `prune-raw` | weekly | Enforce 30-day raw retention |
+| `bootstrap-weekly` | weekly | Re-sync the station manifest |
+
+Order matters: the rollup must finish before the forecast runs, which is why
+they sit half an hour apart.
 
 ## How AQI is calculated
 
@@ -128,15 +216,32 @@ Feeding a raw ppb value into `computeSubIndex()` produces sub-indices off by rou
 
 Conversions use standard 25 °C, 1 atm assumptions (matching NAQI and CPCB): 1 ppm = molar-mass ÷ 24.45 mg/m³. Unrecognized units return `null` so bad data can be dropped rather than silently miscomputed.
 
-## Project Structure
+## Project structure
 
 ```
-app/           Next.js routes and pages
-components/    Reusable UI components
-lib/           Supabase client, utilities, types
-database-setup/ SQL files to set up the database (run in order)
-scripts/       Data import scripts (e.g., fetch_openaq.py)
+app/              Next.js routes: /, /setup, /ask, /map, /trends, /settings, /petition
+                  plus /api/* — forecast, map, history, ask, current, city-request
+                  /dashboard, /submit, /login and /signup are LEGACY, left over
+                  from the crowdsourced prototype this grew out of. They still
+                  work and are not linked from the app
+components/       Screens and charts. The charts are the fussiest part of this repo
+                  and the comments explain why
+lib/              Supabase clients, AQI maths, preferences, brand
+  lib/ai/         The question box: provider, the seven tools, chart building, quota
+database-setup/   18 SQL migrations, run in numbered order
+scripts/
+  scripts/ingest/    OpenAQ fetch, rollup, pruning
+  scripts/forecast/  Climatology, refit, nightly forecast, bias correction, simulation
+  scripts/analysis/  One-off investigations
+tests/            242 TypeScript tests plus Python tests for the jobs
+contrib/          Work intended for other people's repositories
+docs/             Design documents: storage, forecast architecture, LLM integration
 ```
+
+Code comments here explain **why**, not what. Most of them record a decision that
+was made the other way first — the chart axes, the IST/UTC conventions and the
+service worker's refusal to cache readings each cost a bug before they were
+written down.
 
 ## Licence
 
