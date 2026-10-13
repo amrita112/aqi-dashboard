@@ -15,6 +15,14 @@
 
 export interface ChartPoint {
   label: string;
+  /**
+   * Clock time, on its own tier of the axis below the date.
+   *
+   * A multi-day hourly forecast carried dates and nothing else, so the chart
+   * showed a day-and-a-half-long swing with no way to tell whether a peak was
+   * at breakfast or at midnight.
+   */
+  sub?: string;
   value: number;
   /** Set when a point is the one the sentence is about, so it can be marked. */
   highlight?: boolean;
@@ -100,7 +108,13 @@ export function chartFor(tool: string, result: unknown): AnswerChart | null {
           hours.forEach((hv, hour) => {
             const value = num(hv);
             if (value === null) return;
-            points.push({ label: hour === 12 ? date : "", value });
+            points.push({
+              // The date at noon on the lower tier of the axis, the clock at
+              // 6am and 6pm on the tier above it.
+              label: hour === 12 ? date : "",
+              sub: hour === 6 ? "6am" : hour === 18 ? "6pm" : "",
+              value,
+            });
           });
         } else {
           points.push({ label: date, value: v });

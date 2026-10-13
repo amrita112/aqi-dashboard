@@ -394,9 +394,6 @@ export default function TrendsScreen() {
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="shrink-0 font-semibold">Forecast</h2>
-          <span className="min-w-0 flex-1 truncate text-center text-xs font-medium text-gray-900">
-            {fHover}
-          </span>
           <select
             value={fRange}
             onChange={(e) => setFRange(e.target.value as ForecastRange)}
@@ -413,6 +410,14 @@ export default function TrendsScreen() {
         {/* The dates, stated. Someone should never have to trust that the app
             knows what day it is. */}
         {forecastDates && <p className="mt-0.5 text-xs text-gray-500">{forecastDates}</p>}
+        {/* THE READING, ON ITS OWN LINE. It used to share the header row with
+            the title and the range selector, where it had perhaps half the
+            width — enough for "18 Oct, 5pm · Lodhi Roa…" and not for a single
+            number. Comparing two places it is always too long for that slot,
+            and the part that got cut was the only part worth reading. A line
+            of its own, allowed to wrap, with its height reserved so the chart
+            does not jump as a finger moves. */}
+        <p className="mt-1 min-h-[2rem] text-xs font-medium text-gray-900">{fHover}</p>
         <div className="mt-3">
           {forecastSeries.every((s) => !s.points.length) ? (
             <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
@@ -439,9 +444,6 @@ export default function TrendsScreen() {
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="shrink-0 font-semibold">History</h2>
-          <span className="min-w-0 flex-1 truncate text-center text-xs font-medium text-gray-900">
-            {hHover}
-          </span>
           <select
             value={hRange}
             onChange={(e) => setHRange(Number(e.target.value) as HistoryRange)}
@@ -452,6 +454,7 @@ export default function TrendsScreen() {
             <option value={30}>30 days</option>
           </select>
         </div>
+        <p className="mt-1 min-h-[2rem] text-xs font-medium text-gray-900">{hHover}</p>
         <div className="mt-3">
           {historyLoading ? (
             <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
@@ -463,7 +466,13 @@ export default function TrendsScreen() {
               No history held for this place in that window.
             </p>
           ) : (
-            <TrendsChart series={historySeries} unit={unit} showKey={false} onHover={setHHover} />
+            <TrendsChart
+              series={historySeries}
+              unit={unit}
+              solidLabel="Measured"
+              showKey={false}
+              onHover={setHHover}
+            />
           )}
         </div>
       </section>

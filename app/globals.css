@@ -34,3 +34,24 @@ body {
     text-wrap: balance;
   }
 }
+
+/*
+ * NO FOCUS RING AROUND A TAPPED CHART.
+ *
+ * recharts makes its charts keyboard-focusable, which is right — a chart you
+ * can only read with a mouse is a chart some people cannot read at all. But a
+ * tap also focuses, and Android Chrome then draws its focus outline: a thick
+ * black rounded rectangle over the plot, sometimes around the whole chart and
+ * sometimes around just the shaded band. It looks like a drawing bug, and it
+ * appeared every time anyone touched a line to read a value.
+ *
+ * `:focus-visible` is the browser's own judgement about whether the focus came
+ * from a keyboard. Suppressing the outline only where it did NOT keeps the
+ * ring for anyone tabbing through, and removes it for the finger that is
+ * simply pointing at Tuesday.
+ */
+.recharts-wrapper :focus:not(:focus-visible),
+.recharts-wrapper:focus:not(:focus-visible),
+.recharts-surface :focus:not(:focus-visible) {
+  outline: none;
+}

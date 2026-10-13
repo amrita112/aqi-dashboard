@@ -27,6 +27,8 @@ import {
   YAxis,
 } from "recharts";
 import { hoveredIndex } from "@/lib/chart-hover";
+import { niceScale } from "@/lib/chart-scale";
+import { tickHeight, twoTierTick } from "@/components/ChartTick";
 
 export interface SeriesPoint {
   /** Day/date tier of the axis; empty for points between ticks. */
@@ -62,6 +64,7 @@ export default function TrendsChart({
   series,
   unit,
   bandLabel,
+  solidLabel = "Forecast",
   threshold,
   height = 208,
   showKey = true,
@@ -71,6 +74,8 @@ export default function TrendsChart({
   unit: string;
   /** What the shaded band means here, e.g. "likely range" or "day's min–max". */
   bandLabel?: string;
+  /** What a SOLID line means, shown only when a dashed one is also drawn. */
+  solidLabel?: string;
   threshold?: number | null;
   height?: number;
   /** Off when the caller already shows the colours, e.g. as place pills. */
@@ -119,6 +124,8 @@ export default function TrendsChart({
   // Padded around the data, never anchored at zero: a flat-looking line is a
   // chart that has thrown away the thing it was drawn to show.
   const pad = Math.max(5, (hi - lo) * 0.18);
+  // Round numbers on the axis; see lib/chart-scale.
+  const scale = niceScale(lo - pad, hi + pad);
 
   const sparse = rows.some((r) => r.label === "") && rows.some((r) => r.label !== "");
   const ticks = sparse
@@ -134,11 +141,34 @@ export default function TrendsChart({
   const MAX_HOUR_LABELS = 8;
   const allHourTicks = rows.filter((r) => r.hourLabel !== "").map((r) => r.i as number);
   const hourTicks = allHourTicks.length <= MAX_HOUR_LABELS ? allHourTicks : [];
+  const showHours = hourTicks.length > 0;
 
-  const hasBand = live.some((s) => s.points.some((p) => p.low != null && p.high != null));
+  // One axis, two lines of text. See components/ChartTick for why this is not
+  // two <XAxis> elements.
+  const dateTicks = ticks ?? rows.map((r) => r.i as number);
+  const axisTicks = Array.from(new Set([...hourTicks, ...dateTicks])).sort((a, b) => a - b);
+  const labelsAt = (i: number) => ({
+    hour: (rows[i]?.hourLabel as string) || undefined,
+    date: (rows[i]?.label as string) || undefined,
+  });
+
   // A seasonal tail is drawn dashed; say so only when one is present.
   const hasSeasonal = live.some((s) => s.points.some((p) => p.seasonal === true));
-  const hasSolid = live.some((s) => s.points.some((p) => p.seasonal !== true && p.value !== null));
+
+  // WHICH SERIES THE SWATCHES SHOULD BE COLOURED FOR. These entries describe
+  // line STYLES — solid, shaded, dashed — not places, and the legend used
+  // live[0]'s colour for all of them. Comparing Lodhi Road (orange) with
+  // Kolkata (blue), where only Kolkata had a band, drew an orange swatch
+  // beside a blue band and said they were the same thing.
+  //
+  // With one place on the chart, matching its colour is right and helps. With
+  // two, no single colour is honest, so the swatch goes neutral: the pills
+  // above the chart already say which place is which colour.
+  const banded = live.filter((s) => s.points.some((p) => p.low != null && p.high != null));
+  const hasBand = banded.length > 0;
+  const NEUTRAL = "#5c6b73";
+  const styleColour = (owners: typeof live) =>
+    owners.length === 1 ? owners[0].color : NEUTRAL;
 
   /**
    * Report the point under the pointer. Shared by the mouse and touch events so
@@ -190,37 +220,20 @@ export default function TrendsChart({
                 keeps the tracking and the cursor line and renders no box, because the
                 reading goes in the card header. */}
             <Tooltip content={() => null} cursor={{ stroke: "#9aa5ab", strokeWidth: 1 }} />
-            {/* The hour tier, nearest the plot and with no axis line of its
-                own. Declared first so it stacks above the date tier. */}
-            {hourTicks.length > 0 && (
-              <XAxis
-                xAxisId="hours"
-                dataKey="i"
-                type="number"
-                domain={[0, rows.length - 1]}
-                ticks={hourTicks}
-                tickFormatter={(i) => String(rows[i as number]?.hourLabel ?? "")}
-                tick={{ fontSize: 10, fill: "#8b959b" }}
-                axisLine={false}
-                tickLine={false}
-                height={14}
-                interval={0}
-              />
-            )}
-            {/* The date tier. Axis 0, the one the lines are plotted against. */}
             <XAxis
               dataKey="i"
               type="number"
               domain={[0, rows.length - 1]}
-              ticks={ticks}
-              tickFormatter={(i) => String(rows[i as number]?.label ?? "")}
-              tick={{ fontSize: 11, fill: "#5c6b73" }}
+              ticks={axisTicks}
+              tick={twoTierTick(labelsAt, showHours)}
+              height={tickHeight(showHours)}
               stroke="#d4d8da"
               tickLine={false}
               interval={sparse ? 0 : "preserveStartEnd"}
             />
             <YAxis
-              domain={[Math.max(0, Math.floor(lo - pad)), Math.ceil(hi + pad)]}
+              domain={scale.domain}
+              ticks={scale.ticks}
               tick={{ fontSize: 11, fill: "#5c6b73" }}
               stroke="#d4d8da"
               tickLine={false}
@@ -289,17 +302,22 @@ export default function TrendsChart({
               {s.label}
             </span>
           ))}
-        {hasSolid && (
+        {/* ONLY WHEN THERE IS A DASHED LINE TO CONTRAST WITH. This entry
+            explains that solid means prediction and dashed means seasonal
+            average. On the History card there is no dashed line, nothing to
+            distinguish, and the word was simply wrong: it labelled measured
+            readings "Forecast". */}
+        {hasSeasonal && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-0.5 w-5" style={{ background: live[0].color }} />
-            Forecast
+            <span className="inline-block h-0.5 w-5" style={{ background: styleColour(live) }} />
+            {solidLabel}
           </span>
         )}
         {hasBand && bandLabel && (
           <span className="flex items-center gap-1.5">
             <span
               className="inline-block h-2.5 w-5 rounded-sm"
-              style={{ background: live[0].color, opacity: 0.2 }}
+              style={{ background: styleColour(banded), opacity: 0.25 }}
             />
             {bandLabel}
           </span>
@@ -309,7 +327,7 @@ export default function TrendsChart({
             <span
               className="inline-block h-0.5 w-5"
               style={{
-                backgroundImage: `repeating-linear-gradient(to right, ${live[0].color} 0 5px, transparent 5px 9px)`,
+                backgroundImage: `repeating-linear-gradient(to right, ${styleColour(live)} 0 5px, transparent 5px 9px)`,
               }}
             />
             Seasonal normal

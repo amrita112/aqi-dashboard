@@ -25,7 +25,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useState } from "react";
 import { getAqiColor } from "@/lib/aqi-utils";
+import { hoveredIndex } from "@/lib/chart-hover";
+import { niceScale } from "@/lib/chart-scale";
+import { tickHeight, twoTierTick } from "@/components/ChartTick";
 import type { AnswerChart as ChartSpec } from "@/lib/ai/chart";
 
 /** Shorten an axis label without losing what distinguishes it. */
@@ -47,17 +51,64 @@ function shortLabel(label: string, kind: ChartSpec["kind"]): string {
   return label;
 }
 
+/** Keep at most `max` of these tick positions, evenly spaced. */
+function thin(ticks: number[], max: number): number[] {
+  if (ticks.length <= max) return ticks;
+  const step = Math.ceil(ticks.length / max);
+  return ticks.filter((_, k) => k % step === 0);
+}
+
 export default function AnswerChart({ chart }: { chart: ChartSpec }) {
   const isAqi = chart.unit === "AQI";
-  const data = chart.points.map((p) => ({
+  /** The point under the finger, reported beside the chart's title. */
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  const data = chart.points.map((p, i) => ({
     ...p,
+    i,
     short: shortLabel(p.label, chart.kind),
   }));
 
-  // When the series carries its own sparse labels (one per day among hourly
-  // points), honour them instead of thinning a dense axis.
-  const sparse = data.some((d) => d.short === "") && data.some((d) => d.short !== "");
-  const tickGap = sparse ? 0 : Math.max(0, Math.ceil(data.length / 6) - 1);
+  // DATE AND TIME ON SEPARATE TIERS, as everywhere else in the app. An hourly
+  // series puts its clock on the hour tier and carries no date; a multi-day
+  // forecast puts the date at noon and the clock at 6am and 6pm.
+  const hourly = chart.kind === "hourly";
+  const dateTicks = thin(
+    data.filter((d) => (hourly ? false : d.short !== "")).map((d) => d.i),
+    7,
+  );
+  const hourTicks = thin(
+    data.filter((d) => (hourly ? d.short !== "" : (d.sub ?? "") !== "")).map((d) => d.i),
+    8,
+  );
+  const showHours = hourTicks.length > 0;
+  const axisTicks = Array.from(new Set([...hourTicks, ...dateTicks])).sort((a, b) => a - b);
+  const hourAt = new Set(hourTicks);
+  const dateAt = new Set(dateTicks);
+  const labelsAt = (i: number) => ({
+    hour: hourAt.has(i) ? (hourly ? data[i]?.short : data[i]?.sub) || undefined : undefined,
+    date: dateAt.has(i) ? data[i]?.short || undefined : undefined,
+  });
+
+  // PADDED, NOT ANCHORED AT ZERO. recharts defaults a numeric axis to a
+  // zero baseline, which drew a forecast swinging between 140 and 280 as a
+  // nearly flat line in the top half of the box. Rounded, so the axis reads
+  // 150/200/250 rather than 130/195/260.
+  const values = data.map((d) => d.value).filter((v) => Number.isFinite(v));
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const pad = Math.max(5, (hi - lo) * 0.18);
+  const scale = niceScale(lo - pad, hi + pad);
+
+  const report = (state: { activeTooltipIndex?: number | string | null } | undefined) => {
+    const i = hoveredIndex(state, data.length);
+    const d = i === null ? undefined : data[i];
+    if (!d) return setHovered(null);
+    // The point's own full label, not the shortened axis one, which is blank
+    // for most points.
+    const when = [d.label, d.sub].filter(Boolean).join(" ") || d.short;
+    setHovered(`${when ? `${when} · ` : ""}${Math.round(d.value)} ${chart.unit}`.trim());
+  };
 
   const axis = {
     tick: { fontSize: 11, fill: "#5c6b73" },
@@ -67,17 +118,25 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
   return (
     <figure className="mt-4 border-t border-gray-100 pt-4">
       <figcaption className="text-xs font-medium text-gray-600">{chart.title}</figcaption>
+      {/* THE READING GOES HERE, not in a floating box over the line. The
+          default recharts tooltip was passed an empty series name, so it
+          rendered as ": 240 AQI" — a dangling colon in a white box sitting on
+          top of the data it described. Every other chart in the app reports
+          into its header; this one had been missed. */}
+      <p className="min-h-[1.25rem] text-xs font-medium text-gray-900">{hovered}</p>
       <div className="mt-2 h-44 w-full">
         <ResponsiveContainer width="100%" height="100%">
           {chart.kind === "compare" ? (
-            <BarChart data={data} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
+            <BarChart
+              data={data}
+              margin={{ top: 6, right: 8, left: -18, bottom: 0 }}
+              onMouseMove={report}
+              onTouchMove={report}
+            >
               <CartesianGrid vertical={false} stroke="#eef0f1" />
               <XAxis dataKey="short" {...axis} />
               <YAxis {...axis} width={44} />
-              <Tooltip
-                formatter={(v) => [`${Math.round(Number(v))} ${chart.unit}`, ""] as [string, string]}
-                labelFormatter={(l) => String(l)}
-              />
+              <Tooltip content={() => null} cursor={{ fill: "#eef0f1" }} />
               <Bar dataKey="value" radius={[3, 3, 0, 0]}>
                 {/* Band colour per bar, so the comparison reads the way the
                     rest of the app reads rather than as two neutral bars. */}
@@ -87,14 +146,28 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
               </Bar>
             </BarChart>
           ) : (
-            <LineChart data={data} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
+            <LineChart
+              data={data}
+              margin={{ top: 6, right: 8, left: -18, bottom: 0 }}
+              onMouseMove={report}
+              onTouchMove={report}
+            >
               <CartesianGrid vertical={false} stroke="#eef0f1" />
-              <XAxis dataKey="short" interval={tickGap} {...axis} />
-              <YAxis {...axis} width={44} />
-              <Tooltip
-                formatter={(v) => [`${Math.round(Number(v))} ${chart.unit}`, ""] as [string, string]}
-                labelFormatter={(l) => String(l)}
+              <XAxis
+                dataKey="i"
+                type="number"
+                domain={[0, Math.max(0, data.length - 1)]}
+                ticks={axisTicks}
+                tick={twoTierTick(labelsAt, showHours)}
+                height={tickHeight(showHours)}
+                tickLine={false}
+                stroke="#d4d8da"
+                interval={0}
               />
+              <YAxis domain={scale.domain} ticks={scale.ticks} {...axis} width={44} />
+              {/* Draws nothing: recharts only tracks the active point while a
+                  Tooltip is mounted, and the reading goes in the header. */}
+              <Tooltip content={() => null} cursor={{ stroke: "#9aa5ab", strokeWidth: 1 }} />
               <Line
                 type="monotone"
                 dataKey="value"

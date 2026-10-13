@@ -34,6 +34,8 @@ import {
   YAxis,
 } from "recharts";
 import { hoveredIndex } from "@/lib/chart-hover";
+import { niceScale } from "@/lib/chart-scale";
+import { tickHeight, twoTierTick } from "@/components/ChartTick";
 
 export interface ForecastDayInput {
   target_date: string;
@@ -131,8 +133,11 @@ export default function ForecastChart({
   const lo = Math.min(...values);
   const hi = Math.max(...values);
   // Padded around the data, never anchored at zero: a rising forecast was being
-  // drawn as a flat line against a zero baseline.
+  // drawn as a flat line against a zero baseline. The padded range is then
+  // snapped to round numbers, so the axis reads 100/150/200 rather than
+  // 111/161/211.
   const pad = Math.max(6, (hi - lo) * 0.18);
+  const scale = niceScale(lo - pad, hi + pad);
 
   // TWO TIERS, DATE AND TIME IN DIFFERENT PLACES. One axis carrying
   // "6am Today 6pm 6am Thu 6pm" alternated two kinds of label in one line and
@@ -155,6 +160,16 @@ export default function ForecastChart({
   const hourTicks = showHours
     ? rows.filter((r) => r.hour % 6 === 0 && r.hour !== 0).map((r) => r.i)
     : [];
+
+  // The ticks the axis draws, and what each one says on each line. A tick can
+  // carry an hour, a date, or both — the day label sits at the day's centre,
+  // which on a one-day chart is also noon, an hour mark.
+  const axisTicks = Array.from(new Set([...hourTicks, ...dayTicks])).sort((a, b) => a - b);
+  const hourLabelAt = new Map(hourTicks.map((i) => [i, clockOf(rows[i].hour)]));
+  const labelsAt = (i: number) => ({
+    hour: hourLabelAt.get(i),
+    date: dayLabelAt.get(i),
+  });
 
   // What is actually drawn, so the key below can describe only that.
   const hasForecast = rows.some((r) => r.forecast !== null);
@@ -215,38 +230,21 @@ export default function ForecastChart({
               keeps the tracking and the cursor line and renders no box, because the
               reading goes in the card header. */}
           <Tooltip content={() => null} cursor={{ stroke: "#9aa5ab", strokeWidth: 1 }} />
-          {/* The hour tier, nearest the plot. Declared first so it stacks
-              above the day tier; no axis line of its own, because two rules
-              under one chart look like two charts. */}
-          {showHours && (
-            <XAxis
-              xAxisId="hours"
-              dataKey="i"
-              type="number"
-              domain={[0, rows.length - 1]}
-              ticks={hourTicks}
-              tickFormatter={(i) => clockOf(rows[i as number]?.hour ?? 0)}
-              tick={{ fontSize: 10, fill: "#8b959b" }}
-              axisLine={false}
-              tickLine={false}
-              height={14}
-            />
-          )}
-          {/* The day tier. This is axis 0, the one the lines are plotted
-              against — the hour tier is decoration, so it is the one that may
-              be absent. */}
+          {/* ONE axis drawing two lines of text — see components/ChartTick. */}
           <XAxis
             dataKey="i"
             type="number"
             domain={[0, rows.length - 1]}
-            ticks={dayTicks}
-            tickFormatter={(i) => dayLabelAt.get(i as number) ?? ""}
-            tick={{ fontSize: 11, fill: "#5c6b73" }}
+            ticks={axisTicks}
+            tick={twoTierTick(labelsAt, showHours)}
+            height={tickHeight(showHours)}
             stroke="#d4d8da"
             tickLine={false}
+            interval={0}
           />
           <YAxis
-            domain={[Math.max(0, Math.floor(lo - pad)), Math.ceil(hi + pad)]}
+            domain={scale.domain}
+            ticks={scale.ticks}
             tick={{ fontSize: 11, fill: "#5c6b73" }}
             stroke="#d4d8da"
             tickLine={false}
