@@ -137,3 +137,46 @@ lib/           Supabase client, utilities, types
 database-setup/ SQL files to set up the database (run in order)
 scripts/       Data import scripts (e.g., fetch_openaq.py)
 ```
+
+## Licence
+
+The code in this repository is licensed under the **GNU Affero General Public
+License v3.0** — see [LICENSE](LICENSE) for the full text.
+
+AGPL rather than MIT because this is a web app. An ordinary GPL obligation is
+triggered by *distributing* software, and nobody distributes a web app: they
+run it on a server and send you HTML. The AGPL's section 13 closes that gap —
+if you run a modified version of this and let other people use it over a
+network, you have to offer them the source to your modifications.
+
+What that means in practice:
+
+- **Read it, learn from it, fork it, run it** — yes, for anyone.
+- **Use it in research, teaching, or your own city's version** — yes. Please do.
+- **Run a modified copy as a public service** — yes, provided you publish your
+  changes under the same licence.
+- **Take it closed-source and commercial** — no.
+
+To be explicit about what a licence cannot do: copyright covers this code, not
+the ideas in it. Anyone is free to read how the forecast works and build their
+own. That is fine, and partly the point.
+
+## Data, and how to credit it
+
+**The licence above covers the code only.** It makes no claim over the air
+quality measurements, which are not ours and are not licensed by us.
+
+Readings come from India's Central Pollution Control Board monitoring network,
+reaching this app two ways: [OpenAQ](https://openaq.org) for recent
+measurements, and the XKDR Forum's archive for the history the forecast is
+fitted on. The test fixtures under `tests/fixtures/simulation/` are derived
+from that archive.
+
+If you use the data — in a paper, report, story or product — cite the database
+and credit its two sources, as XKDR asks:
+
+> XKDR Forum (2026). India Air Quality Database. https://airquality.xkdr.org
+>
+> Sources: Central Pollution Control Board (CPCB), Continuous Ambient Air
+> Quality Monitoring network; US Department of State air quality monitors, via
+> AirNow.
