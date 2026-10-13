@@ -341,6 +341,22 @@ export default function AskScreen() {
         )}
       </p>
 
+      {/* SAID HERE, NOT ONLY ON A POLICY PAGE. This is the one place in the app
+          where something a person has WRITTEN leaves the device, along with the
+          coordinates of the place they picked — and two screens away, Settings
+          says their answers are kept on this device only. Both are true, and
+          together they mislead unless this sentence sits next to the box it is
+          about. Someone typing "is the air bad where my daughter goes to
+          school" should know where that sentence goes before they send it. */}
+      <p className="mt-2 px-1 text-xs text-gray-500">
+        Your question and the location you chose are sent to an AI company to be
+        answered.{" "}
+        <Link href="/privacy" className="underline">
+          What that means
+        </Link>
+        .
+      </p>
+
       {/* Pinned to the bottom, where a thumb and a phone keyboard expect it. */}
       <form
         onSubmit={(e) => {

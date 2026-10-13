@@ -399,6 +399,18 @@ export default function SettingsScreen() {
         <p className="mt-1 text-xs text-gray-500">
           Your answers are kept on this device only. Clearing your browser data loses them.
         </p>
+        {/* REACHABLE FROM INSIDE THE APP. Someone who installed this to a home
+            screen has no address bar and no repository; a privacy page they
+            cannot open is a document written for somebody else. */}
+        <p className="mt-4 text-xs text-gray-500">
+          <Link href="/privacy" className="underline">
+            Privacy
+          </Link>
+          {" · "}
+          <Link href="/terms" className="underline">
+            Terms of use
+          </Link>
+        </p>
       </section>
     </div>
   );

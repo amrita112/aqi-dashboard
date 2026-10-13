@@ -62,7 +62,20 @@ export const TABS: Tab[] = [
 ];
 
 /** Routes that belong to the forecast app and get the bottom tab bar. */
-const APP_PREFIXES = ["/ask", "/setup", "/settings", "/petition", "/trends", "/map"];
+// Routes that are part of the app and therefore keep the tab bar. A standalone
+// home-screen install has NO address bar and no browser chrome, so a page
+// missing from this list is a page someone can reach and not leave.
+const APP_PREFIXES = [
+  "/ask",
+  "/setup",
+  "/settings",
+  "/petition",
+  "/trends",
+  "/map",
+  "/privacy",
+  "/terms",
+  "/learn",
+];
 
 export function isAppRoute(pathname: string): boolean {
   return pathname === "/" || APP_PREFIXES.some((p) => pathname.startsWith(p));

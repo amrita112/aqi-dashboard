@@ -76,3 +76,20 @@ describe("the tabs themselves", () => {
     expect(new Set(TABS.map((t) => t.href)).size).toBe(TABS.length);
   });
 });
+
+describe("pages a person can reach must be pages they can leave", () => {
+  // A standalone home-screen install has no address bar and no back button on
+  // every platform. A route without the tab bar is a dead end there, which is
+  // how /privacy and /terms shipped on their first attempt.
+  it("keeps the tab bar on the policy and explainer pages", () => {
+    for (const path of ["/privacy", "/terms", "/learn/aqi-vs-pm25"]) {
+      expect(isAppRoute(path), `${path} should keep the tab bar`).toBe(true);
+    }
+  });
+
+  it("lights up no tab for them, since none is theirs", () => {
+    for (const tab of TABS) {
+      expect(isCurrentTab(tab.href, "/privacy")).toBe(false);
+    }
+  });
+});
