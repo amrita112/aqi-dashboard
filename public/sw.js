@@ -21,7 +21,13 @@
  * Those are safe because they contain no readings.
  */
 
-const VERSION = "v1";
+// BUMP THIS WHENEVER A FILE IN `SHELL` BELOW CHANGES. The shell is served
+// cache-first, so a browser that already holds a copy never asks for it
+// again — which is right for an icon, and wrong the day the icon changes.
+// Renaming the cache makes `activate` delete the old one and fetch afresh.
+// Bumped to v2 for the beta, ahead of the real app icon replacing the
+// generated placeholders.
+const VERSION = "v2";
 const SHELL_CACHE = `shell-${VERSION}`;
 
 // Enough to render something recognisable with no network. Deliberately short:
