@@ -49,7 +49,7 @@ export default function InstallScreen() {
     <main className="mx-auto flex min-h-[80vh] max-w-md flex-col justify-center px-6 py-10">
       <h1 className="text-center text-3xl font-bold tracking-tight">{APP_NAME}</h1>
       <p className="mt-3 text-center text-gray-600">
-        Air quality where you are, for seven Indian cities. Free, no account.
+        Unmasking pollution: air quality forecasting for India
       </p>
 
       <div className="mt-8">
@@ -125,8 +125,7 @@ export default function InstallScreen() {
       </Link>
 
       <p className="mt-8 text-center text-xs text-gray-500">
-        Installing adds an icon to your home screen and opens full screen. It is
-        the same app either way — nothing is downloaded from a store.
+        Installing adds an icon to your home screen, which behaves like an app.
       </p>
     </main>
   );
