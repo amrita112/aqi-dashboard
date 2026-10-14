@@ -23,6 +23,12 @@
  * And the way out is on the page. Someone on a laptop, or who simply does not
  * want another icon, should not have to work out that the thing also just
  * works in a browser.
+ *
+ * NOTHING EXPLAINS WHAT INSTALLING DOES. There was a line, and it went: a
+ * button labelled "Install app" on a page headed "Install" does not need a
+ * footnote telling the reader what installing is. Explaining the obvious was
+ * the thing that made the first version of this feel like a website
+ * apologising for itself.
  */
 
 import Link from "next/link";
@@ -123,10 +129,6 @@ export default function InstallScreen() {
       >
         Or use it in your browser
       </Link>
-
-      <p className="mt-8 text-center text-xs text-gray-500">
-        Installing adds an icon to your home screen, which behaves like an app.
-      </p>
     </main>
   );
 }
