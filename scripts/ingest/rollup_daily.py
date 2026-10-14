@@ -23,7 +23,7 @@ Env vars required:
 
 Optional:
     ROLLUP_DATE=2026-08-30    # single date to roll up
-    ROLLUP_LOOKBACK_DAYS=5    # re-roll the last N days (default 5, catches S3 backfill for T-3)
+    ROLLUP_LOOKBACK_DAYS=10   # re-roll the last N days (default 10; see the constant)
     DRY_RUN=1                 # print what would be written, no writes
 """
 
@@ -41,7 +41,23 @@ from scripts.ingest.lib.config import ist_day_bounds_utc, ist_today  # noqa: E40
 from scripts.ingest.lib.supabase_client import make_client
 
 ROLLUP_TABLE = "readings_daily"
-DEFAULT_LOOKBACK_DAYS = 5
+
+# TEN DAYS, NOT FIVE. Five was chosen to catch the S3 backfill at T-3, and it
+# was too short for the thing that actually arrives late: OpenAQ publishes
+# India on a measured median lag of about 4.6 days, with a tail past 7.
+#
+# A reading that lands on day 6 therefore arrived AFTER this job had stopped
+# looking at its date, so it was never rolled up at all — not late, never. The
+# raw row sits in `readings` and no daily summary is ever written for it.
+#
+# Visible as two screens disagreeing: the Trends tab's 7-day history reads raw
+# readings and showed a full week for a Bandra station, while the 30-day view
+# reads this table and stopped five days earlier. Measured 13 Oct 2026, the
+# rollup held 159 stations for 7 Oct and nine for each of 8-12 Oct.
+#
+# Ten covers the measured tail. Re-rolling is an upsert, so the only cost of a
+# wider window is the extra reads, and the job's timeout was raised with it.
+DEFAULT_LOOKBACK_DAYS = 10
 
 
 def target_dates() -> List[date]:

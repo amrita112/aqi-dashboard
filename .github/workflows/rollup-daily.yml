@@ -27,7 +27,10 @@ on:
 jobs:
   rollup:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 25, not 15: the lookback went from five days to ten, so this reads
+    # roughly twice as much per run. Doubling the window under a timeout
+    # chosen for the old one would turn a fix into a job that dies halfway.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
