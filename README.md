@@ -281,8 +281,9 @@ Conversions use standard 25 °C, 1 atm assumptions (matching NAQI and CPCB): 1 p
 
 ```
 app/              Next.js routes: /, /setup, /ask, /map, /trends, /settings,
-                  /petition, /privacy, /terms, plus /api/* — forecast, map,
-                  history, ask, event, current, city-request
+                  /petition, /privacy, /terms, /install, plus /api/* —
+                  forecast, map, history, ask, event, geocode, current,
+                  city-request
 components/       Screens and charts. The charts are the fussiest part of this repo
                   and the comments explain why
 lib/              Supabase clients, AQI maths, preferences, brand

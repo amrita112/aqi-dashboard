@@ -33,6 +33,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { NEAREST_K } from "@/lib/prefs";
+import PlaceSearch, { type SearchHit } from "@/components/PlaceSearch";
 
 export interface NearbyStation {
   monitor_id: string;
@@ -85,11 +86,18 @@ const STATION_DOT = L.divIcon({
  * city's map on screen, with the new city's name above it. React's prop looked
  * like it was driving the map and was not.
  */
-function Recentre({ centre }: { centre: { latitude: number; longitude: number } }) {
+function Recentre({
+  centre,
+  zoom,
+}: {
+  centre: { latitude: number; longitude: number };
+  /** Set when arriving from a search, where the city-wide view is no use. */
+  zoom?: number;
+}) {
   const map = useMap();
   useEffect(() => {
-    map.setView([centre.latitude, centre.longitude], map.getZoom());
-  }, [map, centre.latitude, centre.longitude]);
+    map.setView([centre.latitude, centre.longitude], zoom ?? map.getZoom());
+  }, [map, centre.latitude, centre.longitude, zoom]);
   return null;
 }
 
@@ -118,6 +126,8 @@ export default function LocationPicker({
   const [label, setLabel] = useState(value?.label ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Where a search put us, so the map follows it rather than the city. */
+  const [searched, setSearched] = useState<{ latitude: number; longitude: number } | null>(null);
   // Set when the user edits the label, so a later pin move stops overwriting it.
   const labelTouched = useRef(Boolean(value?.label));
 
@@ -178,6 +188,23 @@ export default function LocationPicker({
 
   return (
     <div className="space-y-3">
+      {/* SEARCH FIRST, MAP SECOND. The map is good at "is this the right
+          spot?" and bad at "where am I?", which is the question first run was
+          asking of everyone. */}
+      <PlaceSearch
+        near={centre}
+        onPick={(hit: SearchHit) => {
+          setPoint({ lat: hit.latitude, lng: hit.longitude });
+          // Moves the map AND zooms in, so what arrives is a street-level view
+          // someone can recognise and adjust rather than the whole city again.
+          setSearched({ latitude: hit.latitude, longitude: hit.longitude });
+          // Their words for the place, not a monitoring site's name. They can
+          // still edit it below.
+          setLabel(hit.label);
+          labelTouched.current = true;
+        }}
+      />
+
       <div className="h-64 w-full overflow-hidden rounded-md border border-gray-300">
         <MapContainer
           center={[centre.latitude, centre.longitude]}
@@ -189,7 +216,7 @@ export default function LocationPicker({
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <Recentre centre={centre} />
+          <Recentre centre={searched ?? centre} zoom={searched ? 14 : undefined} />
           <ClickCatcher onPick={(lat, lng) => setPoint({ lat, lng })} />
           {point && <Marker position={[point.lat, point.lng]} icon={PIN} />}
           {/* The stations themselves. Named on hover/tap, so the list below and
@@ -220,9 +247,12 @@ export default function LocationPicker({
         </MapContainer>
       </div>
 
+      {/* The search box above already says both ways of choosing, so this is
+          now a quieter reminder rather than the instruction. Kept because the
+          map is directly above it and a pin has still not been dropped. */}
       {!point && (
-        <p className="text-base font-medium text-gray-900">
-          Tap the map to drop a pin where you spend your time in {city}.
+        <p className="text-sm text-gray-600">
+          Tap the map to place a pin anywhere in {city}.
         </p>
       )}
 
