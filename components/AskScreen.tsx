@@ -192,7 +192,11 @@ export default function AskScreen() {
     // text does not — an answer running the full width of a monitor is harder
     // to read, not easier. The column stays at a comfortable measure and the
     // extra space is left empty.
-    <div className="mx-auto flex min-h-[calc(100vh-7rem)] w-full max-w-2xl flex-col">
+    // 100dvh, NOT 100vh. On iOS, 100vh is the viewport as it would be with the
+    // browser chrome hidden — taller than what you can actually see — so a
+    // column sized to it hangs below the screen and takes whatever sits at its
+    // end with it. dvh is the height that is really there.
+    <div className="mx-auto flex min-h-[calc(100dvh-7rem)] w-full max-w-2xl flex-col">
       <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
 
       <div className="mt-4 flex-1 space-y-4">
@@ -357,13 +361,22 @@ export default function AskScreen() {
         .
       </p>
 
-      {/* Pinned to the bottom, where a thumb and a phone keyboard expect it. */}
+      {/* Pinned above the tab bar, where a thumb and a phone keyboard expect it.
+          NOT bottom-0: a sticky element pins to the SCROLLPORT, and the tab bar
+          is `fixed` over the bottom 80px of it — so the whole question box sat
+          underneath the tab bar, off screen. On an iPhone that left the Ask tab
+          with a title, some empty space and no way to ask anything, which is
+          what Ruju recorded.
+          It was always wrong; it became invisible when the tab bar went from
+          95% opaque to solid on 13 Oct, so the box stopped showing through.
+          bottom-20 matches the pb-20 the shell already reserves for the bar;
+          on a laptop the bar is a left sidebar and nothing overlaps. */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           void ask(question);
         }}
-        className="sticky bottom-0 mt-4 flex items-end gap-2 bg-gray-50 pb-2 pt-3"
+        className="sticky bottom-20 mt-4 flex items-end gap-2 bg-gray-50 pb-2 pt-3 lg:bottom-0"
       >
         <textarea
           ref={inputRef}
