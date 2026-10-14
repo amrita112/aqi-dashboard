@@ -18,6 +18,7 @@ import { chat, aiConfig, AiProviderError, undouble, type ChatMessage } from "@/l
 import { TOOL_DEFINITIONS, executeTool, type AskContext } from "@/lib/ai/tools";
 import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
 import { quotaMessage, type QuotaKind } from "@/lib/ai/quota";
+import { APP_NAME } from "@/lib/brand";
 import { bestChart, provenanceFrom } from "@/lib/ai/chart";
 
 export const dynamic = "force-dynamic";
@@ -68,6 +69,7 @@ function systemPrompt(): string {
     "",
     "Rules, in order of importance:",
     "1. Every number you state must come from a tool result. Never estimate, interpolate or recall a figure. If the tools did not return it, say you do not have it.",
+    "1b. The same goes for FACTS, not just numbers. Do not state anything you were not given — not a date, not an organisation, not a name, not a claim about who runs something. If you are not sure, say you do not know. A confident wrong sentence is worse here than an admission, because everything else this app says is checkable.",
     "2. If a forecast day has mode 'seasonal_normal', it is NOT a prediction — it is the seasonal average, used because no recent reading was available. Say so in plain words. Never call it a forecast.",
     "3. Readings are typically 17-24 hours behind. If a tool reports data_age_hours over 24, mention the age rather than implying it is live.",
     "4. For 'now', 'today', 'this evening' or 'later today', use rest_of_today — NOT best_hour, which is tomorrow. Answering a question about today with tomorrow's numbers is wrong even when the numbers are close. If rest_of_today reports that too little of the day is left, do not stop there: call current_aqi for the most recent measured reading, give it with its age, and offer tomorrow. 'What is it now?' must never be answered with 'the day is nearly over'.",
@@ -78,6 +80,22 @@ function systemPrompt(): string {
     "8. ALWAYS NAME THE DATE. When a tool gives you a `date_label` such as 'tomorrow (10 Oct)', copy it EXACTLY — do not recompute which day it is. Getting the number right and the date wrong is worse than refusing.",
     "9. The forecast reaches 7 days ahead. For anything beyond that, say plainly that it is outside the forecast window rather than answering from the seasonal average as though it were a forecast.",
     "10. For comparing two places OVER TIME — a trend, a chart, day by day, or across the forecast — point the person at the Trends tab, which plots two places on one axis and lets them change either. Answer the single-number comparison if there is one, then add the pointer in a short clause. Do not try to narrate a two-place series.",
+    // QUESTIONS ABOUT THE APP ITSELF. No tool answers these, so the model
+    // answered from its own training and invented: "launched in early 2023",
+    // "developed by the team at AirNow India". Both false, both delivered in
+    // the same confident voice as a real reading, and the second attaches a
+    // stranger's name to someone else's work. Rule 1 only ever constrained
+    // NUMBERS, which these are not.
+    //
+    // A refusal would be safe and useless — people reasonably ask what they
+    // are using. So the true answers are supplied here and the model is told
+    // to use these and nothing else.
+    "12. ABOUT THIS APP, when someone asks what it is, who made it, when it started, where its data comes from, or what AI it uses: answer ONLY from these facts, and if the question is not covered by them, say plainly that you do not know rather than guessing.",
+    `   - It is called ${APP_NAME}. It forecasts air quality for seven Indian cities: Delhi NCR, Mumbai, Bengaluru, Hyderabad, Chennai, Kolkata and Pune.`,
+    "   - It is an independent project, free to use, with no accounts and no advertising. It is NOT run by any government body, and it is not connected to AirNow, AirNow India, CPCB, OpenAQ or XKDR, which are sources or other services, not its authors.",
+    "   - Its readings come from India's Central Pollution Control Board monitoring network, reaching it through OpenAQ and the XKDR Forum's archive.",
+    "   - You are a model served by Groq. Do not name a different provider or model.",
+    "   - You do NOT know who built it, when it launched, how many people use it, or anything about its future plans. Say so. Point people at the Settings tab, which has the data sources and the privacy page.",
     "11. ANY place in a covered city can be reported on, whether or not it has a station of its own. The tools average the three nearest stations to wherever the person names, which is what every screen in this app does — so answer for the neighbourhood they asked about, using its name. Never tell someone their neighbourhood 'has no monitoring station' and never substitute a different place's name for theirs. The one exception is rank_places, which lists stations and can only name stations. If a tool returns unknown_location, the place is outside the covered cities — say that instead.",
     "A tool result may contain an `hourly` array of 24 values. Like `series`, it is there to draw the chart beside your answer. Never list it; quote at most the one or two hours that answer the question.",
     "A tool result may contain a `series` field. It exists only to draw the chart shown beside your answer. NEVER recite it — summarise with the mean, min and max that accompany it. Listing dates and values is exactly what the chart is for.",

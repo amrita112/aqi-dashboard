@@ -22,24 +22,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { TABS, isAppRoute, isCurrentTab } from "@/lib/nav";
-import { loadPrefs } from "@/lib/prefs";
+import { TABS, isCurrentTab } from "@/lib/nav";
+import { useTabBarVisible } from "@/components/useTabBar";
 
 export default function TabBar() {
   const pathname = usePathname();
-  // Whether first run is done. Read in an effect because localStorage does not
-  // exist during server rendering; null means "not known yet", and the bar
-  // stays hidden rather than flashing in and out.
-  const [configured, setConfigured] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    setConfigured(loadPrefs() !== null);
-  }, [pathname]);
-
-  if (!isAppRoute(pathname)) return null;
-  if (pathname.startsWith("/setup")) return null;
-  if (configured !== true) return null;
+  // The same decision the page's own spacing is made from — see
+  // components/useTabBar. Kept in one place because the two disagreeing is
+  // what pushed /install off-centre on a laptop.
+  const visible = useTabBarVisible();
+  if (!visible) return null;
 
   return (
     <nav

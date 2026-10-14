@@ -115,7 +115,7 @@ export default function SettingsScreen() {
           href="/"
           className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800"
         >
-          Done
+          Return to Home
         </Link>
       </div>
 

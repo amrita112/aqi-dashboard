@@ -11,6 +11,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import TabBar from "@/components/TabBar";
 import ErrorReporter from "@/components/ErrorReporter";
+import AppShell from "@/components/AppShell";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import { Analytics } from "@vercel/analytics/next";
 import { APP_NAME, APP_DESCRIPTION, THEME_COLOR } from "@/lib/brand";
@@ -71,11 +72,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
       >
-        {/* pb-20 clears the fixed bottom bar on a phone; lg:pl-56 clears the
-            sidebar it becomes on a laptop. Both are harmless on the pages
-            where TabBar renders nothing — padding against a bar that is not
-            there costs only space. */}
-        <div className="pb-20 lg:pb-8 lg:pl-56">{children}</div>
+        {/* Reserves the fixed bar's space, and ONLY when the bar is there.
+            "Harmless" was wrong: on a laptop, padding against a sidebar that
+            does not exist pushed /install and /setup 224px right of centre. */}
+        <AppShell>{children}</AppShell>
         <TabBar />
         <ServiceWorkerRegistration />
         {/* Catches what app/error.tsx cannot: event handlers, unawaited

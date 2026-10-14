@@ -224,7 +224,8 @@ export default function AskScreen() {
                 i
               </span>
               <span>
-                {provenanceLine(state.entry) ?? "Answered without looking anything up."}
+                {provenanceLine(state.entry) ??
+                  "Answered without looking anything up — these are the AI's own words, not this app's data."}
                 {state.cached && ` · saved answer, ${shortAge(state.entry.asked_at)}`}
               </span>
             </p>
