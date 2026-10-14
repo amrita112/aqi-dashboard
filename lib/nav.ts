@@ -78,6 +78,7 @@ const APP_PREFIXES = [
   "/privacy",
   "/terms",
   "/learn",
+  "/install",
 ];
 
 export function isAppRoute(pathname: string): boolean {

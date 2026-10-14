@@ -1,123 +1,61 @@
 "use client";
 
 /**
- * Telling iPhone users this can be installed, because nothing else will.
+ * A slim offer to install, shown once.
  *
- * Apple has never offered an install prompt and never will — on iOS the only
- * route is Share → Add to Home Screen, and Safari gives no hint that it
- * exists. So an iPhone user has no way to discover the app can be installed,
- * and without installing it they get no full-screen app and, later, no push
- * notifications: iOS delivers push only to home-screen installs, never to a
- * browser tab.
+ * WHAT CHANGED AND WHY. The first tester to see this had been told he was
+ * getting an app, and instead got a web page that asked him three questions
+ * and then offered a button explaining that it would be saved to his home
+ * screen and "behave like an app". Two separate problems: it came too late to
+ * change what he thought he was looking at, and the language hedged.
  *
- * Android needs nothing from us. Chrome raises its own prompt once the
- * manifest, icons and service worker are in place, which they are.
+ * So: plainer words, and this now also appears at the top of the first setup
+ * question rather than only after it. The dedicated /install page is the link
+ * to send someone; this is for people who arrive at the app directly.
  *
  * Shown ONCE and dismissible for good. A banner that reappears every visit is
  * an advertisement, and this app's whole argument is that it does not
- * overclaim — pestering someone about installing it would undercut that for a
- * feature they get no benefit from if they do not want it.
- *
- * Deliberately NOT shown:
- *   - on Android, where the browser handles it
- *   - in an already-installed app, where it would be absurd
- *   - during first run, which is a focused flow with its own buttons
- *   - inside an in-app browser (Instagram, Gmail), where Add to Home Screen
- *     does not exist and the advice would simply be wrong
+ * overclaim.
  */
 
 import { useEffect, useState } from "react";
-import { trackInstalled } from "@/lib/analytics";
+import { useInstall } from "@/components/useInstall";
 
 const DISMISSED_KEY = "aqi.installHint.dismissed";
 
-/** Safari on iPhone or iPad, and not a WebView pretending to be one. */
-function isIosSafari(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-
-  // iPadOS 13+ reports itself as a Mac; the touch-point count gives it away.
-  const iPadOS =
-    navigator.platform === "MacIntel" && (navigator as Navigator).maxTouchPoints > 1;
-  const iOS = /iPad|iPhone|iPod/.test(ua) || iPadOS;
-  if (!iOS) return false;
-
-  // Chrome, Firefox and Edge on iOS are Safari underneath but expose no Share
-  // → Add to Home Screen, so the instruction below would be wrong for them.
-  if (/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua)) return false;
-
-  // In-app browsers: Instagram, Facebook, Gmail, LinkedIn. Same problem.
-  if (/Instagram|FBAN|FBAV|Line\/|LinkedInApp/.test(ua)) return false;
-
-  return /Safari/.test(ua);
-}
-
-/** Already running from the home screen. */
-function isStandalone(): boolean {
-  if (typeof window === "undefined") return false;
-  // `standalone` is Apple's own flag and is the only reliable one on iOS; the
-  // display-mode query covers everywhere else.
-  const appleStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone;
-  return Boolean(appleStandalone) || window.matchMedia("(display-mode: standalone)").matches;
-}
-
-/** The event Chrome fires when it is willing to install; not in TS's lib. */
-interface InstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+function ShareIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24" className="inline-block h-4 w-4 -translate-y-px align-middle"
+      fill="none" stroke="currentColor" strokeWidth={1.8}
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+    >
+      <path d="M12 3v12M12 3 8.5 6.5M12 3l3.5 3.5" />
+      <path d="M6 11H4.5v9.5h15V11H18" />
+    </svg>
+  );
 }
 
 export default function InstallHint() {
-  const [show, setShow] = useState(false);
-  // Chrome only. Set when the browser has decided the app is installable, which
-  // is the only moment prompt() may be called.
-  const [chromePrompt, setChromePrompt] = useState<InstallPromptEvent | null>(null);
+  const { route, canPrompt, install } = useInstall();
+  const [dismissed, setDismissed] = useState(true);
 
   useEffect(() => {
-    if (isStandalone()) return;
     try {
-      if (window.localStorage.getItem(DISMISSED_KEY)) return;
+      setDismissed(Boolean(window.localStorage.getItem(DISMISSED_KEY)));
     } catch {
       // Storage blocked: show it, but it cannot be remembered as dismissed.
-      // Better than hiding a one-off hint entirely.
+      setDismissed(false);
     }
-
-    // ANDROID GETS A REAL BUTTON, which is the whole fix. Chrome fires
-    // beforeinstallprompt when it is willing to install, and suppresses its own
-    // banner if nothing handles it — so without this listener Amrita got no
-    // prompt at all and had to find Install through the three-dot menu.
-    //
-    // Note "Install" and "Create shortcut" are different things in that menu:
-    // a shortcut opens a browser tab, which is not what anyone wants here.
-    const onPrompt = (e: Event) => {
-      e.preventDefault();
-      setChromePrompt(e as InstallPromptEvent);
-      setShow(true);
-    };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-
-    // iOS never fires it and has no API, so Safari still gets instructions.
-    if (isIosSafari()) setShow(true);
-
-    // THE NUMBER THAT MATTERS MOST. `appinstalled` is the only signal a PWA
-    // gives that someone actually added it to a home screen rather than
-    // bookmarking a tab — there is no download to count. Fired by the browser
-    // whichever route they took, so it also catches Android's own menu.
-    const onInstalled = () => {
-      trackInstalled("browser");
-      setShow(false);
-    };
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
   }, []);
 
-  if (!show) return null;
+  // Nothing to offer on a desktop browser that has not volunteered, inside an
+  // app that cannot install, or when it is already installed.
+  const offer = route === "prompt" || route === "ios";
+  if (dismissed || !offer) return null;
 
   function dismiss() {
-    setShow(false);
+    setDismissed(true);
     try {
       window.localStorage.setItem(DISMISSED_KEY, "1");
     } catch {
@@ -128,32 +66,18 @@ export default function InstallHint() {
   return (
     <aside className="rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-3">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="font-semibold text-blue-950">Keep this on your home screen</h2>
-          {chromePrompt ? (
+        <div className="min-w-0">
+          <h2 className="font-semibold text-blue-950">Install the app</h2>
+          {route === "prompt" ? (
             <>
-              {/* ONE LINE, not three. This sits at the top of the home screen
-                  now, and the home screen is already tight on a phone — a
-                  four-line banner above the number someone opened the app to
-                  read is the wrong trade. */}
               <p className="mt-0.5 text-sm text-blue-950/90">
-                It opens full screen, like an app.
+                Adds it to your home screen and opens full screen.
               </p>
               <button
                 type="button"
-                onClick={async () => {
-                  await chromePrompt.prompt();
-                  const { outcome } = await chromePrompt.userChoice;
-                  // Separately from `appinstalled`, so the two can be compared:
-                  // this one says our button did it, rather than the browser
-                  // menu. If these diverge, the hint is not working.
-                  if (outcome === "accepted") trackInstalled("prompt");
-                  // The event is single-use either way: Chrome will fire a new
-                  // one if it is still willing later.
-                  setChromePrompt(null);
-                  if (outcome === "accepted") setShow(false);
-                }}
-                className="mt-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white"
+                onClick={install}
+                disabled={!canPrompt}
+                className="mt-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
                 Install
               </button>
@@ -178,19 +102,5 @@ export default function InstallHint() {
         </button>
       </div>
     </aside>
-  );
-}
-
-/** iOS's share glyph, so the instruction points at something recognisable. */
-function ShareIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24" className="inline-block h-4 w-4 -translate-y-px align-middle"
-      fill="none" stroke="currentColor" strokeWidth={1.8}
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-    >
-      <path d="M12 3v12M12 3 8.5 6.5M12 3l3.5 3.5" />
-      <path d="M6 11H4.5v9.5h15V11H18" />
-    </svg>
   );
 }

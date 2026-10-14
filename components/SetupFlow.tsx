@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import CityRequestForm from "@/components/CityRequestForm";
+import InstallHint from "@/components/InstallHint";
 import { useRouter } from "next/navigation";
 import {
   savePrefs,
@@ -137,6 +138,21 @@ export default function SetupFlow() {
 
   return (
     <div>
+      {/* BEFORE THE QUESTIONS, not after them. A tester who had been told he
+          was getting an app answered three questions in a browser first and
+          only then met a button offering to save it to his home screen — by
+          which point he had decided this was a website.
+          Only on the first step: a banner that follows someone through a
+          three-question flow is nagging, and on iOS it matters most here
+          anyway, because Safari and a home-screen app do NOT share storage.
+          Answers given in the browser are not carried into the installed app,
+          so installing first means doing this once rather than twice. */}
+      {step === "location" && (
+        <div className="mb-5">
+          <InstallHint />
+        </div>
+      )}
+
       <StepDots step={step} />
 
       {step === "location" && (

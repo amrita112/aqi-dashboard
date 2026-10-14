@@ -11,22 +11,22 @@
  * nor does Instagram's in-app browser — and a confident wrong instruction is
  * worse than none in an app whose whole argument is not overclaiming.
  *
- * The predicates are re-implemented here from InstallHint.tsx rather than
- * imported, because the component reaches for `navigator` at module scope in a
- * way that is awkward to drive from a test. They are kept deliberately short
- * so the duplication stays readable; if one changes, this file fails loudly
- * rather than silently testing the wrong thing.
+ * These used to be re-implemented here, copied out of the component because it
+ * read `navigator` at module scope and could not be driven from a test. They
+ * now live in lib/install.ts as plain functions shared by the hint and the
+ * /install page, so the test drives the REAL ones — a copy that agrees with
+ * itself proves nothing.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { isIosSafari as realIsIosSafari, isInAppBrowser, isStandalone } from "@/lib/install";
 
+afterEach(() => vi.unstubAllGlobals());
+
+/** Drive the real predicate by standing up the navigator it reads. */
 function isIosSafari(ua: string, platform = "iPhone", maxTouchPoints = 5): boolean {
-  const iPadOS = platform === "MacIntel" && maxTouchPoints > 1;
-  const iOS = /iPad|iPhone|iPod/.test(ua) || iPadOS;
-  if (!iOS) return false;
-  if (/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua)) return false;
-  if (/Instagram|FBAN|FBAV|Line\/|LinkedInApp/.test(ua)) return false;
-  return /Safari/.test(ua);
+  vi.stubGlobal("navigator", { userAgent: ua, platform, maxTouchPoints });
+  return realIsIosSafari();
 }
 
 const SAFARI_IPHONE =
@@ -72,7 +72,43 @@ describe("who does not", () => {
   });
 });
 
-describe("the component's guards", () => {
+describe("in-app browsers", () => {
+  it("knows it cannot install from inside Instagram", () => {
+    // The likeliest way a shared link is opened, and the one place where every
+    // install route is unavailable — so /install says so rather than offering
+    // a button that does nothing.
+    vi.stubGlobal("navigator", { userAgent: INSTAGRAM_IOS, platform: "iPhone", maxTouchPoints: 5 });
+    expect(isInAppBrowser()).toBe(true);
+  });
+
+  it("does not mistake an ordinary browser for one", () => {
+    vi.stubGlobal("navigator", { userAgent: CHROME_ANDROID, platform: "Linux", maxTouchPoints: 5 });
+    expect(isInAppBrowser()).toBe(false);
+  });
+});
+
+describe("already installed", () => {
+  it("detects Apple's own standalone flag", () => {
+    // The only reliable signal on iOS; display-mode covers everywhere else.
+    vi.stubGlobal("navigator", { userAgent: SAFARI_IPHONE, standalone: true });
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    expect(isStandalone()).toBe(true);
+  });
+
+  it("detects display-mode standalone everywhere else", () => {
+    vi.stubGlobal("navigator", { userAgent: CHROME_ANDROID });
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("standalone") }));
+    expect(isStandalone()).toBe(true);
+  });
+
+  it("says no in an ordinary tab", () => {
+    vi.stubGlobal("navigator", { userAgent: CHROME_ANDROID });
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    expect(isStandalone()).toBe(false);
+  });
+});
+
+describe("the hint's dismissal", () => {
   it("keys dismissal under a namespaced key so it cannot collide", async () => {
     const src = await import("node:fs/promises").then((fs) =>
       fs.readFile("components/InstallHint.tsx", "utf8"),
@@ -81,8 +117,6 @@ describe("the component's guards", () => {
     // Dismissed for good, not for a session: a banner that returns every visit
     // is an advertisement.
     expect(src).toMatch(/localStorage\.setItem/);
-    // Never shown to an app already running from the home screen.
-    expect(src).toMatch(/standalone/);
     // Storage access is wrapped, since it throws in a private window.
     expect(src).toMatch(/catch/);
   });
