@@ -28,6 +28,7 @@ import { loadPrefs, placeQuery, MEASUREMENT_COPY, NEAREST_K, type Prefs } from "
 import { APP_NAME } from "@/lib/brand";
 import ForecastChart, { type ForecastDayInput } from "@/components/ForecastChart";
 import InstallHint from "@/components/InstallHint";
+import BandLegend from "@/components/BandLegend";
 
 const HomeMap = dynamic(() => import("@/components/StationMap"), {
   ssr: false,
@@ -73,6 +74,45 @@ function describeChange(todayValue: number | null, tomorrowValue: number): strin
   return `${strong}, around ${Math.round(tomorrowValue)}`;
 }
 
+/**
+ * Twenty-four hours from the current hour, spanning midnight.
+ *
+ * Genuinely rolling, not "today": at 9pm, "today's forecast" is three hours
+ * of information and the useful answer is about tomorrow morning. Trimming
+ * the hour arrays rather than the days keeps ForecastChart's day grouping
+ * intact, so the midnight boundary still draws itself.
+ */
+function nextDayPoints(days: Day[], todayIso: string): ForecastDayInput[] {
+  // IST hour, computed the same way as everywhere else in the app: shift the
+  // instant and read it as UTC.
+  const nowHour = new Date(Date.now() + 330 * 60_000).getUTCHours();
+  const out: ForecastDayInput[] = [];
+  let taken = 0;
+
+  for (const d of days) {
+    if (!d.hourly?.length) continue;
+    const isToday = d.target_date === todayIso;
+    const hours = d.hourly.filter((h) => {
+      if (taken >= 24) return false;
+      if (isToday && h.hour < nowHour) return false;
+      taken += 1;
+      return true;
+    });
+    if (hours.length) {
+      out.push({
+        target_date: d.target_date,
+        value: d.value,
+        band_low: d.band_low,
+        band_high: d.band_high,
+        mode: d.mode,
+        hourly: hours,
+        label: dayLabel(d.target_date, todayIso),
+      });
+    }
+  }
+  return out;
+}
+
 /** The run of hours with the lowest values — "2–4 pm" in the mockup. */
 function cleanestWindow(hours: { hour: number; value: number }[] | null): string | null {
   if (!hours || hours.length < 6) return null;
@@ -114,7 +154,10 @@ export default function HomeScreen() {
 
     const q = placeQuery(p, {
       pollutant: p.measurement,
-      days: 5,
+      // TWO DAYS, NOT FIVE. The home chart is the next 24 hours now, which
+      // crosses midnight and therefore needs tomorrow; the "Tomorrow:" line
+      // below it needs the same day's total. Nothing here needs five.
+      days: 2,
       hourly: "true",
       include_today: "true",
     });
@@ -139,18 +182,13 @@ export default function HomeScreen() {
 
   const today = days?.find((d) => d.target_date === todayIso) ?? days?.[0] ?? null;
   const tomorrow = days?.find((d) => d.target_date !== (today?.target_date ?? "")) ?? null;
-  const overThreshold =
-    prefs.threshold !== null && tomorrow !== null && tomorrow.value >= prefs.threshold;
 
-  const points: ForecastDayInput[] = (days ?? []).map((d) => ({
-    target_date: d.target_date,
-    value: d.value,
-    band_low: d.band_low,
-    band_high: d.band_high,
-    mode: d.mode,
-    hourly: d.hourly,
-    label: dayLabel(d.target_date, todayIso),
-  }));
+  // THE NEXT 24 HOURS, not the next seven days. A week of diurnal curve on
+  // the screen someone opens to decide about this afternoon was, in a
+  // tester's words, too complex for the home tab — five rises and five falls,
+  // most of them seasonal averages rather than forecasts. The week is still
+  // one tap away on Trends, which exists for exactly that question.
+  const points: ForecastDayInput[] = nextDayPoints(days ?? [], todayIso);
 
   const cleanest = cleanestWindow(today?.hourly ?? null);
 
@@ -174,19 +212,30 @@ export default function HomeScreen() {
 
       {/* The question box leads, because it is the thing this app does that
           nothing else does. */}
+      {/* LOOKS LIKE A BUTTON NOW. As a white card with a grey border among
+          other white cards with grey borders, it read as a heading rather
+          than a control — a tester did not realise it was tappable. Filled,
+          with a chevron, because the one affordance everyone recognises is
+          something that looks pressable. */}
       <Link
         href="/ask"
-        className="block rounded-xl border border-gray-200 bg-white p-3.5 text-center shadow-sm transition hover:bg-gray-50 lg:col-span-2"
+        className="flex items-center justify-between gap-3 rounded-xl bg-blue-600 px-4 py-3.5 text-left shadow-sm transition hover:bg-blue-700 lg:col-span-2"
       >
-        {/* SMALLER TYPE, same box. The home screen still did not fit on a
-            phone, and this card is above the number someone opened the app to
-            read — it should point at the Ask tab, not compete with the
-            headline. Font size only; the padding and the two-line shape are
-            from the September sketch. */}
-        <span className="block text-base font-semibold">Ask AI: When should I go out?</span>
-        <span className="mt-0.5 block text-xs text-gray-500">
-          Suggestions based on {short} data
+        <span className="min-w-0">
+          <span className="block text-base font-semibold text-white">
+            Ask AI: When should I go out?
+          </span>
+          <span className="mt-0.5 block text-xs text-blue-100">
+            Suggestions based on {short} data
+          </span>
         </span>
+        <svg
+          viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-blue-100"
+          fill="none" stroke="currentColor" strokeWidth={2.2}
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+        >
+          <path d="m9 6 6 6-6 6" />
+        </svg>
       </Link>
 
       {error && (
@@ -209,6 +258,14 @@ export default function HomeScreen() {
             <span className="mt-1 text-[10px] font-semibold uppercase tracking-wide">
               {today.band.label}
             </span>
+          </div>
+
+          {/* THE SCALE, under the number. See components/BandLegend for why
+              this belongs on the home screen rather than an explainer page:
+              almost nobody knows where the PM2.5 band boundaries are, so a
+              green box with 52 in it is unreadable on its own. */}
+          <div className="mt-2 w-full max-w-[16rem]">
+            <BandLegend measurement={prefs.measurement} value={today.value} />
           </div>
 
           <div className="mt-2 flex items-center gap-1.5 text-sm">
@@ -255,7 +312,7 @@ export default function HomeScreen() {
       {points.length >= 2 && (
         <section className="rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm">
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide">Forecast</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide">Next 24 hours</h2>
             {/* The hovered reading lives here, in the gap that was empty
                 anyway, instead of in a box on top of the line. */}
             <span className="min-w-0 flex-1 truncate text-center text-xs font-medium text-gray-900">
@@ -271,6 +328,7 @@ export default function HomeScreen() {
               days={points}
               unit={unit}
               onHover={setHovered}
+              hourAxis
               /* SHORTER THAN IT WAS (26vh). The whole home screen did not fit
                  on Amrita's phone, and the forecast card was the tallest thing
                  on it: a plot, a legend, and two sentences under it. The curve
@@ -280,21 +338,15 @@ export default function HomeScreen() {
             />
           </div>
 
+          {/* NO RED THRESHOLD WARNING. It was the visible half of a setup
+              question that has gone — nobody is asked for a threshold now,
+              because the notifications it was for do not exist yet. A line
+              turning red against a number the person was never asked for
+              would be alarming and unexplainable. */}
           {tomorrow && (
-            <p
-              className={`mt-3 border-t border-gray-100 pt-2.5 text-sm ${
-                overThreshold ? "font-semibold text-red-700" : "text-gray-900"
-              }`}
-            >
+            <p className="mt-3 border-t border-gray-100 pt-2.5 text-sm text-gray-900">
               <span className="font-semibold">Tomorrow:</span>{" "}
-              {describeChange(today?.value ?? null, tomorrow.value)}
-              {overThreshold && (
-                <>
-                  {" "}
-                  — above your {prefs.threshold} {short} threshold
-                </>
-              )}
-              .
+              {describeChange(today?.value ?? null, tomorrow.value)}.
             </p>
           )}
           {cleanest && (

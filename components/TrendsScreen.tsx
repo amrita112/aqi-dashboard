@@ -288,6 +288,27 @@ export default function TrendsScreen() {
             });
           });
         });
+      } else if (fRange === "days7") {
+        // PAST THREE DAYS, THE DIURNAL CURVE STOPS EARNING ITS SPACE. Seven
+        // days of it is seven rises and seven falls in a few hundred pixels,
+        // which reads as noise rather than as information — and nobody
+        // planning a week asks what 3am on Thursday looks like. The day's
+        // range says the thing that matters at that distance: how bad, and
+        // how much it swings.
+        days.forEach((d) => {
+          const hours = d.hourly ?? [];
+          const values = hours.map((h) => h.value).filter((v) => Number.isFinite(v));
+          const lo = values.length ? Math.min(...values) : d.band_low;
+          const hi = values.length ? Math.max(...values) : d.band_high;
+          points.push({
+            label: humanDate(d.target_date),
+            full: `${humanDate(d.target_date)} · ${Math.round(lo ?? d.value)}–${Math.round(hi ?? d.value)}`,
+            value: d.value,
+            low: lo,
+            high: hi,
+            seasonal: d.mode === "seasonal_normal",
+          });
+        });
       } else {
         days.forEach((d) => {
           const hours = d.hourly ?? [];
@@ -503,7 +524,9 @@ export default function TrendsScreen() {
             <TrendsChart
               series={forecastSeries}
               unit={unit}
-              bandLabel="likely range"
+              // The band means two different things depending on range, so it
+              // is named for what it actually is rather than left to guess.
+              bandLabel={fRange === "days7" ? "the day's range" : "likely range"}
               showKey={false}
               onHover={setFHover}
             />
@@ -527,6 +550,16 @@ export default function TrendsScreen() {
           </select>
         </div>
         <Readout reading={hHover} />
+        {/* WHY THERE ARE HOLES IN THIS LINE. The axis is the window asked
+            for, so a day nobody measured is drawn as a gap rather than
+            silently skipped — which is honest and, without a word of
+            explanation, looks like the app losing data. Recent days are the
+            common case: readings reach the public feed days late and are
+            summarised afterwards. */}
+        <p className="mt-1 text-xs text-gray-500">
+          Gaps are days with no measurement. Recent days often fill in later —
+          readings reach the public feed several days after they are taken.
+        </p>
         <div className="mt-3">
           {historyLoading ? (
             <p className="py-10 text-center text-sm text-gray-500">Loading…</p>

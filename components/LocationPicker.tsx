@@ -221,7 +221,7 @@ export default function LocationPicker({
       </div>
 
       {!point && (
-        <p className="text-sm text-gray-600">
+        <p className="text-base font-medium text-gray-900">
           Tap the map to drop a pin where you spend your time in {city}.
         </p>
       )}

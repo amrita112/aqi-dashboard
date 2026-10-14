@@ -239,8 +239,9 @@ export default function StationMap({
       )}
 
       {!selected && (
-        <p className="mt-3 px-1 text-xs text-gray-500">
-          Tap a station for its forecast and recent history.
+        <p className="mt-3 px-1 text-sm font-medium text-gray-800">
+          Tap a station — one of the coloured circles — for its forecast and recent
+          history.
         </p>
       )}
     </div>

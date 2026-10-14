@@ -2,7 +2,7 @@
  * /settings — change any one answer without redoing the other two.
  *
  * Previously the Settings tab pointed at /setup, which marched someone through
- * all three questions in order to change one of them, and discarded their
+ * both questions in order to change one of them, and discarded their
  * answers if they backed out. A settings page is a list of things you own, not
  * a flow.
  *

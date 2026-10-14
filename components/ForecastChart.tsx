@@ -70,9 +70,18 @@ export default function ForecastChart({
   unit,
   onHover,
   heightClass = "h-52",
+  hourAxis = false,
 }: {
   days: ForecastDayInput[];
   unit: string;
+  /**
+   * Force clock labels even though the window spans two calendar days.
+   *
+   * The default rule — times for one day, dates beyond it — is right for a
+   * multi-day forecast and wrong for the home screen's 24-hour view, which
+   * crosses midnight by construction and is entirely about time of day.
+   */
+  hourAxis?: boolean;
   /** Hovered point, for the caller to show beside the card title. */
   onHover?: (text: string | null) => void;
   /**
@@ -156,7 +165,7 @@ export default function ForecastChart({
   const dayTicks = daySpans.map((d) => Math.round((d.start + d.end) / 2));
   const dayLabelAt = new Map(daySpans.map((d, k) => [dayTicks[k], d.label]));
   const dayBoundaries = daySpans.slice(1).map((d) => d.start);
-  const showHours = daySpans.length <= 1;
+  const showHours = hourAxis || daySpans.length <= 1;
   const hourTicks = showHours
     ? rows.filter((r) => r.hour % 6 === 0 && r.hour !== 0).map((r) => r.i)
     : [];
@@ -168,7 +177,9 @@ export default function ForecastChart({
   const hourLabelAt = new Map(hourTicks.map((i) => [i, clockOf(rows[i].hour)]));
   const labelsAt = (i: number) => ({
     hour: hourLabelAt.get(i),
-    date: showHours ? undefined : dayLabelAt.get(i),
+    // A single-day chart needs no day name — the card says the date. A forced
+    // 24-hour window spans two, and which half you are looking at matters.
+    date: showHours && !hourAxis ? undefined : dayLabelAt.get(i),
   });
 
   // What is actually drawn, so the key below can describe only that.

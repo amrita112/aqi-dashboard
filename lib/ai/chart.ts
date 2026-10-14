@@ -41,6 +41,14 @@ export interface AnswerChart {
 /** Below this there is no shape to see, only a couple of dots. */
 const MIN_POINTS = 3;
 
+/**
+ * Past this many days a forecast chart shows one point per day, not 24.
+ *
+ * Matches the Trends tab's own rule. Both were changed together after a
+ * tester found a week of diurnal curve unreadable.
+ */
+const MAX_DAYS_WITH_HOURLY = 3;
+
 function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
@@ -100,10 +108,14 @@ export function chartFor(tool: string, result: unknown): AnswerChart | null {
         if (v === null) continue;
         if (row.mode === "seasonal_normal") anySeasonal = true;
         const date = String(row.date ?? row.target_date ?? "");
-        // Hourly where we have it: a daily line between five dots hides the
-        // within-day swing, which is most of what a reader wants from a
-        // multi-day forecast.
-        const hours = Array.isArray(row.hourly) ? row.hourly : null;
+        // HOURLY ONLY UP TO THREE DAYS. Within that, the within-day swing is
+        // most of what a reader wants and a flat daily line hides it. Past it,
+        // seven rises and falls in a chart this small is noise — the same rule
+        // the Trends tab follows, kept in step on purpose so the answer and
+        // the screen it points at do not disagree about what a week looks
+        // like.
+        const hours =
+          days.length <= MAX_DAYS_WITH_HOURLY && Array.isArray(row.hourly) ? row.hourly : null;
         if (hours && hours.length === 24) {
           hours.forEach((hv, hour) => {
             const value = num(hv);

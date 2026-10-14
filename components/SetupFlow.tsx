@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * First run, in three questions.
+ * First run, in two questions.
  *
- * Three, and not four, because every extra question costs people who have not
- * yet seen the app do anything useful. Location, which number they want, and
- * when to be told. Everything else has a sensible default or can wait for the
- * settings screen.
+ * Two, because every question costs people who have not yet seen the app do
+ * anything useful. Where you are, and which number you want. There was a
+ * third — a notification threshold — and it went: it asked people to pick a
+ * level for alerts the app cannot send yet, which reads as either a broken
+ * promise or a trick question. It returns with the notifications.
  *
  * A client component throughout: it is a form with steps, and nothing here is
  * worth rendering on the server. The station list arrives from /api/locations
@@ -51,7 +52,7 @@ const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
   ),
 });
 
-type Step = "location" | "measurement" | "threshold";
+type Step = "location" | "measurement";
 
 export default function SetupFlow() {
   const router = useRouter();
@@ -61,9 +62,11 @@ export default function SetupFlow() {
   const [step, setStep] = useState<Step>("location");
   const [cityName, setCityName] = useState<string | null>(null);
   const [place, setPlace] = useState<import("@/components/LocationPicker").PickedPlace | null>(null);
-  const [measurement, setMeasurement] = useState<Measurement>("aqi");
-  const [notify, setNotify] = useState(true);
-  const [threshold, setThreshold] = useState<number | null>(null);
+  // PM2.5 LEADS. It is the fraction with the worst long-term health effects,
+  // and the one a person can act on — AQI is the familiar number but is driven
+  // by coarse dust most of the time in these cities. Someone who does not have
+  // a view should get the one worth having.
+  const [measurement, setMeasurement] = useState<Measurement>("pm25");
 
   useEffect(() => {
     let cancelled = false;
@@ -84,13 +87,6 @@ export default function SetupFlow() {
     () => cities?.find((c) => c.city === cityName) ?? null,
     [cities, cityName],
   );
-
-  // The default moves with the measurement, because an AQI threshold of 380
-  // would be nonsense as a PM2.5 one.
-  const suggested = city?.alert_default?.[measurement]?.threshold ?? null;
-  useEffect(() => {
-    if (suggested !== null) setThreshold(suggested);
-  }, [suggested]);
 
   // The map needs somewhere to open. The mean of a city's own stations is a
   // better centre than a hardcoded coordinate per city, and it cannot go stale
@@ -117,7 +113,13 @@ export default function SetupFlow() {
         longitude: place.longitude,
       },
       measurement,
-      threshold: notify ? threshold : null,
+      // NO THRESHOLD IS ASKED FOR ANY MORE. It was the third setup question,
+      // and it asked people to choose a notification level for notifications
+      // that do not exist yet — which a tester found simply confusing, and he
+      // was right: a preference saved for a feature nobody can use is a
+      // question that costs attention and returns nothing. It comes back with
+      // the notifications, where it will mean something.
+      threshold: null,
     });
     // Home, not Ask. Reversed after the 12 Oct review: the first thing someone
     // wants after telling the app where they are is to see the number for that
@@ -246,111 +248,16 @@ export default function SetupFlow() {
             You can change this later.
           </p>
 
-          <Next onClick={() => setStep("threshold")} onBack={() => setStep("location")} />
+          <Next onClick={finish} onBack={() => setStep("location")} label="Finish" />
         </section>
       )}
 
-      {step === "threshold" && (
-        <section>
-          <h2 className="text-xl font-semibold">
-            Would you like to be notified when {MEASUREMENT_COPY[measurement].short} crosses a
-            particular threshold?
-          </h2>
-
-          <div className="mt-5 space-y-3">
-            <button
-              type="button"
-              onClick={() => setNotify(true)}
-              className={`w-full rounded-lg border p-4 text-left ${
-                notify
-                  ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600"
-                  : "border-gray-300 bg-white hover:bg-gray-50"
-              }`}
-            >
-              <span className="block font-medium">
-                Yes, tell me when {MEASUREMENT_COPY[measurement].short} is{" "}
-                {notify ? "" : (threshold ?? suggested ?? "")} or above
-              </span>
-              {notify && (
-                <div className="mt-3">
-                  <div className="flex items-baseline gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      max={measurement === "aqi" ? 500 : 500}
-                      value={threshold ?? ""}
-                      onChange={(e) =>
-                        setThreshold(e.target.value === "" ? null : Number(e.target.value))
-                      }
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-28 rounded-md border border-gray-300 px-3 py-2"
-                    />
-                    <span className="text-sm text-gray-600">
-                      {MEASUREMENT_COPY[measurement].short}
-                      {MEASUREMENT_COPY[measurement].unit &&
-                        ` ${MEASUREMENT_COPY[measurement].unit}`}{" "}
-                      or above
-                    </span>
-                  </div>
-                  {suggested !== null && (
-                    /* One sentence regardless of whether the box still holds the
-                       suggestion. The old copy switched between "This is the X"
-                       and "Suggested: X", which read as two different facts
-                       about the same number. */
-                    <p className="mt-2 text-xs text-gray-600">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setThreshold(suggested);
-                        }}
-                        className="font-medium underline"
-                      >
-                        {suggested}
-                      </button>{" "}
-                      is the median daily peak {MEASUREMENT_COPY[measurement].short} in{" "}
-                      {city?.city} between October and February. With this threshold, you will
-                      get a notification on roughly half the days this season.
-                    </p>
-                  )}
-                </div>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setNotify(false)}
-              className={`w-full rounded-lg border p-4 text-left ${
-                !notify
-                  ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600"
-                  : "border-gray-300 bg-white hover:bg-gray-50"
-              }`}
-            >
-              <span className="block font-medium">Do not notify me</span>
-            </button>
-          </div>
-
-          {/* Said now rather than discovered later. */}
-          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            Note: notifications are not enabled in the beta version of the app. This saves
-            your preferences, so that they are in place when we update the app to send
-            notifications.
-          </p>
-
-          <Next
-            label="Finish"
-            disabled={notify && (threshold === null || threshold < 1)}
-            onClick={finish}
-            onBack={() => setStep("measurement")}
-          />
-        </section>
-      )}
     </div>
   );
 }
 
 function StepDots({ step }: { step: Step }) {
-  const order: Step[] = ["location", "measurement", "threshold"];
+  const order: Step[] = ["location", "measurement"];
   const index = order.indexOf(step);
   return (
     <div className="mb-6 flex items-center gap-2" aria-label={`Step ${index + 1} of 3`}>

@@ -45,7 +45,10 @@ export default function TabBar() {
     <nav
       aria-label="Main"
       className={
-        "fixed z-40 border-gray-200 bg-white/95 backdrop-blur " +
+        // A SOLID BAR, not a translucent one. At 95% opacity over a white
+        // page the top edge was almost invisible, which is half of why the
+        // icons did not read as a control strip.
+        "fixed z-40 border-gray-300 bg-white shadow-[0_-1px_3px_rgba(0,0,0,0.06)] " +
         // Phone: full width along the bottom.
         "inset-x-0 bottom-0 border-t " +
         // Laptop: a fixed-width rail down the left, full height.
@@ -65,20 +68,26 @@ export default function TabBar() {
                 aria-current={active ? "page" : undefined}
                 // min-h-14 keeps every tap target above the ~44px minimum that
                 // a finger needs.
-                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 px-2 py-2 text-xs lg:min-h-0 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-lg lg:px-3 lg:py-2.5 lg:text-sm ${
+                // DARKER AND LARGER THAN IT WAS. A tester did not register
+                // these as navigation at all: thin grey-400 glyphs with a
+                // 10px label read as decoration along the bottom edge. In a
+                // home-screen install this bar is the ONLY way to move around
+                // — there is no address bar and no browser chrome — so it
+                // failing to look tappable is not a styling nitpick.
+                className={`flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2 text-[11px] font-medium lg:min-h-0 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-lg lg:px-3 lg:py-2.5 lg:text-sm ${
                   active
                     ? "text-blue-700 lg:bg-blue-50 lg:font-medium"
-                    : "text-gray-500 hover:text-gray-800 lg:hover:bg-gray-100"
+                    : "text-gray-600 hover:text-gray-900 lg:hover:bg-gray-100"
                 }`}
               >
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth={active ? 2.1 : 1.7}
+                  strokeWidth={active ? 2.4 : 2}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="h-6 w-6"
+                  className="h-7 w-7 lg:h-6 lg:w-6"
                   aria-hidden="true"
                 >
                   <path d={tab.icon} />

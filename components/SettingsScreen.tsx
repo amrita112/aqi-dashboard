@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The three answers from first run, each editable on its own.
+ * The two answers from first run, each editable on its own.
  *
  * EVERY CHANGE SAVES IMMEDIATELY. There is no Save button and no draft state:
  * each control writes to localStorage as it is used, the way a phone's own
@@ -93,7 +93,7 @@ export default function SettingsScreen() {
         <p className="mt-4 text-gray-600">
           Nothing is set up yet.{" "}
           <Link href="/setup" className="text-blue-700 underline">
-            Answer three questions
+            Answer two questions
           </Link>{" "}
           and {APP_NAME} will know what to show you.
         </p>
@@ -101,11 +101,27 @@ export default function SettingsScreen() {
     );
   }
 
-  const suggested = city?.alert_default?.[prefs.measurement]?.threshold ?? null;
 
   return (
     <div className="space-y-5 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0">
-      <h1 className="text-2xl font-bold tracking-tight lg:col-span-2">{APP_NAME}</h1>
+      {/* A WAY BACK. Settings is reached by tapping "Change" beside the
+          location on the home screen, and a tester who did that could not tell
+          he had been taken to Settings at all, let alone how to leave. The tab
+          bar is the answer, but only once you have noticed the tab bar — and
+          he had not. An explicit Done costs one line and removes the trap. */}
+      <div className="flex items-center justify-between gap-3 lg:col-span-2">
+        <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
+        <Link
+          href="/"
+          className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800"
+        >
+          Done
+        </Link>
+      </div>
+
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 lg:col-span-2">
+        Settings
+      </h2>
 
       {saved && (
         <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-900 lg:col-span-2">
@@ -231,74 +247,10 @@ export default function SettingsScreen() {
         </div>
       </section>
 
-      {/* ── Threshold ─────────────────────────────────────────────────────── */}
-      <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-          Notification threshold
-        </h2>
-
-        <div className="mt-3 space-y-2">
-          <button
-            type="button"
-            onClick={() =>
-              update(
-                { threshold: prefs.threshold ?? suggested ?? 100 },
-                "You will be told on bad days.",
-              )
-            }
-            className={`w-full rounded-lg border p-3 text-left ${
-              prefs.threshold !== null
-                ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600"
-                : "border-gray-300"
-            }`}
-          >
-            <span className="block font-medium">
-              Tell me when {MEASUREMENT_COPY[prefs.measurement].short} is{" "}
-              {prefs.threshold ?? suggested ?? 100} or above
-            </span>
-          </button>
-
-          {prefs.threshold !== null && (
-            <div className="flex items-center gap-2 px-1">
-              <input
-                type="number"
-                min={1}
-                max={500}
-                value={prefs.threshold}
-                onChange={(e) => {
-                  const v = e.target.value === "" ? null : Number(e.target.value);
-                  if (v !== null && Number.isFinite(v)) update({ threshold: v }, "Threshold saved.");
-                }}
-                className="w-28 rounded-md border border-gray-300 px-3 py-2"
-              />
-              <span className="text-sm text-gray-600">
-                {MEASUREMENT_COPY[prefs.measurement].short}
-                {MEASUREMENT_COPY[prefs.measurement].unit
-                  ? ` ${MEASUREMENT_COPY[prefs.measurement].unit}`
-                  : ""}{" "}
-                or above
-              </span>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => update({ threshold: null }, "You will not be notified.")}
-            className={`w-full rounded-lg border p-3 text-left ${
-              prefs.threshold === null
-                ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600"
-                : "border-gray-300"
-            }`}
-          >
-            <span className="block font-medium">Do not notify me</span>
-          </button>
-        </div>
-
-        <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Note: notifications are not enabled in the beta version of the app. This saves your
-          preferences, so that they are in place when we update the app to send notifications.
-        </p>
-      </section>
+      {/* NO THRESHOLD CARD. It set a level for notifications that do not
+          exist yet — a preference for a feature nobody can use, which a
+          tester found confusing rather than reassuring. The setup question
+          behind it has gone too. Both return with the notifications. */}
 
       {/* Its own card, not a bullet buried in a list: Amrita looked for this
           and could not find it. */}
@@ -316,7 +268,7 @@ export default function SettingsScreen() {
         </div>
       </section>
 
-      {/* ── Beyond the three answers ──────────────────────────────────────── */}
+      {/* ── Beyond the two answers ────────────────────────────────────────── */}
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
           About the data
@@ -388,7 +340,7 @@ export default function SettingsScreen() {
           onClick={() => {
             // Confirmed, because there is no account and nothing to restore it
             // from: this is the one irreversible button in the app.
-            if (!window.confirm("Forget your place, measure and threshold on this device?")) return;
+            if (!window.confirm("Forget your place and your measure on this device?")) return;
             clearPrefs();
             window.location.href = "/setup";
           }}

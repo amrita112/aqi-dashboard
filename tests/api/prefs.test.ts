@@ -191,3 +191,20 @@ describe("clearPrefs", () => {
     expect(() => clearPrefs()).not.toThrow();
   });
 });
+
+describe("no threshold is asked for any more", () => {
+  it("still loads a preferences object saved when it was", () => {
+    // Early testers have a threshold stored. The shape did not change, so
+    // their saved answers must keep working rather than being discarded as
+    // an unknown version.
+    savePrefs({ ...VALID, threshold: 60 });
+    const loaded = loadPrefs();
+    expect(loaded?.threshold).toBe(60);
+    expect(loaded?.city).toBe(VALID.city);
+  });
+
+  it("accepts null, which is what setup now saves", () => {
+    savePrefs({ ...VALID, threshold: null });
+    expect(loadPrefs()?.threshold).toBeNull();
+  });
+});
