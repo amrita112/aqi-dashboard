@@ -1,8 +1,13 @@
 name: Rollup daily (compress raw → readings_daily)
 
 # Runs 05:00 UTC daily, after ingest-daily (04:00 UTC) has had time to
-# write T-3 S3-backfill data. Rolls up the last 5 days by default so
-# late-arriving raw data updates the rollup on its next nightly run.
+# write T-3 S3-backfill data. Rolls up the last 10 days by default so
+# late-arriving raw data updates the rollup on a later run.
+#
+# TEN, NOT FIVE, SINCE 13 OCT 2026. OpenAQ's median publication lag is
+# ~4.6 days with a tail past 7, so at five days a reading arriving on day 6
+# was never rolled up at all. The number itself lives in the script, as
+# DEFAULT_LOOKBACK_DAYS — these inputs only override it for one run.
 #
 # Does NOT touch OpenAQ — Supabase-only.
 
@@ -12,11 +17,11 @@ on:
   workflow_dispatch:
     inputs:
       rollup_date:
-        description: 'Single date to roll up (YYYY-MM-DD). Leave empty for last 5 days.'
+        description: 'Single date to roll up (YYYY-MM-DD). Leave empty for the last 10 days.'
         required: false
         default: ''
       lookback_days:
-        description: 'How many days back to roll up when no single date is given (default 5).'
+        description: 'How many days back to roll up when no single date is given (blank = 10).'
         required: false
         default: ''
       dry_run:
