@@ -76,6 +76,18 @@ function cleanestLine(
   }`;
 }
 
+/** The lowest hour of a forecast day, falling back to its uncertainty band. */
+function dayLow(d: { hourly: { value: number }[] | null; band_low: number | null }): number | null {
+  const vs = (d.hourly ?? []).map((h) => h.value).filter((v) => Number.isFinite(v));
+  return vs.length ? Math.min(...vs) : d.band_low;
+}
+
+/** The highest hour of a forecast day, falling back to its uncertainty band. */
+function dayHigh(d: { hourly: { value: number }[] | null; band_high: number | null }): number | null {
+  const vs = (d.hourly ?? []).map((h) => h.value).filter((v) => Number.isFinite(v));
+  return vs.length ? Math.max(...vs) : d.band_high;
+}
+
 export default function StationDetail({
   station,
   measurement,
@@ -138,13 +150,22 @@ export default function StationDetail({
     };
   }, [range, station.monitor_id, measurement]);
 
+  // SEVEN DAYS GETS THE DAY'S RANGE, NOT ITS CURVE. The same rule the Trends
+  // tab and the AI's own chart follow — seven rises and falls in a card this
+  // small is noise, and nobody reading a week ahead is placing a peak to the
+  // hour. This card was missed when the rule went in, so a station tapped from
+  // the map still drew the full diurnal week.
+  const dailyOnly = range === "forecast7";
+
   const points: ForecastDayInput[] = (days ?? []).map((d, i) => ({
     target_date: d.target_date,
     value: d.value,
-    band_low: d.band_low,
-    band_high: d.band_high,
+    // At a week, the band becomes the day's own low-to-high rather than the
+    // forecast's uncertainty, since that is what the flattened line hides.
+    band_low: dailyOnly ? dayLow(d) : d.band_low,
+    band_high: dailyOnly ? dayHigh(d) : d.band_high,
     mode: d.mode,
-    hourly: d.hourly,
+    hourly: dailyOnly ? null : d.hourly,
     label:
       i === 0
         ? "Today"
@@ -160,10 +181,21 @@ export default function StationDetail({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate font-semibold">{station.name.split(",")[0]}</p>
-          <p className="mt-0.5 truncate text-xs text-gray-500">
+          {/* WRAPS, RATHER THAN TRUNCATING. On a phone this read "Mumbai ·
+              MPCB · measure…" — and the half being cut was the data age,
+              which is the one thing this app is most insistent about saying.
+              A second line costs 16px; losing "measured 6 days ago" costs the
+              reader the reason not to trust the number. */}
+          <p className="mt-0.5 text-xs text-gray-500">
             {[station.city, networkOf(station.name)].filter(Boolean).join(" · ")}
-            {station.age_days !== null &&
-              ` · measured ${station.age_days === 0 ? "today" : `${station.age_days} d ago`}`}
+            {station.age_days !== null && (
+              <>
+                {" · "}
+                <span className="whitespace-nowrap">
+                  measured {station.age_days === 0 ? "today" : `${station.age_days} d ago`}
+                </span>
+              </>
+            )}
           </p>
           {/* The reading under the finger. Here rather than in a floating box
               over the line, matching the Home and Trends cards — and the

@@ -169,12 +169,19 @@ export default function StationMap({
             pathOptions={{ color: "#2a78d6", weight: 1, fillOpacity: 0.05, dashArray: "5 4" }}
           />
 
+          {/* NO LABEL. A permanent "Your place" tooltip sat on top of three
+              station readings at once — the numbers are the whole point of
+              this map, and a caption was covering them to say something the
+              dashed averaging ring already says. The marker is the only white
+              dot with a dark ring on the map; it does not need naming.
+              `title` still gives it a name to anything reading the page
+              aloud, which is what the tooltip was really providing. */}
           <CircleMarker
             center={centre}
-            radius={6}
-            pathOptions={{ color: "#12171b", weight: 2, fillColor: "#fff", fillOpacity: 1 }}
+            radius={7}
+            pathOptions={{ color: "#12171b", weight: 3, fillColor: "#fff", fillOpacity: 1 }}
           >
-            <Tooltip permanent direction="top" offset={[0, -8]}>
+            <Tooltip direction="top" offset={[0, -10]}>
               <span className="text-xs font-medium">Your place</span>
             </Tooltip>
           </CircleMarker>

@@ -232,10 +232,22 @@ export default function SetupFlow() {
                       : "border-gray-300 bg-white hover:bg-gray-50"
                   }`}
                 >
-                  <span className="block font-medium">
-                    {copy.label}
-                    {copy.unit && (
-                      <span className="ml-1 font-normal text-gray-500">({copy.unit})</span>
+                  <span className="flex flex-wrap items-center gap-x-2 font-medium">
+                    <span>
+                      {copy.label}
+                      {copy.unit && (
+                        <span className="ml-1 font-normal text-gray-500">({copy.unit})</span>
+                      )}
+                    </span>
+                    {/* SAY WHICH ONE WE THINK, not just which one is ticked.
+                        PM2.5 was already preselected, but two boxes with two
+                        fair-sounding explanations and no steer leaves someone
+                        who has no opinion guessing — and this is the first
+                        screen, before they have seen the app do anything. */}
+                    {key === "pm25" && (
+                      <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+                        Recommended
+                      </span>
                     )}
                   </span>
                   <span className="mt-1 block text-sm text-gray-600">{copy.blurb}</span>
@@ -245,7 +257,8 @@ export default function SetupFlow() {
           </div>
 
           <p className="mt-4 text-xs text-gray-500">
-            You can change this later.
+            We suggest PM2.5: it is the pollutant with the clearest effect on
+            health, and the one you can act on. You can change this later.
           </p>
 
           <Next onClick={finish} onBack={() => setStep("location")} label="Finish" />
