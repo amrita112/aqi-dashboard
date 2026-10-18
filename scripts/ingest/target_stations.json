@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-11T11:04:29.087021+00:00",
+  "generated_at": "2026-10-18T09:05:57.637145+00:00",
   "source": "openaq",
   "pollutants": [
     "no2",
@@ -2455,6 +2455,32 @@
         }
       ],
       "monitor_id": "cbc9907a-a39c-48b4-b403-5e8b42dd46e8"
+    },
+    {
+      "openaq_id": 11607,
+      "name": "Lodhi Road, Delhi - IITM",
+      "latitude": 28.588333,
+      "longitude": 77.221667,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 12236374,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12236375,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12236376,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12236378,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "be091d06-6d0a-4970-8aa8-73383394c2bf"
     },
     {
       "openaq_id": 11609,
