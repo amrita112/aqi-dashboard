@@ -555,10 +555,15 @@ export default function TrendsScreen() {
             silently skipped — which is honest and, without a word of
             explanation, looks like the app losing data. Recent days are the
             common case: readings reach the public feed days late and are
-            summarised afterwards. */}
+            summarised afterwards. A city average also has a gap wherever
+            fewer than 1 in 10 of the city's monitors reported (the API
+            leaves those out — see CITY_MIN_REPORTING_SHARE), and only says
+            so when a city is on the chart. */}
         <p className="mt-1 text-xs text-gray-500">
           Gaps are days with no measurement. Recent days often fill in later —
           readings reach the public feed several days after they are taken.
+          {places.some((pl) => pl.key.startsWith("city:")) &&
+            " A city average is left blank when fewer than 1 in 10 of the city's monitors reported."}
         </p>
         <div className="mt-3">
           {historyLoading ? (

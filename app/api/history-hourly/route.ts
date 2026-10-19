@@ -17,7 +17,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { badRequest, fail, ok, parseNumber } from "@/lib/api/respond";
-import { resolvePlace } from "@/lib/api/place";
+import { resolvePlace, cityMinStations } from "@/lib/api/place";
 import { istToday, toIstDate, toIstHour } from "@/lib/api/time";
 
 export const dynamic = "force-dynamic";
@@ -68,12 +68,13 @@ export async function GET(request: Request) {
 
   const readings = await pageAll<{
     id: string;
+    monitor_id: string;
     recorded_at: string;
     aqi_value: number | null;
   }>((lo, hi) =>
     supabase
       .from("readings")
-      .select("id, recorded_at, aqi_value")
+      .select("id, monitor_id, recorded_at, aqi_value")
       .in("monitor_id", ids)
       .gte("recorded_at", since)
       .order("recorded_at", { ascending: true })
@@ -86,19 +87,24 @@ export async function GET(request: Request) {
   /** "2026-10-08T14" in IST — the bucket a reading belongs to. */
   const keyOf = (iso: string) => `${toIstDate(iso)}T${String(toIstHour(iso)).padStart(2, "0")}`;
 
-  const buckets = new Map<string, number[]>();
-  const push = (k: string, v: number) => {
-    const list = buckets.get(k);
-    if (list) list.push(v);
-    else buckets.set(k, [v]);
+  // Each bucket keeps its values and WHICH monitors supplied them. A station
+  // reporting every 15 minutes puts four values in an hour, so the number of
+  // values is not the number of stations.
+  const buckets = new Map<string, { vals: number[]; monitors: Set<string> }>();
+  const push = (k: string, v: number, monitorId: string) => {
+    const b = buckets.get(k) ?? { vals: [], monitors: new Set<string>() };
+    b.vals.push(v);
+    b.monitors.add(monitorId);
+    buckets.set(k, b);
   };
 
   if (pollutant === "aqi") {
     for (const r of readings) {
-      if (r.aqi_value !== null) push(keyOf(r.recorded_at), r.aqi_value);
+      if (r.aqi_value !== null) push(keyOf(r.recorded_at), r.aqi_value, r.monitor_id);
     }
   } else {
     const whenOf = new Map(readings.map((r) => [r.id, r.recorded_at]));
+    const monitorOf = new Map(readings.map((r) => [r.id, r.monitor_id]));
     const idList = Array.from(whenOf.keys());
     // Batched by reading id, and paged WITHIN each batch: measurements carries
     // no timestamp of its own, and a batch of 400 ids can exceed the row cap.
@@ -115,20 +121,25 @@ export async function GET(request: Request) {
       );
       for (const m of rows) {
         const ts = whenOf.get(m.reading_id);
-        if (ts && m.value !== null) push(keyOf(ts), m.value);
+        if (ts && m.value !== null) push(keyOf(ts), m.value, monitorOf.get(m.reading_id)!);
       }
     }
   }
 
+  // For a city average, hours when too few of the city's monitors reported are
+  // left out, and the chart draws them as gaps. See CITY_MIN_REPORTING_SHARE.
+  const minStations = await cityMinStations(supabase, params.get("city"));
+
   const points = Array.from(buckets.entries())
-    .map(([k, vals]) => {
+    .filter(([, b]) => minStations === null || b.monitors.size >= minStations)
+    .map(([k, { vals, monitors }]) => {
       const [date, hour] = k.split("T");
       return {
         date,
         hour: Number(hour),
         value:
           Math.round((vals.reduce((t: number, v: number) => t + v, 0) / vals.length) * 10) / 10,
-        stations: vals.length,
+        stations: monitors.size,
       };
     })
     .sort((a, b) => (a.date === b.date ? a.hour - b.hour : a.date.localeCompare(b.date)));
@@ -139,5 +150,7 @@ export async function GET(request: Request) {
     stations: ids.length,
     points: points.length,
     today: istToday(),
+    // City averages only: the fewest reporting stations an hour needed.
+    min_stations: minStations,
   });
 }

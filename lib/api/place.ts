@@ -117,6 +117,40 @@ export async function resolvePlace(
   };
 }
 
+/**
+ * A city average is only shown for a day or hour when at least this share of
+ * the city's monitors reported in it.
+ *
+ * WHY. Mumbai, 14-16 Oct 2026: the CPCB monitors had not reached OpenAQ yet,
+ * but the US Consulate monitor (AirNow, near real-time) had. The "city
+ * average" was that one monitor, afternoon spikes to 980 µg/m³ included, while
+ * the four CPCB monitors within 3 km read about 40 when their data arrived.
+ * One monitor is a neighbourhood, not a city.
+ */
+export const CITY_MIN_REPORTING_SHARE = 0.1;
+
+/**
+ * How many monitors must report before a city average counts, or null when the
+ * request is not for a city (a point or a station is never hidden this way).
+ *
+ * The denominator is every active monitor filed under the city, not just the
+ * ones nearest its centre that the average is drawn from: the claim being
+ * protected is "this describes the city".
+ */
+export async function cityMinStations(
+  supabase: SupabaseClient,
+  city: string | null,
+): Promise<number | null> {
+  if (!city) return null;
+  const { count, error } = await supabase
+    .from("monitors")
+    .select("id", { count: "exact", head: true })
+    .eq("city", city)
+    .is("disabled_at", null);
+  if (error || count === null) return null;
+  return Math.max(1, Math.ceil(count * CITY_MIN_REPORTING_SHARE));
+}
+
 /** Shared `meta` describing which stations answered, and how far away. */
 export function placeMeta(place: PlaceRequest, contributing?: { monitor_id: string; name: string; distance_km: number }[]) {
   const used = contributing ?? place.monitors.map((m) => ({

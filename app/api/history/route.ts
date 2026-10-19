@@ -28,7 +28,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { ok, fail, badRequest, parseNumber } from "@/lib/api/respond";
-import { resolvePlace, placeMeta } from "@/lib/api/place";
+import { resolvePlace, placeMeta, cityMinStations } from "@/lib/api/place";
 import { getHistory, averageHistory } from "@/lib/api/data";
 import { istToday, toIstClock, toIstLocalString } from "@/lib/api/time";
 
@@ -91,7 +91,14 @@ export async function GET(request: Request) {
     })),
   );
 
-  const averaged = averageHistory(perStation);
+  // For a city average, drop days when too few of the city's monitors
+  // reported; the chart draws them as gaps. See CITY_MIN_REPORTING_SHARE.
+  const minStations = await cityMinStations(supabase, params.get("city"));
+  const unfiltered = averageHistory(perStation);
+  const averaged = {
+    ...unfiltered,
+    value: unfiltered.value.filter((d) => minStations === null || d.stations >= minStations),
+  };
 
   // A complete day is whatever the neighbourhood manages at its best, summed
   // across however many stations contributed to that day.
@@ -149,5 +156,9 @@ export async function GET(request: Request) {
     // Extreme timestamps are single-station only; across a neighbourhood they
     // would come from different monitors and mean nothing together.
     extremes_available: place.kind === "station",
+    // City averages only: the fewest reporting stations a day needed to be
+    // shown, and how many days fell short and were left out.
+    min_stations: minStations,
+    days_hidden: unfiltered.value.length - averaged.value.length,
   });
 }
