@@ -1240,3 +1240,337 @@ def per_station_table(frame: pd.DataFrame, city: str, fn, *args,
         **how, n_stations=("station", "nunique"))
     agg["city"] = city
     return agg
+
+
+# ─── Station geography: real nearest-neighbour locations ─────────────────────
+#
+# The measurements export carries station_id and station_name but no
+# coordinates. The repository's own stations/station_locations.csv has them,
+# keyed by station NAME. Checked against the export: names are unique in the
+# CSV (so the join cannot fan out) and 125 of the 131 stations with PM2.5
+# history in our seven cities match exactly. The six that do not are the four
+# US Embassy monitors, which are a different network, and two Mumbai stations
+# whose export names are shortened ("Worli Mumbai", "Bandra Mumbai"). They are
+# dropped rather than fuzzy-matched: guessing which station a near-miss name
+# refers to is exactly the kind of silent error that geography makes hard to
+# notice afterwards.
+
+STATIONS_CSV = Path(os.environ.get(
+    "XKDR_STATIONS_CSV", DATA_DIR.parent / "stations" / "station_locations.csv"))
+
+STATION_META_CACHE = DATA_DIR / "cache_xkdr_station_meta.parquet"
+
+# How far a station may sit from its city's median station before it is treated
+# as misfiled rather than suburban. See the note in load_station_locations.
+MAX_CITY_RADIUS_KM = 100.0
+
+
+def load_station_locations(rebuild: bool = False,
+                           csv_path: Optional[Path] = None) -> pd.DataFrame:
+    """station_id -> city, name, latitude, longitude for our seven cities.
+
+    Returns only stations that matched a coordinate, so a caller can assume
+    every row is locatable. The count that did NOT match is printed once, since
+    a silently shrinking station list would bias every distance result after it.
+    """
+    csv_path = Path(csv_path) if csv_path else STATIONS_CSV
+    if STATION_META_CACHE.exists() and not rebuild:
+        return pd.read_parquet(STATION_META_CACHE)
+
+    if not csv_path.exists():
+        raise FileNotFoundError(
+            f"station coordinates not found at {csv_path}. Set XKDR_STATIONS_CSV "
+            f"to the repository's stations/station_locations.csv")
+
+    import duckdb
+    con = duckdb.connect()
+    con.execute(
+        f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
+        f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
+    )
+    ids = con.execute(f"""
+        SELECT {_city_sql_case()} AS city, station_id AS station,
+               any_value(station_name) AS station_name, count(*) AS n_readings
+        FROM m
+        WHERE parameter_name = 'PM2.5' AND city_name IN ({_all_xkdr_names()})
+          AND collected_at >= '2019-01-01'
+        GROUP BY 1, 2""").df()
+
+    loc = pd.read_csv(csv_path)
+    missing = {"station", "latitude", "longitude"} - set(loc.columns)
+    if missing:
+        raise ValueError(f"{csv_path} is missing columns {sorted(missing)}")
+    if loc["station"].duplicated().any():
+        raise ValueError(
+            f"{csv_path} has duplicate station names; the join would fan out")
+
+    out = ids.merge(loc[["station", "latitude", "longitude"]],
+                    left_on="station_name", right_on="station",
+                    how="left", suffixes=("", "_csv")).drop(columns=["station_csv"])
+    unmatched = out[out.latitude.isna()]
+    if len(unmatched):
+        print(f"load_station_locations: {len(unmatched)} of {len(out)} stations have "
+              f"no coordinates and are excluded "
+              f"({', '.join(sorted(unmatched.station_name)[:4])}"
+              f"{'...' if len(unmatched) > 4 else ''})")
+    out = out.dropna(subset=["latitude", "longitude"]).reset_index(drop=True)
+
+    # COLLAPSE DUPLICATE FEEDS. Four physical stations appear under two
+    # station_ids each -- Lodhi Road and Pusa in Delhi, Borivali East and Malad
+    # West in Mumbai -- with identical coordinates and overlapping date ranges.
+    # Left alone, "the three nearest stations" silently returns the same place
+    # twice and averages two feeds of one monitor as though they were two
+    # independent neighbours. Keep the id carrying more history; the shorter one
+    # is a duplicate of the same instrument, not extra coverage.
+    before = len(out)
+    out = (out.sort_values("n_readings", ascending=False)
+              .drop_duplicates(subset=["city", "latitude", "longitude"], keep="first")
+              .sort_values(["city", "station"])
+              .reset_index(drop=True))
+    if len(out) < before:
+        print(f"load_station_locations: collapsed {before - len(out)} duplicate "
+              f"station feeds sharing a location")
+
+    # DROP STATIONS THE EXPORT HAS FILED UNDER THE WRONG CITY. Four of them, as
+    # of this writing: "Shivaji Nagar, Rishikesh - UKPCB" and "Shivaji Nagar,
+    # Jhansi - UPPCB" are labelled Mumbai, "Transport Nagar, Moradabad - UPPCB"
+    # is labelled Pune (state Maharashtra), and "Nehru Nagar, Kanpur - UPPCB" is
+    # labelled Delhi. They sit 392 to 1,339 km from their supposed city.
+    #
+    # The pattern suggests the upstream assignment keys on the LOCALITY prefix
+    # rather than the city in the suffix: Shivaji Nagar, Transport Nagar and
+    # Nehru Nagar are all localities that exist in the city each was filed
+    # under. Without coordinates this is invisible, which is why it survived.
+    #
+    # The threshold is deliberately loose. Real metropolitan areas sprawl --
+    # Delhi NCR legitimately reaches ~60 km to Gurugram and Hapur -- so 100 km
+    # separates "distant suburb" from "different state" without adjudicating
+    # where a city ends.
+    centres = out.groupby("city")[["latitude", "longitude"]].median()
+    out = out.join(centres, on="city", rsuffix="_c")
+    out["km_from_centre"] = haversine_km(
+        out.latitude_c.values, out.longitude_c.values,
+        out.latitude.values, out.longitude.values)
+    far = out[out.km_from_centre > MAX_CITY_RADIUS_KM]
+    if len(far):
+        print(f"load_station_locations: dropped {len(far)} station(s) filed under "
+              f"the wrong city in the export:")
+        for _, r in far.sort_values("km_from_centre", ascending=False).iterrows():
+            print(f"    {r.station_name}  —  labelled {r.city}, "
+                  f"{r.km_from_centre:,.0f} km away")
+    out = (out[out.km_from_centre <= MAX_CITY_RADIUS_KM]
+             .drop(columns=["latitude_c", "longitude_c"])
+             .reset_index(drop=True))
+
+    out.to_parquet(STATION_META_CACHE)
+    return out
+
+
+EARTH_RADIUS_KM = 6371.0088
+
+
+def haversine_km(lat1, lon1, lat2, lon2):
+    """Great-circle distance in km. Vectorised over the second pair.
+
+    Great-circle rather than a flat projection because the cities span 8°N to
+    29°N, where a degree of longitude differs by about 15% between Chennai and
+    Delhi -- enough to reorder which station is nearest.
+    """
+    lat1, lon1, lat2, lon2 = map(np.radians, (lat1, lon1, lat2, lon2))
+    dlat, dlon = lat2 - lat1, lon2 - lon1
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+    return 2 * EARTH_RADIUS_KM * np.arcsin(np.sqrt(a))
+
+
+def nearest_stations(locs: pd.DataFrame, city: str, lat: float, lon: float,
+                     k: int = 3, eligible: Optional[Iterable[str]] = None
+                     ) -> pd.DataFrame:
+    """The k nearest stations to a point, with distances, nearest first."""
+    g = locs[locs.city == city]
+    if eligible is not None:
+        g = g[g.station.isin(list(eligible))]
+    if not len(g):
+        return g.assign(km=[])
+    g = g.copy()
+    g["km"] = haversine_km(lat, lon, g.latitude.values, g.longitude.values)
+    return g.nsmallest(k, "km").reset_index(drop=True)
+
+
+def sample_city_location(locs: pd.DataFrame, city: str, rng,
+                         k: int = 3, max_km: float = 25.0,
+                         eligible: Optional[Iterable[str]] = None,
+                         tries: int = 500) -> Optional[Tuple[float, float]]:
+    """A random point in the city, drawn where someone might actually live.
+
+    Uniform inside the bounding box of the city's own stations, rejecting any
+    draw whose k-th nearest station is further than max_km. The rejection step
+    matters: a bounding box over a sprawling network has large empty corners,
+    and a point in one of them would be "served" by three monitors tens of
+    kilometres away -- which is not a location an app would claim to cover, and
+    would quietly make the forecast look worse than it is.
+    """
+    g = locs[locs.city == city]
+    if eligible is not None:
+        g = g[g.station.isin(list(eligible))]
+    if len(g) < k:
+        return None
+    lo_lat, hi_lat = g.latitude.min(), g.latitude.max()
+    lo_lon, hi_lon = g.longitude.min(), g.longitude.max()
+    for _ in range(tries):
+        lat = float(rng.uniform(lo_lat, hi_lat))
+        lon = float(rng.uniform(lo_lon, hi_lon))
+        near = nearest_stations(locs, city, lat, lon, k, eligible)
+        if len(near) == k and near.km.iloc[-1] <= max_km:
+            return lat, lon
+    return None
+
+
+# ─── Station-level hourly series ─────────────────────────────────────────────
+#
+# The loaders above stop at the city, because that is what the daily model is
+# scored on. Simulating what a single monitor's day looks like hour by hour
+# needs one level finer. Same construction, minus the across-station average.
+
+STATION_HOURLY_CACHE = DATA_DIR / "cache_xkdr_station_hourly.parquet"
+STATION_HOURLY_AQI_CACHE = DATA_DIR / "cache_xkdr_station_hourly_aqi.parquet"
+
+
+def load_station_hourly(rebuild: bool = False, since: str = "2019-01-01"
+                        ) -> pd.DataFrame:
+    """Hourly PM2.5 per STATION. Columns: city, station, ts, d, hr, mo, pm25."""
+    import duckdb
+
+    if STATION_HOURLY_CACHE.exists() and not rebuild:
+        df = pd.read_parquet(STATION_HOURLY_CACHE)
+    else:
+        con = duckdb.connect()
+        con.execute(
+            f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
+            f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
+        )
+        con.execute(f"""COPY (
+            SELECT {_city_sql_case()} AS city, station_id AS station,
+                   collected_at AS ts, CAST(collected_at AS DATE) AS d,
+                   EXTRACT(hour FROM collected_at)::INTEGER AS hr,
+                   EXTRACT(month FROM collected_at)::INTEGER AS mo,
+                   avg(value) AS pm25
+            FROM m
+            WHERE parameter_name = 'PM2.5' AND city_name IN ({_all_xkdr_names()})
+              AND value BETWEEN 0 AND 2000 AND collected_at >= '{since}'
+            GROUP BY 1,2,3,4,5,6
+        ) TO '{STATION_HOURLY_CACHE}' (FORMAT PARQUET, COMPRESSION ZSTD)""")
+        df = pd.read_parquet(STATION_HOURLY_CACHE)
+
+    df["ts"] = pd.to_datetime(df["ts"])
+    df["d"] = pd.to_datetime(df["d"])
+    return df
+
+
+def load_station_hourly_aqi(rebuild: bool = False, since: str = "2019-01-01"
+                            ) -> pd.DataFrame:
+    """Hourly composite NAQI per STATION. Columns: city, station, d, hr, mo, aqi.
+
+    The max across pollutants is taken WITHIN each station-hour, which is where
+    NAQI gets its character -- averaging pollutants first and taking the max
+    afterwards gives a different, smoother number. This is the same station_hour
+    table load_city_hourly_aqi builds internally, kept rather than averaged away.
+    """
+    import duckdb
+    from aqi_utils import compute_subindex
+
+    if STATION_HOURLY_AQI_CACHE.exists() and not rebuild:
+        df = pd.read_parquet(STATION_HOURLY_AQI_CACHE)
+        df["d"] = pd.to_datetime(df["d"])
+        return df
+
+    con = duckdb.connect()
+    con.execute(
+        f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
+        f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
+    )
+    sh = con.sql(f"""
+        SELECT {_city_sql_case()} AS city, station_id AS station,
+               CAST(collected_at AS DATE) AS d,
+               EXTRACT(hour FROM collected_at)::INTEGER AS hr,
+               EXTRACT(month FROM collected_at)::INTEGER AS mo,
+               CASE parameter_name WHEN 'PM2.5' THEN 'pm25' WHEN 'PM10' THEN 'pm10'
+                    WHEN 'NO2' THEN 'no2' WHEN 'SO2' THEN 'so2' END AS pollutant,
+               avg(value) AS v
+        FROM m
+        WHERE parameter_name IN ('PM2.5','PM10','NO2','SO2')
+          AND city_name IN ({_all_xkdr_names()})
+          AND value BETWEEN 0 AND 2000 AND collected_at >= '{since}'
+        GROUP BY 1,2,3,4,5,6
+    """).df()
+
+    sh["si"] = [compute_subindex(p, v) for p, v in zip(sh.pollutant, sh.v)]
+    out = (sh.groupby(["city", "station", "d", "hr", "mo"], as_index=False)["si"]
+             .max().rename(columns={"si": "aqi"}))
+    out["d"] = pd.to_datetime(out["d"])
+    STATION_HOURLY_AQI_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    out.to_parquet(STATION_HOURLY_AQI_CACHE, index=False)
+    return out
+
+
+MISFILED_CACHE = DATA_DIR / "cache_xkdr_misfiled_stations.parquet"
+
+
+def misfiled_stations(rebuild: bool = False,
+                      csv_path: Optional[Path] = None) -> pd.DataFrame:
+    """Stations whose city in the export disagrees with the station registry.
+
+    Seventeen of them as of this writing, and they are not subtle: "Transport
+    Nagar, Moradabad - UPPCB" is filed under Pune with state_name Maharashtra,
+    "Nehru Nagar, Kanpur - UPPCB" under Delhi. The pattern looks like the
+    assignment keying on the LOCALITY prefix rather than the city in the suffix
+    -- three different "Shastri Nagar" stations all land in Narnaul, which has
+    its own Shastri Nagar.
+
+    Compared against the registry's own `city` column rather than by distance
+    from a city centroid: in a city with two stations the centroid sits between
+    them, so one misfiled station makes both look distant.
+
+    Stations absent from the registry are NOT flagged. They cannot be checked,
+    and treating unknown as wrong would silently drop the US Embassy monitors,
+    which are fine -- just not in the CPCB registry.
+    """
+    csv_path = Path(csv_path) if csv_path else STATIONS_CSV
+    if MISFILED_CACHE.exists() and not rebuild:
+        return pd.read_parquet(MISFILED_CACHE)
+
+    import duckdb
+    con = duckdb.connect()
+    con.execute(
+        f"CREATE VIEW m AS SELECT * FROM read_parquet('{XKDR_GLOB}', "
+        f"hive_partitioning=true, hive_types={{'year':INTEGER,'month':INTEGER}})"
+    )
+    ids = con.execute(f"""
+        SELECT {_city_sql_case()} AS city, city_name, state_name, station_id AS station,
+               any_value(station_name) AS station_name, count(*) AS n
+        FROM m
+        WHERE city_name IN ({_all_xkdr_names()}) AND collected_at >= '2019-01-01'
+        GROUP BY 1,2,3,4""").df()
+
+    reg = pd.read_csv(csv_path).rename(columns={"city": "registry_city",
+                                                "state": "registry_state"})
+    d = ids.merge(reg[["station", "registry_city", "registry_state"]],
+                  left_on="station_name", right_on="station",
+                  how="inner", suffixes=("", "_reg")).drop(columns=["station_reg"])
+    norm = lambda s: s.str.strip().str.lower().str.replace("_", " ", regex=False)
+    out = d[norm(d.city_name) != norm(d.registry_city)].reset_index(drop=True)
+    MISFILED_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    out.to_parquet(MISFILED_CACHE, index=False)
+    return out
+
+
+def drop_misfiled(df: pd.DataFrame, station_col: str = "station",
+                  quiet: bool = False) -> pd.DataFrame:
+    """Remove rows belonging to stations filed under the wrong city."""
+    bad = set(misfiled_stations()[ "station"])
+    hit = df[station_col].isin(bad)
+    if hit.any() and not quiet:
+        names = (misfiled_stations().set_index("station")["station_name"].to_dict())
+        gone = sorted({names.get(s, s) for s in df.loc[hit, station_col].unique()})
+        print(f"drop_misfiled: removed {len(gone)} station(s) filed under the "
+              f"wrong city — {', '.join(gone)}")
+    return df[~hit]
