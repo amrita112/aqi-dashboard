@@ -25,7 +25,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { countQuestion, questionsAskedToday } from "@/lib/ask-count";
+import {
+  activeBlock,
+  clearBlock,
+  countQuestion,
+  questionsAskedToday,
+  rememberBlock,
+  type StoredQuota,
+} from "@/lib/ask-count";
+import { ASK_DAILY_LIMIT, isShortPause } from "@/lib/ai/quota";
 import { loadPrefs, type Prefs } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
 import AnswerChart from "@/components/AnswerChart";
@@ -39,12 +47,8 @@ import {
   type AskEntry,
 } from "@/lib/ask-history";
 
-interface QuotaInfo {
-  kind: "per_minute" | "per_day" | "shared_day" | "provider";
-  message: string;
-  resetAt: number | null;
-  future: string;
-}
+/** The server's quota object; one type with what the device remembers. */
+type QuotaInfo = StoredQuota;
 
 type State =
   | { status: "idle" }
@@ -57,8 +61,12 @@ export default function AskScreen() {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [question, setQuestion] = useState("");
   const [history, setHistory] = useState<AskEntry[]>([]);
-  /** Daily allowance, from the server; the count itself is this device's. */
-  const [dailyLimit, setDailyLimit] = useState<number | null>(null);
+  /**
+   * Daily allowance. Known from the start (it is a shared constant), so the
+   * "questions left" line shows on every visit rather than only after an
+   * answer; the server's figure still overrides it when one arrives.
+   */
+  const [dailyLimit, setDailyLimit] = useState<number>(ASK_DAILY_LIMIT);
   const [askedToday, setAskedToday] = useState(0);
   const [state, setState] = useState<State>({ status: "idle" });
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -71,6 +79,20 @@ export default function AskScreen() {
     setAskedToday(questionsAskedToday());
     const h = loadHistory();
     setHistory(h);
+    // A REFUSAL STILL IN FORCE COMES FIRST. Otherwise reopening the tab
+    // restored the last good answer and looked like the limit had lifted,
+    // until the next question was refused again.
+    const block = activeBlock();
+    if (block) {
+      setState({
+        status: "error",
+        question: block.question,
+        message: block.quota.message,
+        unavailable: false,
+        quota: block.quota,
+      });
+      return;
+    }
     // Restore the most recent answer, so a remount — a hot reload in
     // development, a tab restored from memory on a phone — does not look like
     // the app silently discarding what the person just asked.
@@ -131,6 +153,8 @@ export default function AskScreen() {
               : "no_data";
           trackFailure(reason);
           trackQuestion(quota ? "quota" : "error", null);
+          // Kept on the device until it lifts; see lib/ask-count.
+          if (quota) rememberBlock(quota, trimmed);
           setState({
             status: "error",
             question: trimmed,
@@ -149,6 +173,8 @@ export default function AskScreen() {
           asked_at: Date.now(),
         };
         if (typeof body.meta?.daily_limit === "number") setDailyLimit(body.meta.daily_limit);
+        // An answer means any earlier refusal has lifted.
+        clearBlock();
         // Counted here, not read back from the server — see lib/ask-count.
         setAskedToday(countQuestion());
         // The LAST tool is the one the sentence is about. "none" means the
@@ -184,6 +210,11 @@ export default function AskScreen() {
   }, [params, ask]);
 
   const place = prefs?.anchor.name ?? prefs?.city ?? "your area";
+  // Zero while this device's own daily allowance is spent, whatever the local
+  // tally says: the tally and the server can disagree (lib/ask-count), and the
+  // screen must not offer questions it has just been told are gone.
+  const outForToday = state.status === "error" && state.quota?.kind === "per_day";
+  const questionsLeft = outForToday ? 0 : Math.max(0, dailyLimit - askedToday);
   const nextQuestion =
     state.status === "answered" ? suggestNext(state.entry.tools, place) : null;
 
@@ -261,7 +292,14 @@ export default function AskScreen() {
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
             <p className="font-medium">{quotaHeadline(state.quota.kind)}</p>
             <p className="mt-1">{state.quota.future}</p>
-            {state.quota.resetAt && <Countdown until={state.quota.resetAt} />}
+            {/* A COUNTDOWN ONLY FOR A SHORT PAUSE. A daily limit used to show
+                one too, which sat under "hit its free daily limit" and
+                contradicted it. Daily limits say when instead. */}
+            {isShortPause(state.quota.kind) && state.quota.resetAt ? (
+              <Countdown until={state.quota.resetAt} />
+            ) : !isShortPause(state.quota.kind) ? (
+              <p className="mt-2 font-medium">You can ask again after midnight.</p>
+            ) : null}
             <p className="mt-2">
               Everything else works —{" "}
               <Link href="/" className="underline">
@@ -331,19 +369,17 @@ export default function AskScreen() {
           every question is answered on its own — there is no conversation here
           to refer to. And the allowance was invisible until it ran out, which
           is the worst moment to learn about it. */}
-      <p className="mt-4 px-1 text-xs text-gray-500">
+      {/* ONE SIZE UP (was text-xs), and the count on a line of its own so it
+          is not lost in the middle of a paragraph. */}
+      <p className="mt-4 px-1 text-sm text-gray-500">
         Each question is answered on its own. The AI cannot see what you asked before, so
         it does not have your previous questions and its answers in context.
-        {dailyLimit !== null && (
-          <>
-            {" "}
-            <span className="font-medium text-gray-700">
-              {Math.max(0, dailyLimit - askedToday)}{" "}
-              {dailyLimit - askedToday === 1 ? "question" : "questions"} left today.
-            </span>{" "}
-            A future version will let you pay for unlimited questions.
-          </>
-        )}
+        <span className="mt-1 block">
+          <span className="font-medium text-gray-700">
+            {questionsLeft} {questionsLeft === 1 ? "question" : "questions"} left today.
+          </span>{" "}
+          A future version will let you pay for unlimited questions.
+        </span>
       </p>
 
       {/* SAID HERE, NOT ONLY ON A POLICY PAGE. This is the one place in the app
@@ -353,7 +389,7 @@ export default function AskScreen() {
           together they mislead unless this sentence sits next to the box it is
           about. Someone typing "is the air bad where my daughter goes to
           school" should know where that sentence goes before they send it. */}
-      <p className="mt-2 px-1 text-xs text-gray-500">
+      <p className="mt-2 px-1 text-sm text-gray-500">
         Your question and the location you chose are sent to Groq to be answered.{" "}
         <Link href="/privacy" className="underline">
           What that means
@@ -443,6 +479,10 @@ function quotaHeadline(kind: QuotaInfo["kind"]): string {
       return "You have used your questions for today.";
     case "shared_day":
       return "Today's shared pool of questions is used up.";
+    // Was missing, so a short provider pause fell through to the default and
+    // said "free daily limit" right above a one-minute countdown.
+    case "provider_minute":
+      return "That was a few questions in quick succession for the AI service. It needs a short break.";
     default:
       return "The AI service has hit its free daily limit.";
   }

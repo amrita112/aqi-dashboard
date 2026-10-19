@@ -279,8 +279,8 @@ export default function SettingsScreen() {
             matters too: otherwise two names look like two independent
             confirmations of a reading. */}
         <p className="mt-2 text-sm text-gray-700">
-          Readings come from India&apos;s Central Pollution Control Board monitoring network,
-          reaching us two ways:{" "}
+          Readings come from India&apos;s Central Pollution Control Board (CPCB) monitors.
+          Recent readings are downloaded from{" "}
           <a
             href="https://openaq.org"
             target="_blank"
@@ -288,11 +288,10 @@ export default function SettingsScreen() {
             className="underline"
           >
             OpenAQ
-          </a>{" "}
-          for recent measurements, and the XKDR Forum&apos;s India Air Quality Database for the
-          years of history the forecast is fitted on. Both carry the same CPCB stations, so for
-          any given reading they are one source arriving by two routes rather than two
-          independent ones.
+          </a>
+          , and the historical data, which is used to make forecasts, is taken from XKDR
+          Forum&apos;s India Air Quality Database. Note that these are not independent sources,
+          as they both get their data from the same CPCB monitors.
         </p>
 
         {/* XKDR'S OWN CITATION FORMAT, verbatim, because that is what they ask
@@ -323,11 +322,24 @@ export default function SettingsScreen() {
                 on the home screen, which the 7 Oct review removed — so the page
                 existed with nothing pointing at it. */}
             <Link href="/petition" className="font-medium text-blue-700 underline">
-              Back hyperlocal measurement
+              Support hyperlocal measurement
             </Link>
-            <p className="text-gray-600">
-              A few dozen government monitors cover each city. Add your name to the case for
-              measuring street by street.
+            {/* The 2–4 km / 30–60% figures are from section 5 of
+                notebooks/substack_figures.ipynb: every pair of Delhi monitors,
+                winter PM2.5, winters 2019-20 onwards. */}
+            <p className="mt-1 text-gray-600">
+              We average the readings from the three CPCB monitors nearest to you, but in most
+              cases, those monitors are too far away to give accurate readings for your
+              particular location. For example, in Delhi, monitors that are 2–4 km apart differ
+              by 30–60% in winter PM2.5. Further, the data we are able to obtain from OpenAQ is
+              often 1–4 days old. So to improve air quality forecasting, we need much more dense,
+              frequently updated air quality measurements in every city. If you would like to
+              help us raise funds to obtain dense air quality data for more accurate predictions,
+              add your name to{" "}
+              <Link href="/petition" className="text-blue-700 underline">
+                this petition
+              </Link>
+              .
             </p>
           </li>
 

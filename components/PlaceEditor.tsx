@@ -165,6 +165,10 @@ export default function PlaceEditor({
           {(narrowing || picked) && (
             <div className="mt-3 space-y-2">
               <LocationPicker
+                /* KEYED ON THE CITY so a change starts a clean picker — the
+                   same fix as Settings and Setup. Without it the previous
+                   city's pin and searched place stayed on the map. */
+                key={city.city}
                 centre={{ latitude: city.lat, longitude: city.lng }}
                 city={city.city}
                 value={picked}

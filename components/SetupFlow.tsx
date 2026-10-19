@@ -184,20 +184,21 @@ export default function SetupFlow() {
               </select>
             </div>
 
+            {/* NO "Where in <city>?" HEADING. The city question is directly
+                above and the search box says what to type; a third line of
+                instruction between them was one too many. */}
             {city && centre && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Where in {city.city}?
-                </label>
-                <div className="mt-1">
-                  <LocationPicker
-                    centre={centre}
-                    city={city.city}
-                    value={place}
-                    onChange={setPlace}
-                  />
-                </div>
-              </div>
+              <LocationPicker
+                /* KEYED ON THE CITY, as in Settings. The picker keeps its pin,
+                   its search result and its three stations in its own state,
+                   so without a fresh start a changed city left the map sitting
+                   on the previous city's searched place. */
+                key={city.city}
+                centre={centre}
+                city={city.city}
+                value={place}
+                onChange={setPlace}
+              />
             )}
           </div>
 
@@ -213,7 +214,7 @@ export default function SetupFlow() {
 
       {step === "measurement" && (
         <section>
-          <h2 className="text-xl font-semibold">Do you want to see AQI or just PM2.5 levels?</h2>
+          <h2 className="text-xl font-semibold">Do you want to see AQI or PM2.5 level?</h2>
           <p className="mt-1 hidden text-sm text-gray-600">
           </p>
 
@@ -258,7 +259,8 @@ export default function SetupFlow() {
 
           <p className="mt-4 text-xs text-gray-500">
             We suggest PM2.5: it is the pollutant with the clearest effect on
-            health, and the one you can act on. You can change this later.
+            health, though dust (PM10) is more noticeable and gets more
+            government attention.
           </p>
 
           <Next onClick={finish} onBack={() => setStep("location")} label="Finish" />

@@ -65,3 +65,30 @@ export function quotaMessage(kind: QuotaKind, resetAt: number | null = null): Qu
     future: FUTURE,
   };
 }
+
+/**
+ * Questions per device per day. Here rather than in the route so the Ask
+ * screen can show "40 questions left" as soon as it opens: it used to learn the
+ * number only from a successful answer, so the line vanished every time the
+ * tab was reopened.
+ */
+export const ASK_DAILY_LIMIT = 40;
+
+/** The limits that recover in a minute or so, and so deserve a countdown. */
+export function isShortPause(kind: QuotaKind): boolean {
+  return kind === "per_minute" || kind === "provider_minute";
+}
+
+/**
+ * The next midnight in India, as Unix ms.
+ *
+ * The daily limits reset HERE, not 24 hours after someone's first question.
+ * A rolling window meant a person who started at 11pm was still refused the
+ * next evening, while the screen's own count (which resets at IST midnight,
+ * see lib/ask-count) said they had questions left.
+ */
+export function nextIstMidnight(now: number = Date.now()): number {
+  const IST = 330 * 60_000;
+  const DAY = 86_400_000;
+  return Math.floor((now + IST) / DAY) * DAY + DAY - IST;
+}

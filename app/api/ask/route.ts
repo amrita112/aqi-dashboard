@@ -17,7 +17,7 @@ import { fail, ok, badRequest, rateLimit, callerKey } from "@/lib/api/respond";
 import { chat, aiConfig, AiProviderError, undouble, type ChatMessage } from "@/lib/ai/provider";
 import { TOOL_DEFINITIONS, executeTool, type AskContext } from "@/lib/ai/tools";
 import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
-import { quotaMessage, type QuotaKind } from "@/lib/ai/quota";
+import { quotaMessage, ASK_DAILY_LIMIT, nextIstMidnight, type QuotaKind } from "@/lib/ai/quota";
 import { APP_NAME } from "@/lib/brand";
 import { bestChart, provenanceFrom } from "@/lib/ai/chart";
 
@@ -43,7 +43,8 @@ const MAX_QUESTION_CHARS = 500;
  * provider path stays handled rather than assumed away.
  */
 const PER_IP_PER_MINUTE = 3;
-const PER_IP_PER_DAY = 40;
+// Shared with the Ask screen, which shows how many are left before the first question.
+const PER_IP_PER_DAY = ASK_DAILY_LIMIT;
 /**
  * A global cap, because per-IP alone does not bound the shared quota — a
  * hundred visitors within their own limits would still drain the day's tokens
@@ -147,9 +148,12 @@ export async function POST(request: Request) {
   const caller = callerKey(request);
   const perMinute = rateLimit(`ask:min:${caller}`, PER_IP_PER_MINUTE, MINUTE);
   if (!perMinute.allowed) return outOfQuestions("per_minute", perMinute.resetAt);
-  const perDay = rateLimit(`ask:day:${caller}`, PER_IP_PER_DAY, DAY);
+  // Daily allowances reset at IST midnight, the same moment the screen's own
+  // count does, rather than 24 hours after the first question.
+  const midnight = nextIstMidnight();
+  const perDay = rateLimit(`ask:day:${caller}`, PER_IP_PER_DAY, DAY, midnight);
   if (!perDay.allowed) return outOfQuestions("per_day", perDay.resetAt);
-  const global = rateLimit("ask:day:global", GLOBAL_PER_DAY, DAY);
+  const global = rateLimit("ask:day:global", GLOBAL_PER_DAY, DAY, midnight);
   if (!global.allowed) return outOfQuestions("shared_day", global.resetAt);
 
   // Where the person is and what they read, sent as fields rather than prose.

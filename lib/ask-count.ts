@@ -16,6 +16,8 @@
  * failure of the two, and the refusal explains itself when it happens.
  */
 
+import { isShortPause, nextIstMidnight, type QuotaKind } from "@/lib/ai/quota";
+
 const PREFIX = "aqi.ask.count.";
 
 /** Today's date in India, so the tally resets at IST midnight like the quota. */
@@ -48,4 +50,63 @@ export function countQuestion(): number {
     /* nothing to do */
   }
   return next;
+}
+
+/**
+ * "You have run out", remembered until it stops being true.
+ *
+ * It used to live only in the screen's memory, so leaving the Ask tab and
+ * coming back — or closing the app — wiped it, and the screen went back to
+ * offering questions the server would refuse. Now the refusal is kept on the
+ * device until the moment it lifts: a minute or so for a short pause, IST
+ * midnight for anything daily.
+ */
+const BLOCK_KEY = "aqi.ask.block";
+
+export interface StoredQuota {
+  kind: QuotaKind;
+  message: string;
+  resetAt: number | null;
+  future: string;
+}
+
+interface StoredBlock {
+  quota: StoredQuota;
+  question: string;
+  until: number;
+}
+
+export function rememberBlock(quota: StoredQuota, question: string): void {
+  const until = isShortPause(quota.kind)
+    ? (quota.resetAt ?? Date.now() + 60_000)
+    : nextIstMidnight();
+  try {
+    window.localStorage.setItem(BLOCK_KEY, JSON.stringify({ quota, question, until }));
+  } catch {
+    /* storage blocked: the refusal simply is not remembered */
+  }
+}
+
+/** The refusal still in force, or null once it has lifted. */
+export function activeBlock(): { quota: StoredQuota; question: string } | null {
+  try {
+    const raw = window.localStorage.getItem(BLOCK_KEY);
+    if (!raw) return null;
+    const b = JSON.parse(raw) as StoredBlock;
+    if (!b?.quota || typeof b.until !== "number" || Date.now() >= b.until) {
+      window.localStorage.removeItem(BLOCK_KEY);
+      return null;
+    }
+    return { quota: b.quota, question: b.question ?? "" };
+  } catch {
+    return null;
+  }
+}
+
+export function clearBlock(): void {
+  try {
+    window.localStorage.removeItem(BLOCK_KEY);
+  } catch {
+    /* nothing to do */
+  }
 }

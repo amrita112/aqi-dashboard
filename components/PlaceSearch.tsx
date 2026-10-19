@@ -74,10 +74,13 @@ export default function PlaceSearch({
 
   return (
     <div>
-      <label htmlFor="place-search" className="block text-base font-medium text-gray-900">
-        Where do you spend your time?
+      {/* HIDDEN, NOT DELETED. On screen it was a second question stacked on
+          the city question above it; Amrita asked for it gone. A screen reader
+          still needs a name for the box, so the label stays for those alone. */}
+      <label htmlFor="place-search" className="sr-only">
+        Search for your area or PIN code
       </label>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="text-sm text-gray-600">
         Type your area or your PIN code — or tap the map below.
       </p>
 

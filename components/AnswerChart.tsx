@@ -7,7 +7,12 @@
  * so the picture and the sentence cannot disagree. Nothing here decides what
  * is true; it decides how to draw what lib/ai/chart.ts already settled.
  *
- * Deliberately plain: no axis titles, no legend, no gridlines beyond a faint
+ * STYLED LIKE THE TREND CHARTS since the 19 Oct review: a black line, the
+ * CPCB band strip down the right edge, a tight y-axis and "PM2.5 (µg/m³)" on
+ * it. A chart under an answer that looked different from the same numbers on
+ * Trends would read as a different kind of thing.
+ *
+ * Deliberately plain otherwise: no legend, no gridlines beyond a faint
  * horizontal one. It sits under a two-sentence answer as supporting evidence,
  * not as the main event, and a chart with more furniture than data would
  * invert that.
@@ -27,11 +32,17 @@ import {
   YAxis,
 } from "recharts";
 import { useState } from "react";
-import { getAqiColor } from "@/lib/aqi-utils";
 import { hoveredIndex } from "@/lib/chart-hover";
-import { niceScale } from "@/lib/chart-scale";
+import { niceScale, tightScale } from "@/lib/chart-scale";
 import { tickHeight, twoTierTick } from "@/components/ChartTick";
+import BandStrip, { axisLabelOfUnit, bandColorOf, measurementOfUnit } from "@/components/BandStrip";
 import type { AnswerChart as ChartSpec } from "@/lib/ai/chart";
+
+const LINE = "#12171b";
+/** Space above the plot; the band strip leaves the same so the two line up. */
+const TOP_MARGIN = 6;
+/** The bar chart's x-axis height, fixed so the strip can match it. */
+const BAR_AXIS_HEIGHT = 30;
 
 /** Shorten an axis label without losing what distinguishes it. */
 function shortLabel(label: string, kind: ChartSpec["kind"]): string {
@@ -60,7 +71,9 @@ function thin(ticks: number[], max: number): number[] {
 }
 
 export default function AnswerChart({ chart }: { chart: ChartSpec }) {
-  const isAqi = chart.unit === "AQI";
+  // The tools say "AQI" or "µg/m³"; the shared helpers take "" for AQI.
+  const unit = chart.unit === "AQI" ? "" : chart.unit;
+  const measurement = measurementOfUnit(unit);
   /** The point under the finger, reported beside the chart's title. */
   const [hovered, setHovered] = useState<string | null>(null);
 
@@ -91,15 +104,14 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
     date: dateAt.has(i) ? data[i]?.short || undefined : undefined,
   });
 
-  // PADDED, NOT ANCHORED AT ZERO. recharts defaults a numeric axis to a
-  // zero baseline, which drew a forecast swinging between 140 and 280 as a
-  // nearly flat line in the top half of the box. Rounded, so the axis reads
-  // 150/200/250 rather than 130/195/260.
+  // LINES: NOT ANCHORED AT ZERO, and ending just past the data, as on Trends;
+  // see lib/chart-scale. BARS: from zero, because a bar's length is its value
+  // and a bar cut off at 80 makes 120 look three times 100.
   const values = data.map((d) => d.value).filter((v) => Number.isFinite(v));
   const lo = Math.min(...values);
   const hi = Math.max(...values);
-  const pad = Math.max(5, (hi - lo) * 0.18);
-  const scale = niceScale(lo - pad, hi + pad);
+  const isBars = chart.kind === "compare";
+  const scale = isBars ? niceScale(0, hi * 1.05) : tightScale(lo, hi);
 
   const report = (state: { activeTooltipIndex?: number | string | null } | undefined) => {
     const i = hoveredIndex(state, data.length);
@@ -125,25 +137,26 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
           top of the data it described. Every other chart in the app reports
           into its header; this one had been missed. */}
       <p className="min-h-[1.25rem] text-xs font-medium text-gray-900">{hovered}</p>
-      <div className="mt-2 h-44 w-full">
+      <div className="mt-2 flex h-44 w-full gap-1.5">
+        <div className="h-full min-w-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
-          {chart.kind === "compare" ? (
+          {isBars ? (
             <BarChart
               data={data}
-              margin={{ top: 6, right: 8, left: -6, bottom: 0 }}
+              margin={{ top: TOP_MARGIN, right: 4, left: 0, bottom: 0 }}
               onMouseMove={report}
               onTouchMove={report}
             >
               <CartesianGrid vertical={false} stroke="#eef0f1" />
-              <XAxis dataKey="short" {...axis} />
-              <YAxis {...axis} width={44}>
+              <XAxis dataKey="short" {...axis} height={BAR_AXIS_HEIGHT} />
+              <YAxis {...axis} domain={scale.domain} ticks={scale.ticks} width={52}>
                 {/* EVERY CHART IN THE APP SAYS WHAT ITS NUMBERS ARE. AQI and
                     µg/m³ are different scales with the same shape, so an
                     unlabelled axis leaves the reader no way to tell which one
                     they are looking at — and these charts sit under an answer
                     that may name either. */}
                 <Label
-                  value={chart.unit}
+                  value={axisLabelOfUnit(unit)}
                   angle={-90}
                   position="insideLeft"
                   style={{ fontSize: 10, fill: "#5c6b73", textAnchor: "middle" }}
@@ -151,17 +164,18 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
               </YAxis>
               <Tooltip content={() => null} cursor={{ fill: "#eef0f1" }} />
               <Bar dataKey="value" radius={[3, 3, 0, 0]}>
-                {/* Band colour per bar, so the comparison reads the way the
-                    rest of the app reads rather than as two neutral bars. */}
+                {/* Band colour per bar, for PM2.5 as well as AQI. PM2.5 bars
+                    used to be blue, which on the trend charts now means "the
+                    second place", not a level of pollution. */}
                 {data.map((d, i) => (
-                  <Cell key={i} fill={isAqi ? getAqiColor(d.value) : "#2a78d6"} />
+                  <Cell key={i} fill={bandColorOf(measurement, d.value)} />
                 ))}
               </Bar>
             </BarChart>
           ) : (
             <LineChart
               data={data}
-              margin={{ top: 6, right: 8, left: -6, bottom: 0 }}
+              margin={{ top: TOP_MARGIN, right: 4, left: 0, bottom: 0 }}
               onMouseMove={report}
               onTouchMove={report}
             >
@@ -177,9 +191,9 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
                 stroke="#d4d8da"
                 interval={0}
               />
-              <YAxis domain={scale.domain} ticks={scale.ticks} {...axis} width={44}>
+              <YAxis domain={scale.domain} ticks={scale.ticks} {...axis} width={52}>
                 <Label
-                  value={chart.unit}
+                  value={axisLabelOfUnit(unit)}
                   angle={-90}
                   position="insideLeft"
                   style={{ fontSize: 10, fill: "#5c6b73", textAnchor: "middle" }}
@@ -191,7 +205,7 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
               <Line
                 type="monotone"
                 dataKey="value"
-                stroke="#2a78d6"
+                stroke={LINE}
                 strokeWidth={2}
                 // One dot per point is noise at 24 hourly points; the
                 // highlighted one still shows, because it is the hour the
@@ -205,7 +219,7 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
                       cx={props.cx}
                       cy={props.cy}
                       r={4}
-                      fill="#2a78d6"
+                      fill={LINE}
                       stroke="#ffffff"
                       strokeWidth={2}
                     />
@@ -216,6 +230,13 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
             </LineChart>
           )}
         </ResponsiveContainer>
+        </div>
+        <BandStrip
+          measurement={measurement}
+          domain={scale.domain}
+          top={TOP_MARGIN}
+          bottom={isBars ? BAR_AXIS_HEIGHT : tickHeight(showHours)}
+        />
       </div>
       {chart.note && <p className="mt-2 text-xs text-gray-600">{chart.note}</p>}
     </figure>

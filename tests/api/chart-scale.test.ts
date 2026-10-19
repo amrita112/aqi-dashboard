@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { niceScale } from "@/lib/chart-scale";
+import { niceScale, tightScale } from "@/lib/chart-scale";
 
 describe("niceScale", () => {
   it("produces round ticks for the range that produced 111/161/211", () => {
@@ -60,5 +60,43 @@ describe("padded callers", () => {
     const { domain, ticks } = niceScale(lo - pad, hi + pad);
     expect(domain[0]).toBe(0);
     expect(ticks.every((t) => t >= 0)).toBe(true);
+  });
+});
+
+describe("tightScale", () => {
+  it("does not leave a third of the chart empty (the 24-hour forecast at 25-100)", () => {
+    const { domain, ticks } = tightScale(25, 100);
+    // niceScale put this on 0-150. The axis now ends just past the data.
+    expect(domain[0]).toBeGreaterThan(15);
+    expect(domain[1]).toBeLessThan(110);
+    expect(ticks).toEqual([25, 50, 75, 100]);
+  });
+
+  it("covers the whole data range", () => {
+    const { domain } = tightScale(7, 249);
+    expect(domain[0]).toBeLessThanOrEqual(7);
+    expect(domain[1]).toBeGreaterThanOrEqual(249);
+  });
+
+  it("puts every tick inside the domain, and at least two of them", () => {
+    for (const [lo, hi] of [[25, 100], [13, 90], [140, 160], [0.5, 3], [200, 480]]) {
+      const { domain, ticks } = tightScale(lo, hi);
+      expect(ticks.length).toBeGreaterThanOrEqual(2);
+      for (const t of ticks) {
+        expect(t).toBeGreaterThanOrEqual(domain[0]);
+        expect(t).toBeLessThanOrEqual(domain[1]);
+      }
+    }
+  });
+
+  it("never dips below zero", () => {
+    expect(tightScale(1, 40).domain[0]).toBe(0);
+  });
+
+  it("gives a drawable scale for a flat series and for no data", () => {
+    const flat = tightScale(50, 50);
+    expect(flat.domain[1]).toBeGreaterThan(flat.domain[0]);
+    const empty = tightScale(Infinity, -Infinity);
+    expect(empty.domain.every(Number.isFinite)).toBe(true);
   });
 });

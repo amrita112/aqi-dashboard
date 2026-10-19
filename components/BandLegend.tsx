@@ -107,7 +107,8 @@ export default function BandLegend({
 
       <div className="mt-1 flex w-full justify-between text-[10px] font-medium text-gray-600">
         <span>Good</span>
-        <span>{unit || "AQI"}</span>
+        {/* The pollutant AND the unit: "µg/m³" alone left open of what. */}
+        <span>{unit ? `PM2.5 (${unit})` : "AQI"}</span>
         <span>Severe</span>
       </div>
     </div>

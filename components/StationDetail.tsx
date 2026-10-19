@@ -250,7 +250,8 @@ export default function StationDetail({
               No forecast stored for this station.
             </p>
           ) : (
-            <ForecastChart days={points} unit={unit} onHover={setHovered} />
+            // A week is drawn as seven daily points, not seven flat steps.
+            <ForecastChart days={points} unit={unit} onHover={setHovered} daily={dailyOnly} />
           )
         )}
       </div>

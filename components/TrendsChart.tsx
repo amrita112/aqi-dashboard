@@ -27,8 +27,9 @@ import {
   YAxis,
 } from "recharts";
 import { hoveredIndex } from "@/lib/chart-hover";
-import { niceScale } from "@/lib/chart-scale";
+import { tightScale } from "@/lib/chart-scale";
 import { tickHeight, twoTierTick } from "@/components/ChartTick";
+import BandStrip, { axisLabelOfUnit, measurementOfUnit } from "@/components/BandStrip";
 
 export interface SeriesPoint {
   /** Day/date tier of the axis; empty for points between ticks. */
@@ -58,7 +59,14 @@ export interface Series {
   points: SeriesPoint[];
 }
 
-export const SERIES_COLORS = ["#c2410c", "#2a78d6"];
+// BLACK, THEN BLUE. The band colours now live in a strip down the chart's
+// right edge, so neither place may wear one of them: black for the first
+// place (its range comes out grey), and blue for a comparison, because blue
+// is the one colour the CPCB scale does not use.
+export const SERIES_COLORS = ["#12171b", "#2a78d6"];
+
+/** Space above the plot; the band strip leaves the same so the two line up. */
+const TOP_MARGIN = 8;
 
 /**
  * What the chart reports under the finger.
@@ -138,11 +146,9 @@ export default function TrendsChart({
   );
   const lo = Math.min(...values);
   const hi = Math.max(...values, ...(threshold != null ? [threshold] : []));
-  // Padded around the data, never anchored at zero: a flat-looking line is a
-  // chart that has thrown away the thing it was drawn to show.
-  const pad = Math.max(5, (hi - lo) * 0.18);
-  // Round numbers on the axis; see lib/chart-scale.
-  const scale = niceScale(lo - pad, hi + pad);
+  // Never anchored at zero, and ending just past the data rather than at the
+  // next round step, so the variation fills the chart; see lib/chart-scale.
+  const scale = tightScale(lo, hi);
 
   const sparse = rows.some((r) => r.label === "") && rows.some((r) => r.label !== "");
   const ticks = sparse
@@ -220,11 +226,12 @@ export default function TrendsChart({
 
   return (
     <div className="w-full">
-      <div style={{ height }} className="w-full">
+      <div style={{ height }} className="flex w-full gap-1.5">
+        <div className="h-full min-w-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={rows}
-            margin={{ top: 8, right: 10, left: 0, bottom: 0 }}
+            margin={{ top: TOP_MARGIN, right: 4, left: 0, bottom: 0 }}
             // Reported in the card header rather than a floating box: the box
             // covered the line it described, and listed the shaded band as a
             // [low, high] pair, which formats as "NaN".
@@ -268,7 +275,7 @@ export default function TrendsChart({
               {/* AQI and µg/m³ are different scales with the same shape; an
                   unlabelled axis gave the reader no way to tell them apart. */}
               <Label
-                value={unit ? `${unit}` : "AQI"}
+                value={axisLabelOfUnit(unit)}
                 angle={-90}
                 position="insideLeft"
                 style={{ fontSize: 10, fill: "#5c6b73", textAnchor: "middle" }}
@@ -289,6 +296,8 @@ export default function TrendsChart({
                 stroke="none"
                 fill={s.color}
                 fillOpacity={0.14}
+                // One hover dot, on the line — not two more on the band's edges.
+                activeDot={false}
                 isAnimationActive={false}
               />
             ))}
@@ -318,6 +327,13 @@ export default function TrendsChart({
             ))}
           </ComposedChart>
         </ResponsiveContainer>
+        </div>
+        <BandStrip
+          measurement={measurementOfUnit(unit)}
+          domain={scale.domain}
+          top={TOP_MARGIN}
+          bottom={tickHeight(showHours)}
+        />
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">

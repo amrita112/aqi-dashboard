@@ -5,7 +5,7 @@
  *
  * ORDER IS THE DESIGN, and it changed after the 7 Oct review. Top to bottom:
  * the app's name, the question box, today's number with the place it is for,
- * the forecast, and a map. Everything else that used to be here — a threshold
+ * and the forecast. Everything else that used to be here — a threshold
  * banner, the last measured reading, the list of contributing stations, and a
  * box explaining the data's age — has gone.
  *
@@ -16,6 +16,11 @@
  * route and the petition page rather than on the screen someone opens to check
  * one number.
  *
+ * THE MAP WENT TOO, after the 19 Oct review. At the size Home could give it,
+ * it was too small to read and added nothing the Map tab does not do better —
+ * and on a phone it hung down behind the tab bar. Its space went to the
+ * forecast, which is what someone opening the app came for.
+ *
  * A client component because the user's place lives in localStorage; there is
  * no account to read it from on the server.
  */
@@ -23,17 +28,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { loadPrefs, placeQuery, MEASUREMENT_COPY, NEAREST_K, type Prefs } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
 import ForecastChart, { type ForecastDayInput } from "@/components/ForecastChart";
 import InstallHint from "@/components/InstallHint";
 import BandLegend from "@/components/BandLegend";
-
-const HomeMap = dynamic(() => import("@/components/StationMap"), {
-  ssr: false,
-  loading: () => <div className="h-56 w-full animate-pulse rounded-lg bg-gray-100" />,
-});
 
 interface Band {
   label: string;
@@ -197,7 +196,9 @@ export default function HomeScreen() {
     // order, laid out side by side instead of stacked — nothing is added for
     // the bigger screen, because a dashboard with more things on it than the
     // phone has would be a second product to keep correct.
-    <div className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0">
+    // MORE SPACE BETWEEN CARDS (was space-y-3), now that there are fewer of
+    // them: the screen no longer has to squeeze a map in.
+    <div className="space-y-5 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0">
       <h1 className="text-2xl font-bold tracking-tight lg:col-span-2">{APP_NAME}</h1>
 
       {/* AT THE TOP, not at the bottom of the page. Someone looking at this in
@@ -329,12 +330,10 @@ export default function HomeScreen() {
               unit={unit}
               onHover={setHovered}
               hourAxis
-              /* SHORTER THAN IT WAS (26vh). The whole home screen did not fit
-                 on Amrita's phone, and the forecast card was the tallest thing
-                 on it: a plot, a legend, and two sentences under it. The curve
-                 is still legible at this height because what it has to show is
-                 one rise and one fall across a day. */
-              heightClass="h-[19vh] min-h-[112px] max-h-[180px]"
+              /* TALLER AGAIN (was 19vh). It was shrunk so the map would fit on
+                 one screen; with the map gone the forecast takes the room back,
+                 and a taller plot shows more of the day's rise and fall. */
+              heightClass="h-[26vh] min-h-[150px] max-h-[240px]"
             />
           </div>
 
@@ -356,13 +355,6 @@ export default function HomeScreen() {
           )}
         </section>
       )}
-
-      <section className="overflow-hidden rounded-xl border border-gray-200 lg:col-span-2">
-        {/* SHORTER (was 26vh). The map on Home is orientation — where you are
-            and roughly what is around you — and the Map tab is where someone
-            goes to actually read it. The tab keeps its full 60vh. */}
-        <HomeMap heightClass="h-[18vh] min-h-[104px] max-h-[190px] lg:h-80" showHeader={false} />
-      </section>
 
     </div>
   );

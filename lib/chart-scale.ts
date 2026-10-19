@@ -57,3 +57,45 @@ export function niceScale(
   }
   return { domain: [start, end], ticks };
 }
+
+/**
+ * A TIGHT scale: the axis ends just past the data, and the round numbers are
+ * the TICKS rather than the ends.
+ *
+ * niceScale snaps both ends of the axis out to the next round step, and with a
+ * step of 50 that could spend a third of the chart on nothing — a 24-hour
+ * forecast running 25 to 100 was drawn on 0 to 150. Amrita asked for more of
+ * the variation to be visible. Here the domain is the data plus a small pad,
+ * and round ticks are placed wherever they fall inside it; the axis may begin
+ * at 21 and end at 104, which reads fine because nobody reads the end of an
+ * axis, they read the labelled lines.
+ */
+export function tightScale(
+  lo: number,
+  hi: number,
+  { padShare = 0.06, minPad = 2, targetTicks = 5 }: { padShare?: number; minPad?: number; targetTicks?: number } = {},
+): { domain: [number, number]; ticks: number[] } {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return { domain: [0, 1], ticks: [0, 1] };
+  // A flat series: open a small window around it so the line has somewhere to sit.
+  if (hi <= lo) return tightScale(lo - Math.max(1, Math.abs(lo) * 0.1), hi + Math.max(1, Math.abs(hi) * 0.1), { padShare, minPad, targetTicks });
+
+  const pad = Math.max(minPad, (hi - lo) * padShare);
+  // Concentrations and AQI cannot be negative; no height is spent below zero.
+  const dLo = Math.max(0, lo - pad);
+  const dHi = hi + pad;
+
+  // The same round steps as niceScale, chosen so roughly targetTicks fall inside.
+  const rawStep = (dHi - dLo) / Math.max(1, targetTicks - 1);
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const normalised = rawStep / magnitude;
+  const step =
+    (normalised <= 1 ? 1 : normalised <= 2 ? 2 : normalised <= 2.5 ? 2.5 : normalised <= 5 ? 5 : 10) *
+    magnitude;
+
+  const ticks: number[] = [];
+  for (let v = Math.ceil(dLo / step) * step; v <= dHi + step / 1000; v += step) {
+    ticks.push(Math.round(v * 1e6) / 1e6);
+  }
+  // Rounded to one decimal so a domain end never prints as 104.49999999.
+  return { domain: [Math.round(dLo * 10) / 10, Math.round(dHi * 10) / 10], ticks };
+}

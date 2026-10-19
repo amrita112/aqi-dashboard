@@ -93,11 +93,16 @@ export function rateLimit(
   key: string,
   limit: number,
   windowMs: number,
+  /**
+   * A fixed reset time instead of a rolling window, e.g. midnight for a daily
+   * allowance that should start afresh each day rather than 24h after first use.
+   */
+  fixedResetAt?: number,
 ): { allowed: boolean; remaining: number; resetAt: number } {
   const now = Date.now();
   const entry = hits.get(key);
   if (!entry || now >= entry.resetAt) {
-    const resetAt = now + windowMs;
+    const resetAt = fixedResetAt ?? now + windowMs;
     hits.set(key, { count: 1, resetAt });
     return { allowed: true, remaining: limit - 1, resetAt };
   }

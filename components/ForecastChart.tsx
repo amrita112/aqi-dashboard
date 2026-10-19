@@ -34,8 +34,9 @@ import {
   YAxis,
 } from "recharts";
 import { hoveredIndex } from "@/lib/chart-hover";
-import { niceScale } from "@/lib/chart-scale";
+import { tightScale } from "@/lib/chart-scale";
 import { tickHeight, twoTierTick } from "@/components/ChartTick";
+import BandStrip, { axisLabelOfUnit, measurementOfUnit } from "@/components/BandStrip";
 
 export interface ForecastDayInput {
   target_date: string;
@@ -47,8 +48,15 @@ export interface ForecastDayInput {
   label: string;
 }
 
-const FORECAST = "#c2410c";
-const NORMAL = "#5c6b73";
+// BLACK LINE, GREY RANGE. The orange line competed with the CPCB band
+// colours, which now sit in a strip down the right edge: one colour system on
+// the chart, not two. The seasonal-normal tail keeps its dash, which is what
+// tells it apart from a forecast, and so can share the colour.
+const FORECAST = "#12171b";
+const NORMAL = "#12171b";
+const RANGE = "#6b7280";
+/** Space above the plot; the band strip leaves the same so the two line up. */
+const TOP_MARGIN = 8;
 
 interface Row {
   i: number;
@@ -71,6 +79,7 @@ export default function ForecastChart({
   onHover,
   heightClass = "h-52",
   hourAxis = false,
+  daily = false,
 }: {
   days: ForecastDayInput[];
   unit: string;
@@ -82,6 +91,13 @@ export default function ForecastChart({
    * crosses midnight by construction and is entirely about time of day.
    */
   hourAxis?: boolean;
+  /**
+   * ONE POINT PER DAY, joined by a line, instead of each day's value held flat
+   * for 24 hours. For the week view, which has no hours to show: drawn hourly,
+   * a day with no curve became a flat step, and the chart looked as if it
+   * promised one constant value from midnight to midnight.
+   */
+  daily?: boolean;
   /** Hovered point, for the caller to show beside the card title. */
   onHover?: (text: string | null) => void;
   /**
@@ -97,6 +113,21 @@ export default function ForecastChart({
   const daySpans: { label: string; start: number; end: number }[] = [];
 
   for (const d of days) {
+    if (daily) {
+      const seasonal = d.mode === "seasonal_normal";
+      if (seasonal && firstNormalIndex === -1) firstNormalIndex = rows.length;
+      const i = rows.length;
+      rows.push({
+        i,
+        hour: 12,
+        forecast: seasonal ? null : d.value,
+        normal: seasonal ? d.value : null,
+        range: d.band_low !== null && d.band_high !== null ? [d.band_low, d.band_high] : null,
+        clock: d.label,
+      });
+      daySpans.push({ label: d.label, start: i, end: i });
+      continue;
+    }
     const hours = d.hourly?.length
       ? d.hourly
       : // No fitted diurnal shape for this city and month: fall back to the flat
@@ -128,7 +159,7 @@ export default function ForecastChart({
     }
   }
 
-  if (rows.length < 4) return null;
+  if (rows.length < (daily ? 2 : 4)) return null;
 
   // Join the two lines: the last forecast point also starts the dashed one, so
   // they meet instead of leaving a one-hour hole.
@@ -139,14 +170,9 @@ export default function ForecastChart({
       (v): v is number => v !== null,
     ),
   );
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  // Padded around the data, never anchored at zero: a rising forecast was being
-  // drawn as a flat line against a zero baseline. The padded range is then
-  // snapped to round numbers, so the axis reads 100/150/200 rather than
-  // 111/161/211.
-  const pad = Math.max(6, (hi - lo) * 0.18);
-  const scale = niceScale(lo - pad, hi + pad);
+  // Never anchored at zero, and now ending just past the data rather than at
+  // the next round 50 — see tightScale. The round numbers are the gridlines.
+  const scale = tightScale(Math.min(...values), Math.max(...values));
 
   // TWO TIERS, DATE AND TIME IN DIFFERENT PLACES. One axis carrying
   // "6am Today 6pm 6am Thu 6pm" alternated two kinds of label in one line and
@@ -164,8 +190,9 @@ export default function ForecastChart({
   // that, which now reports the exact time.
   const dayTicks = daySpans.map((d) => Math.round((d.start + d.end) / 2));
   const dayLabelAt = new Map(daySpans.map((d, k) => [dayTicks[k], d.label]));
-  const dayBoundaries = daySpans.slice(1).map((d) => d.start);
-  const showHours = hourAxis || daySpans.length <= 1;
+  // A daily chart has no midnights to mark: each day is one point.
+  const dayBoundaries = daily ? [] : daySpans.slice(1).map((d) => d.start);
+  const showHours = !daily && (hourAxis || daySpans.length <= 1);
   const hourTicks = showHours
     ? rows.filter((r) => r.hour % 6 === 0 && r.hour !== 0).map((r) => r.i)
     : [];
@@ -210,11 +237,12 @@ export default function ForecastChart({
     // sized box it overflowed the bottom and printed on top of whatever
     // followed -- on the map card, the "cleanest hours" line.
     <div className="w-full">
-      <div className={`${heightClass} w-full`}>
+      <div className={`${heightClass} flex w-full gap-1.5`}>
+      <div className="h-full min-w-0 flex-1">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={rows}
-          margin={{ top: 8, right: 10, left: 0, bottom: 0 }}
+          margin={{ top: TOP_MARGIN, right: 4, left: 0, bottom: 0 }}
           // THE READOUT GOES IN THE HEADER, not in a floating box. The tooltip
           // sat on top of the line it was describing, and listed the shaded
           // band as a second row — a [low, high] pair, which formats as
@@ -267,7 +295,7 @@ export default function ForecastChart({
                 be AQI or µg/m³, which are different scales with the same
                 shape — the reader had no way to tell which. */}
             <Label
-              value={unit ? `${unit}` : "AQI"}
+              value={axisLabelOfUnit(unit)}
               angle={-90}
               position="insideLeft"
               style={{ fontSize: 10, fill: "#5c6b73", textAnchor: "middle" }}
@@ -284,18 +312,24 @@ export default function ForecastChart({
           {firstNormalIndex > 0 && (
             <ReferenceLine x={firstNormalIndex} stroke="#d4d8da" strokeDasharray="3 3" />
           )}
+          {/* NO HOVER DOTS ON THE RANGE. recharts marks every series under the
+              finger, which put two extra dots on the band's edges; the one dot
+              that means something is the one on the line. */}
           <Area
             dataKey="range"
             stroke="none"
-            fill={FORECAST}
-            fillOpacity={0.15}
+            fill={RANGE}
+            fillOpacity={0.2}
+            activeDot={false}
             isAnimationActive={false}
           />
+          {/* A daily chart marks each day, so the seven values read as seven
+              points rather than as a continuous hourly curve. */}
           <Line
             dataKey="forecast"
             stroke={FORECAST}
             strokeWidth={2}
-            dot={false}
+            dot={daily ? { r: 2.5, fill: FORECAST, strokeWidth: 0 } : false}
             isAnimationActive={false}
           />
           <Line
@@ -303,11 +337,18 @@ export default function ForecastChart({
             stroke={NORMAL}
             strokeWidth={1.6}
             strokeDasharray="5 4"
-            dot={false}
+            dot={daily ? { r: 2.5, fill: NORMAL, strokeWidth: 0 } : false}
             isAnimationActive={false}
           />
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
+      <BandStrip
+        measurement={measurementOfUnit(unit)}
+        domain={scale.domain}
+        top={TOP_MARGIN}
+        bottom={tickHeight(showHours)}
+      />
       </div>
 
       {/* ONLY WHAT IS ON THE CHART. With every day a seasonal normal the key
@@ -325,7 +366,7 @@ export default function ForecastChart({
           <span className="flex items-center gap-1.5">
             <span
               className="inline-block h-2.5 w-5 rounded-sm"
-              style={{ background: FORECAST, opacity: 0.2 }}
+              style={{ background: RANGE, opacity: 0.3 }}
             />
             Likely range
           </span>

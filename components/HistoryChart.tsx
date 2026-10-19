@@ -14,6 +14,7 @@
 
 import {
   CartesianGrid,
+  Label,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -21,6 +22,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { tightScale } from "@/lib/chart-scale";
+import BandStrip, { axisLabelOfUnit, measurementOfUnit } from "@/components/BandStrip";
+
+/** Plot margins, shared with the band strip so its ends meet the plot's. */
+const TOP_MARGIN = 8;
+const X_AXIS_HEIGHT = 30;
 
 export default function HistoryChart({
   points,
@@ -47,33 +54,43 @@ export default function HistoryChart({
   }
 
   const values = points.map((p) => p.value);
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  const pad = Math.max(5, (hi - lo) * 0.15);
+  // The same tight axis as the forecast and Trends charts; see lib/chart-scale.
+  const scale = tightScale(Math.min(...values), Math.max(...values));
   const tickEvery = Math.max(1, Math.ceil(rows.length / 5));
 
   return (
     // Same reason as ForecastChart: the caption must sit outside the sized box
     // or it overlaps the content below.
     <div className="w-full">
-      <div className="h-48 w-full">
+      <div className="flex h-48 w-full gap-1.5">
+      <div className="h-full min-w-0 flex-1">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={rows} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
+        <LineChart data={rows} margin={{ top: TOP_MARGIN, right: 4, left: 0, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke="#eef0f1" />
           <XAxis
             dataKey="label"
+            height={X_AXIS_HEIGHT}
             interval={tickEvery - 1}
             tick={{ fontSize: 11, fill: "#5c6b73" }}
             stroke="#d4d8da"
             tickLine={false}
           />
           <YAxis
-            domain={[Math.max(0, Math.floor(lo - pad)), Math.ceil(hi + pad)]}
+            domain={scale.domain}
+            ticks={scale.ticks}
             tick={{ fontSize: 11, fill: "#5c6b73" }}
             stroke="#d4d8da"
             tickLine={false}
-            width={38}
-          />
+            width={52}
+          >
+            {/* Names the pollutant, not only the unit, as on every chart. */}
+            <Label
+              value={axisLabelOfUnit(unit)}
+              angle={-90}
+              position="insideLeft"
+              style={{ fontSize: 10, fill: "#5c6b73", textAnchor: "middle" }}
+            />
+          </YAxis>
           <Tooltip formatter={(v) => [`${Math.round(Number(v))} ${unit}`.trim(), label]} />
           <Line
             dataKey="value"
@@ -84,6 +101,13 @@ export default function HistoryChart({
           />
         </LineChart>
       </ResponsiveContainer>
+      </div>
+      <BandStrip
+        measurement={measurementOfUnit(unit)}
+        domain={scale.domain}
+        top={TOP_MARGIN}
+        bottom={X_AXIS_HEIGHT}
+      />
       </div>
       <p className="mt-2 text-xs text-gray-500">
         Measured daily averages. Breaks are days with no reading.
