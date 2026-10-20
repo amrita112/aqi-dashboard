@@ -24,7 +24,7 @@ import {
   YAxis,
 } from "recharts";
 import { tightScale } from "@/lib/chart-scale";
-import BandStrip, { axisLabelOfUnit, BAND_LINE, bandBoundaries, measurementOfUnit } from "@/components/BandStrip";
+import BandStrip, { axisLabelOfUnit, BAND_LINE, BAND_LINE_Z, bandBoundaries, measurementOfUnit } from "@/components/BandStrip";
 
 /** Plot margins, shared with the band strip so its ends meet the plot's. */
 const TOP_MARGIN = 8;
@@ -70,7 +70,7 @@ export default function HistoryChart({
           <CartesianGrid vertical={false} stroke="#eef0f1" />
           {/* Band boundaries, darker than the grid: where the air changes category. */}
           {bandBoundaries(measurementOfUnit(unit), scale.domain).map((y) => (
-            <ReferenceLine key={`band-${y}`} y={y} stroke={BAND_LINE} strokeWidth={1} />
+            <ReferenceLine key={`band-${y}`} y={y} stroke={BAND_LINE} strokeWidth={1} zIndex={BAND_LINE_Z} />
           ))}
           <XAxis
             dataKey="label"

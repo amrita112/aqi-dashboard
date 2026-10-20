@@ -55,6 +55,14 @@ export function bandColorOf(measurement: Measurement, value: number): string {
 export const BAND_LINE = "#c4c9cd";
 
 /**
+ * Drawn just above the grid and BEHIND everything else. Recharts puts a
+ * ReferenceLine in its "line" layer by default, above bars, so on the Ask
+ * tab's bar charts the boundaries ran across the bars. -50 sits between the
+ * grid (-100) and areas and bars (100 and 300).
+ */
+export const BAND_LINE_Z = -50;
+
+/**
  * The band boundaries that fall inside a chart's y-range, for drawing as
  * horizontal lines. The same breakpoints the strip's colours change at, so
  * each line runs out from a colour change on the strip.
