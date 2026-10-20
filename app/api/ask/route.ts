@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { fail, ok, badRequest, rateLimit, callerKey } from "@/lib/api/respond";
 import { chat, aiConfig, AiProviderError, undouble, type ChatMessage } from "@/lib/ai/provider";
-import { TOOL_DEFINITIONS, executeTool, type AskContext } from "@/lib/ai/tools";
+import { TOOL_DEFINITIONS, executeTool, namesMeasure, type AskContext } from "@/lib/ai/tools";
 import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
 import { quotaMessage, ASK_DAILY_LIMIT, nextIstMidnight, type QuotaKind } from "@/lib/ai/quota";
 import { APP_NAME } from "@/lib/brand";
@@ -165,6 +165,11 @@ export async function POST(request: Request) {
     label: typeof place.label === "string" ? place.label.slice(0, 80) : undefined,
     city: typeof place.city === "string" ? place.city.slice(0, 60) : undefined,
     measurement: place.measurement === "pm25" ? "pm25" : "aqi",
+    // "What will the AQI be tomorrow" from someone reading PM2.5 is asking
+    // for AQI, so naming a measure lets the model's choice stand. Anything
+    // else gets the setting. Tested on the question alone, not the "(I am in
+    // ...)" note the screen appends, which names neither.
+    measurementNamed: namesMeasure(question),
   };
 
   const supabase = createClient();

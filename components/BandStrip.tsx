@@ -14,11 +14,19 @@
  * fall in them — not all six bands squeezed into a legend that does not
  * line up with anything.
  *
+ * NAMED, in small sideways text beside each colour, because a colour alone
+ * asks the reader to already know that orange is Poor. Sideways so the names
+ * cost one narrow column rather than a wide one. A name is left out when its
+ * band is too short on screen to hold it — the colour is still there, and a
+ * clipped "Satisfa" is worse than none. "Very Poor" is shortened to "V. Poor"
+ * here only (legends elsewhere keep the full name) so it fits more often.
+ *
  * Aligned by padding: the caller says how much space the chart leaves above
  * the plot (its top margin) and below it (the x-axis), and the strip leaves
  * the same, so its top and bottom are the plot's top and bottom.
  */
 
+import { useEffect, useRef, useState } from "react";
 import { bandsFor } from "@/components/BandLegend";
 import type { Measurement } from "@/lib/prefs";
 
@@ -39,6 +47,9 @@ export function bandColorOf(measurement: Measurement, value: number): string {
   return (hit ?? bands[bands.length - 1]).color;
 }
 
+/** Shorter names for the strip, where every character costs chart height. */
+const SHORT_LABEL: Record<string, string> = { "Very Poor": "V. Poor" };
+
 export default function BandStrip({
   measurement,
   domain,
@@ -52,6 +63,19 @@ export default function BandStrip({
   /** Pixels between the bottom of the plot and the bottom of the chart box. */
   bottom: number;
 }) {
+  // The strip's height in pixels, to decide which names fit. Measured rather
+  // than assumed, because each chart sizes itself to the screen.
+  const box = useRef<HTMLDivElement>(null);
+  const [heightPx, setHeightPx] = useState(0);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setHeightPx(el.clientHeight));
+    ro.observe(el);
+    setHeightPx(el.clientHeight);
+    return () => ro.disconnect();
+  }, []);
+
   const [lo, hi] = domain;
   const span = hi - lo;
   if (!(span > 0)) return null;
@@ -67,7 +91,7 @@ export default function BandStrip({
       const segHi = Math.min(to, hi);
       if (segHi <= segLo) return null;
       return {
-        label: b.label,
+        label: SHORT_LABEL[b.label] ?? b.label,
         color: b.color,
         // Measured from the top, because that is how CSS positions things.
         topPct: ((hi - segHi) / span) * 100,
@@ -76,9 +100,13 @@ export default function BandStrip({
     })
     .filter((s): s is NonNullable<typeof s> => s !== null);
 
+  /** Roughly 5.5px per character at 10px type, plus a little breathing room. */
+  const fits = (label: string, heightPct: number) =>
+    heightPx > 0 && (heightPct / 100) * heightPx >= label.length * 5.5 + 6;
+
   return (
-    <div className="w-1.5 shrink-0" style={{ paddingTop: top, paddingBottom: bottom }} aria-hidden="true">
-      <div className="relative h-full overflow-hidden rounded-full">
+    <div className="flex shrink-0 gap-0.5" style={{ paddingTop: top, paddingBottom: bottom }} aria-hidden="true">
+      <div className="relative w-1.5 overflow-hidden rounded-full">
         {segments.map((s) => (
           <div
             key={s.label}
@@ -87,6 +115,25 @@ export default function BandStrip({
             style={{ top: `${s.topPct}%`, height: `${s.heightPct}%`, background: s.color }}
           />
         ))}
+      </div>
+      <div ref={box} className="relative w-3">
+        {segments.map((s) =>
+          fits(s.label, s.heightPct) ? (
+            <div
+              key={s.label}
+              className="absolute inset-x-0 flex items-center justify-center"
+              style={{ top: `${s.topPct}%`, height: `${s.heightPct}%` }}
+            >
+              {/* Read bottom to top, the way a rotated axis label is. */}
+              <span
+                className="whitespace-nowrap text-[10px] leading-none text-gray-600"
+                style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+              >
+                {s.label}
+              </span>
+            </div>
+          ) : null,
+        )}
       </div>
     </div>
   );

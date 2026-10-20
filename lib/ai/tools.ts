@@ -24,7 +24,7 @@ import {
   type ResolvedLocation,
 } from "@/lib/api/data";
 import type { ForecastDay } from "@/lib/api/forecast";
-import { getAqiLabel } from "@/lib/aqi-utils";
+import { computeSubIndex, getAqiLabel } from "@/lib/aqi-utils";
 import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
 
 const LOCATION_PARAM = {
@@ -36,7 +36,8 @@ const LOCATION_PARAM = {
 const POLLUTANT_PARAM = {
   type: "string",
   enum: ["aqi", "pm25"],
-  description: "'aqi' is the composite 0-500 index. 'pm25' is the fine-particle concentration in ug/m3.",
+  description:
+    "'aqi' is the composite 0-500 index. 'pm25' is the fine-particle concentration in ug/m3. Leave this out unless the person names one: the app then uses the measure they chose in their settings.",
 };
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
@@ -48,7 +49,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         "The most recent measured reading for a place, and how old it is. Use for 'what is it like right now'. Readings are typically 17-24 hours behind, so always mention the age if it is over a day.",
       parameters: {
         type: "object",
-        properties: { location: LOCATION_PARAM },
+        properties: { location: LOCATION_PARAM, pollutant: POLLUTANT_PARAM },
         required: ["location"],
       },
     },
@@ -281,6 +282,38 @@ export interface AskContext {
   label?: string;
   city?: string;
   measurement?: string;
+  /**
+   * True when the question itself names AQI or PM2.5. Only then may the
+   * model's own choice of measure override the person's setting.
+   */
+  measurementNamed?: boolean;
+}
+
+/**
+ * Whether a question asks for AQI or PM2.5 by name ("pm2.5", "PM 2.5", "pm25",
+ * "AQI"). Lives here, not in the ask route, because Next.js refuses extra
+ * exports from a route file.
+ */
+export function namesMeasure(question: string): boolean {
+  const asked = question.split("\n\n(I am in")[0];
+  return /\baqi\b|\bpm\s*2\.?5\b/i.test(asked);
+}
+
+/**
+ * Which measure a tool should report: the person's setting, unless they asked
+ * for the other one in so many words.
+ *
+ * WHY NOT JUST THE MODEL'S ARGUMENT. `pollutant` is optional, but the model
+ * fills it in anyway, and it reaches for "aqi" — the word it has seen most.
+ * Someone who chose PM2.5 then got AQI charts for every question, because an
+ * explicit argument beat the setting. Other pollutants (PM10, NO2) are never
+ * overridden: asking for those is always deliberate.
+ */
+export function measureFor(args: Record<string, unknown>, ctx: AskContext): string {
+  const asked = typeof args.pollutant === "string" ? args.pollutant : undefined;
+  const isMeasure = asked === undefined || asked === "aqi" || asked === "pm25";
+  if (ctx.measurement && isMeasure && !ctx.measurementNamed) return ctx.measurement;
+  return asked ?? ctx.measurement ?? "aqi";
 }
 
 export async function executeTool(
@@ -299,19 +332,37 @@ export async function executeTool(
       if (!readings.length) {
         return { location: loc.label, error: "no_recent_data", message: "No readings held for this place." };
       }
-      const aqi = meanAcross(readings.map((r) => r.aqi));
+      // IN THE PERSON'S OWN MEASURE. This tool used to return the AQI only,
+      // so someone reading PM2.5 everywhere else was told "AQI 169" for
+      // "what is it like now". Each reading already carries its PM2.5
+      // concentration; the index is just the larger number made from it.
+      const pollutant = measureFor(args, ctx);
+      const pm25 =
+        pollutant === "pm25"
+          ? meanAcross(
+              readings.map((r) => r.pollutants.find((p) => p.pollutant === "pm25")?.value ?? NaN),
+            )
+          : null;
+      const value = pollutant === "pm25" ? pm25 : meanAcross(readings.map((r) => r.aqi));
       const oldest = Math.max(...readings.map((r) => r.age_hours));
       return {
         location: loc.label,
         kind: loc.kind,
         stations_used: readings.length,
-        aqi,
+        pollutant,
+        value,
+        unit: pollutant === "pm25" ? "ug/m3" : "CPCB AQI (0-500)",
         // THE BAND NAME HAS TO COME FROM HERE. Handed a bare number, the model
         // reaches for the scale it knows best and answers "unhealthy" or
         // "unhealthy for sensitive groups" -- US EPA categories, which do not
         // exist on India's CPCB scale and do not match what every other screen
         // in the app shows for the same value. AQI 169 is "Moderate" here.
-        band: aqi === null ? null : getAqiLabel(aqi),
+        // A PM2.5 concentration is banded by its sub-index: the same six
+        // bands, at the 30/60/90/120/250 µg/m³ breakpoints.
+        band:
+          value === null
+            ? null
+            : getAqiLabel(pollutant === "pm25" ? computeSubIndex("pm25", value) : value),
         // Which pollutant drives the index surprises people: it is PM10 most
         // of the time in these cities, not PM2.5.
         dominant_pollutant: readings[0].dominant_pollutant,
@@ -326,7 +377,7 @@ export async function executeTool(
     case "forecast": {
       const loc = await resolveFor(supabase, String(args.location ?? ""), ctx);
       if (!loc) return notFound(String(args.location ?? ""));
-      const pollutant = (args.pollutant as string) ?? ctx.measurement ?? "aqi";
+      const pollutant = measureFor(args, ctx);
       const days = Math.min(7, Math.max(1, Number(args.days ?? 1)));
       const perStation = await Promise.all(
         sample(loc).map((m) => getForecast(supabase, m, pollutant, days)),
@@ -373,7 +424,7 @@ export async function executeTool(
     case "best_hour": {
       const loc = await resolveFor(supabase, String(args.location ?? ""), ctx);
       if (!loc) return notFound(String(args.location ?? ""));
-      const pollutant = (args.pollutant as string) ?? ctx.measurement ?? "aqi";
+      const pollutant = measureFor(args, ctx);
       const forecasts = await Promise.all(
         sample(loc).map((m) => getForecast(supabase, m, pollutant, 1)),
       );
@@ -430,7 +481,7 @@ export async function executeTool(
     case "rest_of_today": {
       const loc = await resolveFor(supabase, String(args.location ?? ""), ctx);
       if (!loc) return notFound(String(args.location ?? ""));
-      const pollutant = (args.pollutant as string) ?? ctx.measurement ?? "aqi";
+      const pollutant = measureFor(args, ctx);
       const today = istToday();
       const forecasts = await Promise.all(
         sample(loc).map((m) => getForecast(supabase, m, pollutant, 1, { includeToday: true })),
@@ -506,7 +557,7 @@ export async function executeTool(
     case "rank_places": {
       const loc = await resolveFor(supabase, String(args.location ?? ""), ctx);
       if (!loc) return notFound(String(args.location ?? ""));
-      const pollutant = (args.pollutant as string) ?? ctx.measurement ?? "aqi";
+      const pollutant = measureFor(args, ctx);
       const today = istToday();
       const picks = loc.monitors.slice(0, MAX_STATIONS_PER_CITY_QUERY);
 
@@ -553,7 +604,7 @@ export async function executeTool(
       // Follows the person's own setting rather than defaulting to PM2.5,
       // which is why "compare with last week" reported no AQI data for
       // someone reading AQI on every other screen.
-      const pollutant = (args.pollutant as string) ?? ctx.measurement ?? "aqi";
+      const pollutant = measureFor(args, ctx);
       const days = Math.min(365, Math.max(1, Number(args.days ?? 7)));
       const series = await Promise.all(
         sample(loc).map((m) => getHistory(supabase, m, pollutant, daysAgo(days), istToday())),
@@ -580,7 +631,7 @@ export async function executeTool(
       // Follows the person's own setting rather than defaulting to PM2.5,
       // which is why "compare with last week" reported no AQI data for
       // someone reading AQI on every other screen.
-      const pollutant = (args.pollutant as string) ?? ctx.measurement ?? "aqi";
+      const pollutant = measureFor(args, ctx);
       const days = Math.min(365, Math.max(1, Number(args.days ?? 7)));
       const sides = await Promise.all(
         [args.location_a, args.location_b].map(async (raw) => {

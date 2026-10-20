@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { TOOL_DEFINITIONS, TOOL_NAMES, executeTool } from "@/lib/ai/tools";
+import { TOOL_DEFINITIONS, TOOL_NAMES, executeTool, measureFor, namesMeasure } from "@/lib/ai/tools";
 import {
   chat,
   aiConfig,
@@ -314,5 +314,58 @@ describe("doubled answers", () => {
   it("handles empty and tiny strings", () => {
     expect(undouble("")).toBe("");
     expect(undouble("  ")).toBe("");
+  });
+});
+
+// A tester who reads PM2.5 got AQI charts: the model filled in pollutant "aqi"
+// on its own, and an explicit argument used to beat the setting.
+describe("which measure the tools report", () => {
+  it("uses the setting when the model picks a measure nobody asked for", () => {
+    expect(measureFor({ pollutant: "aqi" }, { measurement: "pm25" })).toBe("pm25");
+    expect(measureFor({}, { measurement: "pm25" })).toBe("pm25");
+  });
+
+  it("lets the model's choice stand when the question named a measure", () => {
+    expect(measureFor({ pollutant: "aqi" }, { measurement: "pm25", measurementNamed: true })).toBe("aqi");
+  });
+
+  it("never overrides other pollutants", () => {
+    expect(measureFor({ pollutant: "pm10" }, { measurement: "pm25" })).toBe("pm10");
+  });
+
+  it("spots AQI and PM2.5 in a question, but not in the appended place note", () => {
+    expect(namesMeasure("What will the AQI be tomorrow?")).toBe(true);
+    expect(namesMeasure("show me PM 2.5 this week")).toBe(true);
+    expect(namesMeasure("pm2.5 levels?")).toBe(true);
+    expect(namesMeasure("Should I go for a run?\n\n(I am in Delhi, near AQI Lane.)")).toBe(false);
+    expect(namesMeasure("is the air bad today")).toBe(false);
+  });
+});
+
+describe("current_aqi in the person's measure", () => {
+  const fresh = new Date(Date.now() - 2 * 3_600_000).toISOString();
+  const supabase = () =>
+    fakeSupabase({
+      monitors: [DELHI_MONITORS[0]],
+      readings: [{ id: "r1", recorded_at: fresh }],
+      measurements: [
+        { pollutant: "pm25", value: 75 },
+        { pollutant: "pm10", value: 180 },
+      ],
+    });
+
+  it("reports the PM2.5 concentration and its band for a PM2.5 reader", async () => {
+    const out = await executeTool(supabase(), "current_aqi", { location: "Anand Vihar" }, { measurement: "pm25" });
+    expect(out.pollutant).toBe("pm25");
+    expect(out.value).toBe(75);
+    // 60-90 µg/m³ is Moderate on the CPCB scale.
+    expect(out.band).toBe("Moderate");
+  });
+
+  it("reports the index for an AQI reader", async () => {
+    const out = await executeTool(supabase(), "current_aqi", { location: "Anand Vihar" }, { measurement: "aqi" });
+    expect(out.pollutant).toBe("aqi");
+    // PM10 at 180 drives the index above PM2.5's.
+    expect(out.value).toBeGreaterThan(100);
   });
 });
