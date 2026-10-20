@@ -36,7 +36,7 @@ import {
 import { hoveredIndex } from "@/lib/chart-hover";
 import { tightScale } from "@/lib/chart-scale";
 import { tickHeight, twoTierTick } from "@/components/ChartTick";
-import BandStrip, { axisLabelOfUnit, measurementOfUnit } from "@/components/BandStrip";
+import BandStrip, { axisLabelOfUnit, BAND_LINE, bandBoundaries, measurementOfUnit } from "@/components/BandStrip";
 
 export interface ForecastDayInput {
   target_date: string;
@@ -263,6 +263,10 @@ export default function ForecastChart({
           // mouse: it is still the answer to the last thing you pointed at.
         >
           <CartesianGrid vertical={false} stroke="#eef0f1" />
+          {/* Band boundaries, darker than the grid: where the air changes category. */}
+          {bandBoundaries(measurementOfUnit(unit), scale.domain).map((y) => (
+            <ReferenceLine key={`band-${y}`} y={y} stroke={BAND_LINE} strokeWidth={1} />
+          ))}
           {/* A Tooltip that draws NOTHING. Recharts only tracks
               activeTooltipIndex while a Tooltip is mounted, so removing it took the
               hover readout with it: onMouseMove fired with nothing to report. This

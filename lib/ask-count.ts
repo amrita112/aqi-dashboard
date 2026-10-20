@@ -76,14 +76,37 @@ interface StoredBlock {
   until: number;
 }
 
-export function rememberBlock(quota: StoredQuota, question: string): void {
-  const until = isShortPause(quota.kind)
-    ? (quota.resetAt ?? Date.now() + 60_000)
-    : nextIstMidnight();
+/**
+ * Remember a refusal, and return the quota with a definite reset time for a
+ * short pause, so the screen always has a countdown to show (the provider
+ * does not always say when).
+ */
+export function rememberBlock(quota: StoredQuota, question: string): StoredQuota {
+  const short = isShortPause(quota.kind);
+  const until = short ? (quota.resetAt ?? Date.now() + 60_000) : nextIstMidnight();
+  const settled = short ? { ...quota, resetAt: until } : quota;
   try {
-    window.localStorage.setItem(BLOCK_KEY, JSON.stringify({ quota, question, until }));
+    window.localStorage.setItem(BLOCK_KEY, JSON.stringify({ quota: settled, question, until }));
+    window.localStorage.setItem(PENDING_KEY, question);
   } catch {
     /* storage blocked: the refusal simply is not remembered */
+  }
+  return settled;
+}
+
+/**
+ * THE QUESTION THAT WAS REFUSED, kept past the refusal itself, so it is never
+ * lost: someone who leaves the Ask tab during the wait and comes back later
+ * finds it back in the box, ready to send, rather than having to retype it.
+ * Cleared once a question is answered.
+ */
+const PENDING_KEY = "aqi.ask.pending";
+
+export function pendingQuestion(): string {
+  try {
+    return window.localStorage.getItem(PENDING_KEY) ?? "";
+  } catch {
+    return "";
   }
 }
 
@@ -103,9 +126,11 @@ export function activeBlock(): { quota: StoredQuota; question: string } | null {
   }
 }
 
+/** The refusal has lifted and the question has been answered: forget both. */
 export function clearBlock(): void {
   try {
     window.localStorage.removeItem(BLOCK_KEY);
+    window.localStorage.removeItem(PENDING_KEY);
   } catch {
     /* nothing to do */
   }

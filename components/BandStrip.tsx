@@ -47,6 +47,25 @@ export function bandColorOf(measurement: Measurement, value: number): string {
   return (hit ?? bands[bands.length - 1]).color;
 }
 
+/**
+ * Grey for the band boundary lines across the plot: darker than the grid
+ * (#eef0f1) so a boundary reads as different from a tick, light enough that
+ * the data line stays the darkest thing on the chart.
+ */
+export const BAND_LINE = "#c4c9cd";
+
+/**
+ * The band boundaries that fall inside a chart's y-range, for drawing as
+ * horizontal lines. The same breakpoints the strip's colours change at, so
+ * each line runs out from a colour change on the strip.
+ */
+export function bandBoundaries(measurement: Measurement, domain: [number, number]): number[] {
+  const [lo, hi] = domain;
+  return bandsFor(measurement)
+    .map((b) => b.to)
+    .filter((to): to is number => to !== null && to > lo && to < hi);
+}
+
 /** Shorter names for the strip, where every character costs chart height. */
 const SHORT_LABEL: Record<string, string> = { "Very Poor": "V. Poor" };
 

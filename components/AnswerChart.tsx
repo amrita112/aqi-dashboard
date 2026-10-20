@@ -22,6 +22,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  ReferenceLine,
   Cell,
   Label,
   Line,
@@ -35,7 +36,7 @@ import { useState } from "react";
 import { hoveredIndex } from "@/lib/chart-hover";
 import { niceScale, tightScale } from "@/lib/chart-scale";
 import { tickHeight, twoTierTick } from "@/components/ChartTick";
-import BandStrip, { axisLabelOfUnit, bandColorOf, measurementOfUnit } from "@/components/BandStrip";
+import BandStrip, { axisLabelOfUnit, BAND_LINE, bandBoundaries, bandColorOf, measurementOfUnit } from "@/components/BandStrip";
 import type { AnswerChart as ChartSpec } from "@/lib/ai/chart";
 
 const LINE = "#12171b";
@@ -148,6 +149,10 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
               onTouchMove={report}
             >
               <CartesianGrid vertical={false} stroke="#eef0f1" />
+              {/* Band boundaries, darker than the grid: where the air changes category. */}
+              {bandBoundaries(measurement, scale.domain).map((y) => (
+                <ReferenceLine key={`band-${y}`} y={y} stroke={BAND_LINE} strokeWidth={1} />
+              ))}
               <XAxis dataKey="short" {...axis} height={BAR_AXIS_HEIGHT} />
               <YAxis {...axis} domain={scale.domain} ticks={scale.ticks} width={52}>
                 {/* EVERY CHART IN THE APP SAYS WHAT ITS NUMBERS ARE. AQI and
@@ -180,6 +185,10 @@ export default function AnswerChart({ chart }: { chart: ChartSpec }) {
               onTouchMove={report}
             >
               <CartesianGrid vertical={false} stroke="#eef0f1" />
+              {/* Band boundaries, darker than the grid: where the air changes category. */}
+              {bandBoundaries(measurement, scale.domain).map((y) => (
+                <ReferenceLine key={`band-${y}`} y={y} stroke={BAND_LINE} strokeWidth={1} />
+              ))}
               <XAxis
                 dataKey="i"
                 type="number"

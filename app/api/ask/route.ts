@@ -55,6 +55,24 @@ const GLOBAL_PER_DAY = 400;
 const MINUTE = 60_000;
 const DAY = 86_400_000;
 
+/**
+ * When to try again after the provider's per-minute limit: never sooner than
+ * a full minute.
+ *
+ * WHY NOT THE PROVIDER'S OWN Retry-After. Groq's says when ONE more request
+ * would fit — often a few seconds — but a question is up to four requests of
+ * 2,000-3,400 tokens each against an 8,000-token-a-minute bucket. Waiting
+ * what Groq said and asking again ran out halfway through the next question,
+ * so the screen said "wait" again, and again: what Amrita kept hitting. And
+ * when Groq sent no Retry-After, there was no countdown at all. A minute is
+ * how long the bucket takes to refill completely.
+ */
+const PROVIDER_PAUSE_MS = 60_000;
+
+function providerPauseEnds(retryAfterSeconds: number | null): number {
+  return Date.now() + Math.max(PROVIDER_PAUSE_MS, (retryAfterSeconds ?? 0) * 1000);
+}
+
 function systemPrompt(): string {
   return [
     "You answer questions about air quality in seven Indian cities: Delhi NCR, Mumbai, Bengaluru, Hyderabad, Chennai, Kolkata and Pune.",
@@ -305,7 +323,7 @@ export async function POST(request: Request) {
         const minute = err.window === "minute";
         return outOfQuestions(
           minute ? "provider_minute" : "provider",
-          err.retryAfterSeconds ? Date.now() + err.retryAfterSeconds * 1000 : null,
+          minute ? providerPauseEnds(err.retryAfterSeconds) : null,
         );
       }
       return fail(err.message, 502);

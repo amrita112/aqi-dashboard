@@ -14,6 +14,7 @@
 
 import {
   CartesianGrid,
+  ReferenceLine,
   Label,
   Line,
   LineChart,
@@ -23,7 +24,7 @@ import {
   YAxis,
 } from "recharts";
 import { tightScale } from "@/lib/chart-scale";
-import BandStrip, { axisLabelOfUnit, measurementOfUnit } from "@/components/BandStrip";
+import BandStrip, { axisLabelOfUnit, BAND_LINE, bandBoundaries, measurementOfUnit } from "@/components/BandStrip";
 
 /** Plot margins, shared with the band strip so its ends meet the plot's. */
 const TOP_MARGIN = 8;
@@ -67,6 +68,10 @@ export default function HistoryChart({
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={rows} margin={{ top: TOP_MARGIN, right: 4, left: 0, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke="#eef0f1" />
+          {/* Band boundaries, darker than the grid: where the air changes category. */}
+          {bandBoundaries(measurementOfUnit(unit), scale.domain).map((y) => (
+            <ReferenceLine key={`band-${y}`} y={y} stroke={BAND_LINE} strokeWidth={1} />
+          ))}
           <XAxis
             dataKey="label"
             height={X_AXIS_HEIGHT}

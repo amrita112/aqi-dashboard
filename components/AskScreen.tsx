@@ -29,6 +29,7 @@ import {
   activeBlock,
   clearBlock,
   countQuestion,
+  pendingQuestion,
   questionsAskedToday,
   rememberBlock,
   type StoredQuota,
@@ -71,6 +72,18 @@ export default function AskScreen() {
   const [state, setState] = useState<State>({ status: "idle" });
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const asked = useRef(false);
+  /**
+   * True while a short pause is counting down. The send button is off for
+   * those seconds: sending early was refused again, and each refusal still
+   * counts against the server's per-minute limit, which lengthened the wait.
+   */
+  const [paused, setPaused] = useState(false);
+  /**
+   * Automatic re-asks since the person last asked by hand. Capped, so a
+   * service that keeps refusing cannot loop forever; after that the question
+   * waits in the box for them to send.
+   */
+  const autoTries = useRef(0);
 
   useEffect(() => {
     setPrefs(loadPrefs());
@@ -84,6 +97,10 @@ export default function AskScreen() {
     // until the next question was refused again.
     const block = activeBlock();
     if (block) {
+      // The refused question goes back in the box as well as the bubble, so
+      // it is never retyped.
+      setQuestion(block.question);
+      setPaused(isShortPause(block.quota.kind));
       setState({
         status: "error",
         question: block.question,
@@ -93,6 +110,10 @@ export default function AskScreen() {
       });
       return;
     }
+    // A question refused earlier whose wait has since ended: back in the box,
+    // ready to send. Not sent automatically — they may have moved on.
+    const pending = pendingQuestion();
+    if (pending) setQuestion(pending);
     // Restore the most recent answer, so a remount — a hot reload in
     // development, a tab restored from memory on a phone — does not look like
     // the app silently discarding what the person just asked.
@@ -100,9 +121,11 @@ export default function AskScreen() {
   }, []);
 
   const ask = useCallback(
-    async (text: string) => {
+    async (text: string, opts: { auto?: boolean } = {}) => {
       const trimmed = text.trim();
       if (!trimmed) return;
+      if (!opts.auto) autoTries.current = 0;
+      setPaused(false);
 
       // A question already answered comes from the cache: instant, and it does
       // not spend one of three questions a minute.
@@ -153,14 +176,20 @@ export default function AskScreen() {
               : "no_data";
           trackFailure(reason);
           trackQuestion(quota ? "quota" : "error", null);
-          // Kept on the device until it lifts; see lib/ask-count.
-          if (quota) rememberBlock(quota, trimmed);
+          // Kept on the device until it lifts; see lib/ask-count. The stored
+          // copy always has a reset time for a short pause, so there is
+          // always a countdown, and the question goes back in the box.
+          const settled = quota ? rememberBlock(quota, trimmed) : null;
+          if (settled) {
+            setQuestion(trimmed);
+            setPaused(isShortPause(settled.kind));
+          }
           setState({
             status: "error",
             question: trimmed,
             message: body?.error?.message ?? "Something went wrong.",
             unavailable: res.status === 503,
-            quota,
+            quota: settled,
           });
           return;
         }
@@ -175,6 +204,7 @@ export default function AskScreen() {
         if (typeof body.meta?.daily_limit === "number") setDailyLimit(body.meta.daily_limit);
         // An answer means any earlier refusal has lifted.
         clearBlock();
+        autoTries.current = 0;
         // Counted here, not read back from the server — see lib/ask-count.
         setAskedToday(countQuestion());
         // The LAST tool is the one the sentence is about. "none" means the
@@ -296,7 +326,23 @@ export default function AskScreen() {
                 one too, which sat under "hit its free daily limit" and
                 contradicted it. Daily limits say when instead. */}
             {isShortPause(state.quota.kind) && state.quota.resetAt ? (
-              <Countdown until={state.quota.resetAt} />
+              <Countdown
+                until={state.quota.resetAt}
+                // ASKED FOR THEM when the wait ends, if they are still here —
+                // this screen being mounted means they are on the Ask tab.
+                // Not after MAX_AUTO_TRIES: then it waits in the box.
+                onDone={() => {
+                  const q = state.question;
+                  setPaused(false);
+                  if (autoTries.current >= MAX_AUTO_TRIES) return;
+                  // They started typing something else while waiting: send
+                  // nothing, rather than replace their words with the old ones.
+                  if (question.trim() && question.trim() !== q) return;
+                  autoTries.current += 1;
+                  void ask(q, { auto: true });
+                }}
+                autoAsk={autoTries.current < MAX_AUTO_TRIES}
+              />
             ) : !isShortPause(state.quota.kind) ? (
               <p className="mt-2 font-medium">You can ask again after midnight.</p>
             ) : null}
@@ -410,6 +456,7 @@ export default function AskScreen() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          if (paused) return;
           void ask(question);
         }}
         className="sticky bottom-20 mt-4 flex items-end gap-2 bg-gray-50 pb-2 pt-3 lg:bottom-0"
@@ -423,7 +470,7 @@ export default function AskScreen() {
             // Enter sends; Shift+Enter is a newline. A question is one line.
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              void ask(question);
+              if (!paused) void ask(question);
             }
           }}
           placeholder="Ask about the air…"
@@ -431,7 +478,7 @@ export default function AskScreen() {
         />
         <button
           type="submit"
-          disabled={!question.trim() || state.status === "asking"}
+          disabled={!question.trim() || state.status === "asking" || paused}
           aria-label="Ask"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-700 text-white disabled:opacity-40"
         >
@@ -470,6 +517,9 @@ function provenanceLine(entry: AskEntry): string | null {
   return parts.length ? parts.join(" · ") : null;
 }
 
+/** Automatic re-asks after a short pause before leaving it to the person. */
+const MAX_AUTO_TRIES = 2;
+
 /** A short lead per exhaustion kind; the shared explanation follows it. */
 function quotaHeadline(kind: QuotaInfo["kind"]): string {
   switch (kind) {
@@ -494,13 +544,44 @@ function quotaHeadline(kind: QuotaInfo["kind"]): string {
  * Only for the limits that recover in minutes; "try again tomorrow" with a
  * live second counter would be absurd, so the caller passes null for those.
  */
-function Countdown({ until }: { until: number }) {
+function Countdown({
+  until,
+  onDone,
+  autoAsk,
+}: {
+  until: number;
+  /** Called once, when the wait is over. */
+  onDone: () => void;
+  /** Whether the question will be sent automatically at the end. */
+  autoAsk: boolean;
+}) {
   const [left, setLeft] = useState(() => Math.max(0, until - Date.now()));
+  // Held in a ref so a re-render with a new callback does not restart the
+  // timer, and so it fires once rather than on every tick after zero.
+  const done = useRef(onDone);
+  done.current = onDone;
   useEffect(() => {
-    const id = setInterval(() => setLeft(Math.max(0, until - Date.now())), 1000);
+    let fired = false;
+    const tick = () => {
+      const remaining = Math.max(0, until - Date.now());
+      setLeft(remaining);
+      if (remaining <= 0 && !fired) {
+        fired = true;
+        clearInterval(id);
+        done.current();
+      }
+    };
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [until]);
   if (left <= 0) return <p className="mt-2 font-medium">You can ask again now.</p>;
   const secs = Math.ceil(left / 1000);
-  return <p className="mt-2">Try again in {secs >= 60 ? `${Math.ceil(secs / 60)} min` : `${secs}s`}.</p>;
+  const wait = secs >= 60 ? `${Math.ceil(secs / 60)} min` : `${secs}s`;
+  return (
+    <p className="mt-2">
+      {autoAsk
+        ? `Your question will be asked automatically in ${wait}, if you stay on this screen.`
+        : `Try again in ${wait}.`}
+    </p>
+  );
 }
