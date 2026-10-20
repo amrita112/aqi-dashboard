@@ -24,6 +24,11 @@ import {
   undouble,
 } from "@/lib/ai/provider";
 import { resolveLocation, meanAcross } from "@/lib/api/data";
+import { searchNominatim } from "@/lib/api/nominatim";
+
+// Never the real geocoder from a test: no network, no load on a free service.
+// Each test says what the lookup should find; by default, nothing.
+vi.mock("@/lib/api/nominatim", () => ({ searchNominatim: vi.fn(async () => []) }));
 
 /** A Supabase stand-in returning canned rows for the tables we touch. */
 function fakeSupabase(tables: Record<string, unknown[]>) {
@@ -38,7 +43,11 @@ function fakeSupabase(tables: Record<string, unknown[]>) {
       resolve({ data: rows, error: null });
     return chain;
   };
-  return { from: (t: string) => builder(tables[t] ?? []) } as never;
+  return {
+    from: (t: string) => builder(tables[t] ?? []),
+    // nearest_monitors, as the RPC returns it: canned under that name.
+    rpc: async () => ({ data: tables.nearest_monitors ?? [], error: null }),
+  } as never;
 }
 
 const DELHI_MONITORS = [
@@ -259,7 +268,7 @@ describe("provider client", () => {
     expect(sent.tools).toHaveLength(7);
     expect(sent.tool_choice).toBe("auto");
     expect(res.message.content).toContain("180");
-    expect(res.usage).toEqual({ prompt: 100, completion: 12 });
+    expect(res.usage).toEqual({ prompt: 100, cached: 0, completion: 12 });
   });
 
   it("surfaces quota exhaustion distinctly — the free-tier failure that matters", async () => {
@@ -367,5 +376,50 @@ describe("current_aqi in the person's measure", () => {
     expect(out.pollutant).toBe("aqi");
     // PM10 at 180 drives the index above PM2.5's.
     expect(out.value).toBeGreaterThan(100);
+  });
+});
+
+// "How's Baner compared to Hinjewadi" was answered "Hinjewadi is outside the
+// covered cities": compare only knew city and station names. And the other
+// tools fell back to the asker's own place for any unknown name, which would
+// have given Baner's numbers under Hinjewadi's name.
+describe("finding a neighbourhood by name", () => {
+  const BANER = { latitude: 18.56, longitude: 73.78, label: "Baner, Pune", city: "Pune" };
+  const PUNE_NEAREST = [
+    { monitor_id: "p1", name: "Hinjewadi_MIDC", city: "Pune", latitude: 18.59, longitude: 73.73, distance_km: 1.2 },
+  ];
+  const lookup = vi.mocked(searchNominatim);
+  beforeEach(() => lookup.mockReset().mockResolvedValue([]));
+
+  it("looks up a place that is not the asker's own, and keeps its name", async () => {
+    lookup.mockResolvedValue([{ label: "Hinjawadi, Pune", latitude: 18.59, longitude: 73.74, kind: "place" }]);
+    const supabase = fakeSupabase({ monitors: [], nearest_monitors: PUNE_NEAREST, readings: [] });
+    const out = await executeTool(supabase, "current_aqi", { location: "Hinjewadi" }, BANER);
+    expect(lookup).toHaveBeenCalled();
+    expect(out.error).not.toBe("unknown_location");
+    expect(out.location).toBe("Hinjewadi");
+  });
+
+  it("uses the asker's own pin for their own place, without a lookup", async () => {
+    const supabase = fakeSupabase({ monitors: [], nearest_monitors: PUNE_NEAREST, readings: [] });
+    const out = await executeTool(supabase, "current_aqi", { location: "Baner" }, BANER);
+    expect(lookup).not.toHaveBeenCalled();
+    expect(out.location).toBe("Baner");
+  });
+
+  it("says not found, rather than borrowing the asker's place, when nothing matches", async () => {
+    const supabase = fakeSupabase({ monitors: [], nearest_monitors: PUNE_NEAREST });
+    const out = await executeTool(supabase, "current_aqi", { location: "Atlantis" }, BANER);
+    expect(out.error).toBe("unknown_location");
+  });
+});
+
+describe("reading a provider refusal", () => {
+  it("pulls the limit and the refused request's size out of Groq's message", async () => {
+    const { rateLimitSizesOf } = await import("@/lib/ai/provider");
+    const text =
+      "Rate limit reached ... on tokens per minute (TPM): Limit 8000, Used 5673, Requested 3602. Please try again in 9.5s.";
+    expect(rateLimitSizesOf(text)).toEqual({ limit: 8000, requested: 3602 });
+    expect(rateLimitSizesOf("something else")).toBeNull();
   });
 });

@@ -26,6 +26,8 @@ import {
 import type { ForecastDay } from "@/lib/api/forecast";
 import { computeSubIndex, getAqiLabel } from "@/lib/aqi-utils";
 import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
+import { searchNominatim } from "@/lib/api/nominatim";
+import { NEAREST_K } from "@/lib/prefs";
 
 const LOCATION_PARAM = {
   type: "string",
@@ -171,23 +173,69 @@ async function resolveFor(
   text: string,
   ctx: AskContext,
 ): Promise<ResolvedLocation | null> {
-  const named = text.trim() ? await resolveLocation(supabase, text) : null;
+  const asked = text.trim();
+  const named = asked ? await resolveLocation(supabase, asked) : null;
   if (named) return named;
-  if (typeof ctx.latitude !== "number" || typeof ctx.longitude !== "number") return null;
 
-  const monitors = await nearestMonitors(
-    supabase,
-    ctx.latitude,
-    ctx.longitude,
-    MAX_STATIONS_PER_CITY_QUERY,
-  );
+  // THE PERSON'S OWN PLACE, by name or by leaving the location out.
+  const own = typeof ctx.latitude === "number" && typeof ctx.longitude === "number";
+  if (own && (!asked || isOwnPlace(asked, ctx))) {
+    return pointNear(supabase, ctx.latitude!, ctx.longitude!, asked || ctx.label, ctx.city);
+  }
+  if (!asked) return null;
+
+  // ANYWHERE ELSE THEY NAMED, looked up the way the search box does.
+  //
+  // This used to fall back to the person's OWN coordinates for any name it
+  // did not recognise. So "Baner vs Hinjewadi" from someone in Baner either
+  // failed outright (compare had no fallback at all, and the model told them
+  // Hinjewadi was outside the covered cities) or, in the other tools, would
+  // have reported Baner's numbers under Hinjewadi's name.
+  //
+  // Near the person first, so "Sector 5" means the one in their city; then
+  // anywhere in India, for a neighbourhood in another covered city.
+  const near = own ? { lat: ctx.latitude!, lng: ctx.longitude! } : null;
+  let hits = near ? await searchNominatim(asked, near) : [];
+  if (!hits.length) hits = await searchNominatim(asked, null);
+  for (const hit of hits.slice(0, 3)) {
+    // nearestMonitors stops at its own distance cap, so a place outside the
+    // covered cities finds nothing here and falls through to "not found".
+    const found = await pointNear(supabase, hit.latitude, hit.longitude, asked, null);
+    if (found) return found;
+  }
+  return null;
+}
+
+/**
+ * Whether a name is the person's own place: "Baner" when they set up
+ * "Baner, Pune", or words like "home" and "my area".
+ */
+function isOwnPlace(asked: string, ctx: AskContext): boolean {
+  const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const a = norm(asked);
+  if (/^(here|home|my (area|place|home|location|neighbourhood|neighborhood)|near me)$/.test(a)) {
+    return true;
+  }
+  const mine = norm(ctx.label ?? "");
+  return Boolean(mine) && (mine.includes(a) || a.includes(mine));
+}
+
+/** The stations nearest a point, as the home screen picks them: the three nearest. */
+async function pointNear(
+  supabase: SupabaseClient,
+  lat: number,
+  lng: number,
+  label: string | undefined,
+  city: string | undefined | null,
+): Promise<ResolvedLocation | null> {
+  const monitors = await nearestMonitors(supabase, lat, lng, NEAREST_K);
   if (!monitors.length) return null;
   return {
     kind: "point",
-    city: ctx.city ?? monitors[0].city,
+    city: city ?? monitors[0].city,
     // Named as the person named it, so the answer says "Mayur Vihar" rather
     // than the nearest CPCB site, which they did not ask about.
-    label: text.trim() || ctx.label || monitors[0].name,
+    label: label?.trim() || monitors[0].name,
     monitors,
   };
 }
@@ -195,7 +243,7 @@ async function resolveFor(
 function notFound(location: string): ToolResult {
   return {
     error: "unknown_location",
-    message: `No station or city matching "${location}". Known cities: Delhi NCR, Mumbai, Bangalore, Hyderabad, Chennai, Kolkata, Pune.`,
+    message: `Could not find "${location}" in or near the covered cities: Delhi NCR, Mumbai, Bangalore, Hyderabad, Chennai, Kolkata, Pune. If it sounds like a place in one of them, ask the person for a nearby landmark or PIN code rather than saying it is not covered.`,
   };
 }
 
@@ -635,7 +683,7 @@ export async function executeTool(
       const days = Math.min(365, Math.max(1, Number(args.days ?? 7)));
       const sides = await Promise.all(
         [args.location_a, args.location_b].map(async (raw) => {
-          const loc = await resolveLocation(supabase, String(raw ?? ""));
+          const loc = await resolveFor(supabase, String(raw ?? ""), ctx);
           if (!loc) return { input: String(raw ?? ""), error: "unknown_location" as const };
           const series = (
             await Promise.all(

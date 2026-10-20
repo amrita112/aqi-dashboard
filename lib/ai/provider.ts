@@ -102,7 +102,10 @@ export interface ToolDefinition {
 export interface ChatResponse {
   message: ChatMessage;
   finishReason: string;
-  usage: { prompt: number; completion: number } | null;
+  /** `cached` is the part of `prompt` the provider re-used from an earlier request. */
+  usage: { prompt: number; cached: number; completion: number } | null;
+  /** The provider's x-ratelimit-remaining-tokens header: tokens left this minute. */
+  remainingTokens: number | null;
 }
 
 /**
@@ -124,6 +127,11 @@ export class AiProviderError extends Error {
     readonly window: RateLimitWindow = "unknown",
     /** Seconds to wait, from the provider's Retry-After, when it sent one. */
     readonly retryAfterSeconds: number | null = null,
+    /**
+     * For a 429: the limit and the size of the refused request, when the
+     * provider's message states them ("Limit 8000, Used 5673, Requested 3602").
+     */
+    readonly sizes: { limit: number; requested: number } | null = null,
   ) {
     super(message);
     this.name = "AiProviderError";
@@ -151,6 +159,13 @@ export function rateLimitWindowOf(text: string, headers: Headers): RateLimitWind
   if (remainingDay === "0" && /d|h/.test(resetDay)) return "day";
   if (/m|s/.test(resetDay) && remainingDay === "0") return "minute";
   return "unknown";
+}
+
+/** "Limit 8000, Used 5673, Requested 3602" out of a 429's message, if present. */
+export function rateLimitSizesOf(text: string): { limit: number; requested: number } | null {
+  const limit = /Limit\s+(\d+)/i.exec(text);
+  const requested = /Requested\s+(\d+)/i.exec(text);
+  return limit && requested ? { limit: Number(limit[1]), requested: Number(requested[1]) } : null;
 }
 
 export function aiConfig() {
@@ -240,6 +255,17 @@ export async function chat(
     // the server log.
     if (response.status !== 429) {
       console.error(`AI provider ${response.status}: ${text.slice(0, 500)}`);
+    } else {
+      // Groq's refusal names WHICH limit (per minute or per day, tokens or
+      // requests) and the used/requested figures; the headers say what is
+      // left. Neither contains the question. Logged because "429" alone left
+      // a stuck countdown undiagnosable.
+      const h = (k: string) => response.headers.get(k) ?? "?";
+      console.warn(
+        `AI provider 429: ${text.slice(0, 400)} | retry-after=${h("retry-after")} ` +
+          `tokens-left=${h("x-ratelimit-remaining-tokens")} reset-tokens=${h("x-ratelimit-reset-tokens")} ` +
+          `requests-left=${h("x-ratelimit-remaining-requests")} reset-requests=${h("x-ratelimit-reset-requests")}`,
+      );
     }
     const window = response.status === 429 ? rateLimitWindowOf(text, response.headers) : "unknown";
     const retryAfter = Number(response.headers.get("retry-after"));
@@ -253,12 +279,18 @@ export async function chat(
       response.status === 429 || response.status >= 500,
       window,
       Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null,
+      response.status === 429 ? rateLimitSizesOf(text) : null,
     );
   }
 
   const json = (await response.json()) as {
     choices?: { message?: ChatMessage; finish_reason?: string }[];
-    usage?: { prompt_tokens?: number; completion_tokens?: number };
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      // OpenAI-compatible providers report re-used (cached) prompt tokens here.
+      prompt_tokens_details?: { cached_tokens?: number };
+    };
   };
 
   const choice = json.choices?.[0];
@@ -272,9 +304,11 @@ export async function chat(
     usage: json.usage
       ? {
           prompt: json.usage.prompt_tokens ?? 0,
+          cached: json.usage.prompt_tokens_details?.cached_tokens ?? 0,
           completion: json.usage.completion_tokens ?? 0,
         }
       : null,
+    remainingTokens: headerNumber(response.headers, "x-ratelimit-remaining-tokens"),
   };
 }
 
@@ -306,4 +340,12 @@ export function undouble(answer: string): string {
     }
   }
   return t;
+}
+
+/** A numeric response header, or null when it is missing or not a number. */
+function headerNumber(headers: Headers, name: string): number | null {
+  const raw = headers.get(name);
+  if (raw === null || raw.trim() === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
 }

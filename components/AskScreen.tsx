@@ -34,7 +34,7 @@ import {
   rememberBlock,
   type StoredQuota,
 } from "@/lib/ask-count";
-import { ASK_DAILY_LIMIT, isShortPause } from "@/lib/ai/quota";
+import { ASK_DAILY_LIMIT, isShortPause, isTooBig } from "@/lib/ai/quota";
 import { loadPrefs, type Prefs } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
 import AnswerChart from "@/components/AnswerChart";
@@ -343,7 +343,7 @@ export default function AskScreen() {
                 }}
                 autoAsk={autoTries.current < MAX_AUTO_TRIES}
               />
-            ) : !isShortPause(state.quota.kind) ? (
+            ) : isTooBig(state.quota.kind) ? null : !isShortPause(state.quota.kind) ? (
               <p className="mt-2 font-medium">You can ask again after midnight.</p>
             ) : null}
             <p className="mt-2">
@@ -533,6 +533,8 @@ function quotaHeadline(kind: QuotaInfo["kind"]): string {
     // said "free daily limit" right above a one-minute countdown.
     case "provider_minute":
       return "That was a few questions in quick succession for the AI service. It needs a short break.";
+    case "too_big":
+      return "That question needed more of the free AI than it allows at once. Try asking about one place, or one day, at a time.";
     default:
       return "The AI service has hit its free daily limit.";
   }

@@ -25,7 +25,10 @@ export type QuotaKind =
   | "per_day"
   | "shared_day"
   | "provider"
-  | "provider_minute";
+  | "provider_minute"
+  // One question needing more of the provider's per-minute allowance than
+  // exists: waiting cannot help, so no countdown and no automatic retry.
+  | "too_big";
 
 export interface QuotaMessage {
   kind: QuotaKind;
@@ -57,6 +60,8 @@ export function quotaMessage(kind: QuotaKind, resetAt: number | null = null): Qu
     // screen next to "38 questions left today". Same voice, right timescale.
     provider_minute:
       "That was a few questions in quick succession for the AI service. It needs a short break.",
+    too_big:
+      "That question needed more of the free AI service than it allows at once. Try asking about one place, or one day, at a time.",
   };
   return {
     kind,
@@ -73,6 +78,14 @@ export function quotaMessage(kind: QuotaKind, resetAt: number | null = null): Qu
  * tab was reopened.
  */
 export const ASK_DAILY_LIMIT = 40;
+
+/**
+ * Not a limit that lifts at all: the question itself is too big. Asking a
+ * smaller one works straight away, so nothing is blocked or remembered.
+ */
+export function isTooBig(kind: QuotaKind): boolean {
+  return kind === "too_big";
+}
 
 /** The limits that recover in a minute or so, and so deserve a countdown. */
 export function isShortPause(kind: QuotaKind): boolean {

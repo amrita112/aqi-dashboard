@@ -16,7 +16,7 @@
  * failure of the two, and the refusal explains itself when it happens.
  */
 
-import { isShortPause, nextIstMidnight, type QuotaKind } from "@/lib/ai/quota";
+import { isShortPause, isTooBig, nextIstMidnight, type QuotaKind } from "@/lib/ai/quota";
 
 const PREFIX = "aqi.ask.count.";
 
@@ -82,6 +82,16 @@ interface StoredBlock {
  * does not always say when).
  */
 export function rememberBlock(quota: StoredQuota, question: string): StoredQuota {
+  // Nothing to wait out: a smaller question works now. Keep the question so
+  // it can be edited, but block nothing.
+  if (isTooBig(quota.kind)) {
+    try {
+      window.localStorage.setItem(PENDING_KEY, question);
+    } catch {
+      /* nothing to do */
+    }
+    return quota;
+  }
   const short = isShortPause(quota.kind);
   const until = short ? (quota.resetAt ?? Date.now() + 60_000) : nextIstMidnight();
   const settled = short ? { ...quota, resetAt: until } : quota;

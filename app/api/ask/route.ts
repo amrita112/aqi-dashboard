@@ -76,16 +76,6 @@ function providerPauseEnds(retryAfterSeconds: number | null): number {
 function systemPrompt(): string {
   return [
     "You answer questions about air quality in seven Indian cities: Delhi NCR, Mumbai, Bengaluru, Hyderabad, Chennai, Kolkata and Pune.",
-    // THE MODEL HAS NO CLOCK. It knows nothing about when "now" is beyond what
-    // this sentence tells it, and it never sees the visitor's device time --
-    // this is computed on the server from UTC plus a fixed +5:30, so it is
-    // correct for India regardless of where the server runs or where the
-    // visitor is. Previously only the DATE was given, which left "is it bad
-    // right now" and "should I go out this evening" to be answered without the
-    // model knowing whether it was breakfast or midnight.
-    `Right now in India it is ${toIstClock(new Date())} on ${istToday()} (Indian Standard Time, UTC+5:30). All times you mention are IST.`,
-    `The current hour in IST is ${toIstHour(new Date())} on a 24-hour clock. "This evening" means roughly 18:00-21:00 today; "later today" means the hours after the current one.`,
-    "",
     "Rules, in order of importance:",
     "1. Every number you state must come from a tool result. Never estimate, interpolate or recall a figure. If the tools did not return it, say you do not have it.",
     "1b. The same goes for FACTS, not just numbers. Do not state anything you were not given — not a date, not an organisation, not a name, not a claim about who runs something. If you are not sure, say you do not know. A confident wrong sentence is worse here than an admission, because everything else this app says is checkable.",
@@ -118,7 +108,25 @@ function systemPrompt(): string {
     "11. ANY place in a covered city can be reported on, whether or not it has a station of its own. The tools average the three nearest stations to wherever the person names, which is what every screen in this app does — so answer for the neighbourhood they asked about, using its name. Never tell someone their neighbourhood 'has no monitoring station' and never substitute a different place's name for theirs. The one exception is rank_places, which lists stations and can only name stations. If a tool returns unknown_location, the place is outside the covered cities — say that instead.",
     "A tool result may contain an `hourly` array of 24 values. Like `series`, it is there to draw the chart beside your answer. Never list it; quote at most the one or two hours that answer the question.",
     "A tool result may contain a `series` field. It exists only to draw the chart shown beside your answer. NEVER recite it — summarise with the mean, min and max that accompany it. Listing dates and values is exactly what the chart is for.",
+    // FEWER ROUNDS, because each one re-sends all of this (~2,800 tokens) and
+    // the free tier allows 8,000 a minute: a third round does not fit.
+    "Look things up in as few steps as possible. If you need several lookups, request them all at once in a single turn. One forecast call with `days` covers several days — do not call it once per day.",
     "Answer in at most two short sentences. No preamble, no bullet points, no markdown. Be specific and plain.",
+    // THE CLOCK GOES LAST, so everything above it is identical from one
+    // question to the next. The provider can re-use its work on a repeated
+    // OPENING of the prompt (prompt caching), but only up to the first
+    // character that differs; with the time as the second line, that was
+    // almost nothing. Measured by the `cached` count logged per question.
+    "",
+    // THE MODEL HAS NO CLOCK. It knows nothing about when "now" is beyond what
+    // this sentence tells it, and it never sees the visitor's device time --
+    // this is computed on the server from UTC plus a fixed +5:30, so it is
+    // correct for India regardless of where the server runs or where the
+    // visitor is. Previously only the DATE was given, which left "is it bad
+    // right now" and "should I go out this evening" to be answered without the
+    // model knowing whether it was breakfast or midnight.
+    `Right now in India it is ${toIstClock(new Date())} on ${istToday()} (Indian Standard Time, UTC+5:30). All times you mention are IST.`,
+    `The current hour in IST is ${toIstHour(new Date())} on a 24-hour clock. "This evening" means roughly 18:00-21:00 today; "later today" means the hours after the current one.`,
   ].join("\n");
 }
 
@@ -201,7 +209,17 @@ export async function POST(request: Request) {
   // the model was given, in code, so the picture cannot disagree with the
   // sentence — neither of them invented anything.
   const toolResults: { name: string; result: unknown }[] = [];
-  let tokens = { prompt: 0, completion: 0 };
+  let tokens = { prompt: 0, cached: 0, completion: 0 };
+  // The provider's own count of tokens left this minute, after the last call:
+  // the direct test of whether cached tokens count against the free limit.
+  let remainingTokens: number | null = null;
+  // Cached tokens per round, separately: within one question every round
+  // repeats the same prompt, so later rounds could always be cached. Only the
+  // FIRST round's figure shows re-use ACROSS questions, which is what moving
+  // the clock to the end is for.
+  const cachedByRound: number[] = [];
+  // Which tools each round asked for, by name only, for the log line.
+  const toolsByRound: string[] = [];
 
   try {
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
@@ -230,14 +248,18 @@ export async function POST(request: Request) {
       if (response.usage) {
         tokens = {
           prompt: tokens.prompt + response.usage.prompt,
+          cached: tokens.cached + response.usage.cached,
           completion: tokens.completion + response.usage.completion,
         };
+        cachedByRound.push(response.usage.cached);
       }
+      if (response.remainingTokens !== null) remainingTokens = response.remainingTokens;
 
       // At the ceiling, ignore any tool calls: the loop is over, and the
       // content is what matters. Treating them as calls would spend another
       // round that does not exist.
       const calls = atCeiling ? [] : (response.message.tool_calls ?? []);
+      toolsByRound.push(calls.map((c) => c.function.name).join(",") || "answer");
       if (!calls.length) {
         const answer = undouble(response.message.content ?? "");
         if (!answer) {
@@ -268,6 +290,13 @@ export async function POST(request: Request) {
             502,
           );
         }
+        // ONE LINE PER ANSWERED QUESTION in the server log (Vercel > Logs),
+        // to tell whether prompt caching is doing anything. Counts only — no
+        // question text, no place. "cached" is how much of "prompt" the
+        // provider re-used; "left" is its tokens-this-minute remaining.
+        console.log(
+          `ask tokens prompt=${tokens.prompt} cached=${tokens.cached} (by round ${cachedByRound.join("+") || "-"}) completion=${tokens.completion} rounds=${round + 1} [${toolsByRound.join(" | ")}] left=${remainingTokens ?? "?"}`,
+        );
         return ok(
           {
             question,
@@ -317,10 +346,26 @@ export async function POST(request: Request) {
       // Groq's own limit, which we do not control and cannot predict the reset
       // of — same explanation, no countdown.
       if (err.status === 429) {
+        // How far the question got before the refusal: 0 rounds means the
+        // very first request was refused, so the limit was already spent.
+        console.warn(
+          `ask refused after ${toolsByRound.length} round(s) [${toolsByRound.join(" | ")}] prompt-so-far=${tokens.prompt} window=${err.window}`,
+        );
         // A minute-bucket 429 recovers while the person reads the message, so
         // it gets the short-break wording and a countdown when the provider
         // sent a Retry-After. A day-bucket one does not.
         const minute = err.window === "minute";
+        // TOO BIG TO EVER FIT. Groq counts this question's own earlier rounds
+        // against the same per-minute allowance, so when those rounds plus
+        // the refused one exceed the whole allowance, a full refill still
+        // cannot carry it: waiting and asking again failed the same way,
+        // forever. Seen on 20 Oct with "thursday or friday?", which looked
+        // up the forecast twice (5,651 tokens) and then wanted 3,602 more
+        // against a limit of 8,000.
+        const own = tokens.prompt + tokens.completion;
+        if (minute && err.sizes && own > 0 && own + err.sizes.requested > err.sizes.limit) {
+          return outOfQuestions("too_big", null);
+        }
         return outOfQuestions(
           minute ? "provider_minute" : "provider",
           minute ? providerPauseEnds(err.retryAfterSeconds) : null,
