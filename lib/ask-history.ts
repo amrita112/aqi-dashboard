@@ -95,7 +95,11 @@ export function clearHistory(): void {
  * and "it" cannot appear as the subject; the place and the day are named every
  * time. There is a test.
  */
-export function suggestNext(tools: string[], place: string): string | null {
+export function suggestNext(tools: string[], fullPlace: string): string | null {
+  // "Baner", not "Baner, Pune, Pune City Subdistrict": a place picked from the
+  // search keeps the geocoder's whole address as its name, and a suggested
+  // question carrying all of it read like a form, not a question.
+  const place = fullPlace.split(",")[0].trim() || fullPlace;
   const last = tools[tools.length - 1];
   switch (last) {
     case "rest_of_today":

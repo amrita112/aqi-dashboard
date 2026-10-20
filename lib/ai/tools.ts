@@ -104,7 +104,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     function: {
       name: "rank_places",
       description:
-        "Rank the monitoring stations in or near a place from cleanest to dirtiest for TODAY. Use for 'where in Mumbai is best for a run', 'which part of Delhi is cleanest', or any question comparing areas within one city. Returns station names with values, so you can name the actual places. Note that only places with a monitoring station can be ranked — if someone names a neighbourhood with no station, say so rather than guessing.",
+        "Rank the monitoring stations in or near a place from cleanest to dirtiest for TODAY. Use for 'where in Mumbai is best for a run' or 'which part of Delhi is cleanest' — open questions about a whole city. NOT for two places the person names ('Baner vs Hinjewadi'): use compare for that, because the named places usually have no station of their own and will not appear in this list. Returns station names with values, so you can name the actual places. Note that only places with a monitoring station can be ranked — if someone names a neighbourhood with no station, say so rather than guessing.",
       parameters: {
         type: "object",
         properties: { location: LOCATION_PARAM, pollutant: POLLUTANT_PARAM },
@@ -138,7 +138,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     function: {
       name: "compare",
       description:
-        "Compare two places over one past window, as two averages. Use for 'is Delhi worse than Mumbai this week'. It returns one number per place, NOT a trend: if the question is about how two places compare OVER TIME — day by day, or across the forecast — say that the Trends tab plots two places together and let them do that there, rather than reading out a series.",
+        "Compare two places over one past window, as two averages. Use for ANY two places the person names against each other — 'Baner vs Hinjewadi', 'is Delhi worse than Mumbai this week' — including neighbourhoods with no station of their own, which are averaged over their nearest stations. Leave pollutant out unless they name one. It returns one number per place, NOT a trend: if the question is about how two places compare OVER TIME — day by day, or across the forecast — say that the Trends tab plots two places together and let them do that there, rather than reading out a series.",
       parameters: {
         type: "object",
         properties: {

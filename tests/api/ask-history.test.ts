@@ -131,3 +131,12 @@ describe("suggestion wording", () => {
     }
   });
 });
+
+describe("suggested question wording", () => {
+  it("names a searched place by its first part, not the whole address", async () => {
+    const { suggestNext } = await import("@/lib/ask-history");
+    expect(suggestNext(["rank_places"], "Baner, Pune, Pune City Subdistrict")).toBe(
+      "What is the forecast for Baner this week?",
+    );
+  });
+});
