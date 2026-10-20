@@ -10,6 +10,13 @@
  * window, is a genuinely hard task that the app was asking of everyone before
  * it showed them anything useful.
  *
+ * NO RESULTS LIST (20 Oct). The best match is used straight away: the map
+ * jumps there with the pin on it, which is the thing people are actually
+ * looking for. A list of results looked like text, not like buttons, and a
+ * tester typed his PIN code and never realised he had to tap one. Names like
+ * "Sector 5" or "Model Town" exist in more than one place, so the other
+ * matches are still there, one link away, for when the first is wrong.
+ *
  * SEARCH ON SUBMIT, NOT AS YOU TYPE. Two reasons, and the second is the real
  * one: Nominatim's usage policy forbids per-keystroke autocomplete for free
  * users, and honouring that is the price of the service being free. It also
@@ -35,7 +42,9 @@ export default function PlaceSearch({
   onPick: (hit: SearchHit) => void;
 }) {
   const [q, setQ] = useState("");
-  const [hits, setHits] = useState<SearchHit[] | null>(null);
+  /** The matches after the one in use, offered only if they ask. */
+  const [others, setOthers] = useState<SearchHit[]>([]);
+  const [showOthers, setShowOthers] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,7 +56,8 @@ export default function PlaceSearch({
     }
     setBusy(true);
     setError(null);
-    setHits(null);
+    setOthers([]);
+    setShowOthers(false);
     try {
       const params = new URLSearchParams({ q: query });
       if (near) {
@@ -61,12 +71,14 @@ export default function PlaceSearch({
         return;
       }
       const found: SearchHit[] = Array.isArray(body.data) ? body.data : [];
-      setHits(found);
       if (!found.length) {
-        setError("Nothing found. Try a bigger landmark nearby, or tap the map instead.");
+        setError("Nothing found. Try a bigger landmark nearby, or move the map instead.");
+        return;
       }
+      onPick(found[0]);
+      setOthers(found.slice(1));
     } catch {
-      setError("Could not reach the server. You can still tap the map.");
+      setError("Could not reach the server. You can still move the map to your place.");
     } finally {
       setBusy(false);
     }
@@ -81,7 +93,7 @@ export default function PlaceSearch({
         Search for your area or PIN code
       </label>
       <p className="text-sm text-gray-600">
-        Type your area or your PIN code — or tap the map below.
+        Type your area or PIN code, then adjust the pin on the map.
       </p>
 
       <div className="mt-2 flex gap-2">
@@ -113,9 +125,19 @@ export default function PlaceSearch({
 
       {error && <p className="mt-2 text-sm text-amber-800">{error}</p>}
 
-      {hits && hits.length > 0 && (
+      {others.length > 0 && !showOthers && (
+        <button
+          type="button"
+          onClick={() => setShowOthers(true)}
+          className="mt-2 text-sm text-gray-600 underline"
+        >
+          Not the right place? See other matches
+        </button>
+      )}
+
+      {showOthers && others.length > 0 && (
         <ul className="mt-2 divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white">
-          {hits.map((h) => (
+          {others.map((h) => (
             <li key={`${h.latitude},${h.longitude}`}>
               <button
                 type="button"
@@ -123,7 +145,8 @@ export default function PlaceSearch({
                   onPick(h);
                   // The list has done its job; leaving it open would compete
                   // with the map it just moved.
-                  setHits(null);
+                  setShowOthers(false);
+                  setOthers([]);
                   setQ(h.label);
                 }}
                 className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-gray-50"

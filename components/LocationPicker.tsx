@@ -11,7 +11,16 @@
  *
  * NO GEOLOCATION, unchanged from the original decision: no permission prompt,
  * no denial path, and someone in Delhi checking on family in Chennai stays a
- * first-class case. The pin starts at the city centre and they move it.
+ * first-class case.
+ *
+ * THE PIN STAYS STILL AND THE MAP MOVES (20 Oct). The pattern Uber, Ola,
+ * Swiggy and Zomato use for "confirm your location", so most people here have
+ * done it many times. The earlier version asked them to tap a search result to
+ * drop a pin, and a tester did not realise the result was something to tap: he
+ * typed his PIN code and nothing seemed to happen. Now a search moves the map
+ * straight to the best match with the pin on it, and adjusting is a drag.
+ * Dragging also beats tapping on a phone — a finger hides the spot it is
+ * aiming at — and a pin fixed in the middle can never be off-screen.
  *
  * NO GEOCODER EITHER, which is why the label is typed rather than looked up.
  * Reverse geocoding means a third-party service, a key, and a dependency that
@@ -52,21 +61,13 @@ export interface PickedPlace {
 
 /**
  * Leaflet's default marker icons resolve to paths that do not exist under a
- * bundler, so both markers are drawn rather than loaded.
+ * bundler, so the station dots are drawn rather than loaded. (The person's own
+ * pin is not a map marker at all: it is drawn over the map's centre; see
+ * CentrePin.)
  *
- * The pin is the person's place; the dots are the stations their numbers will
- * come from. Listing the stations underneath but not drawing them left the map
+ * The dots are the stations their numbers will come from. Listing the stations underneath but not drawing them left the map
  * showing a pin in an apparently empty city, which is the opposite of the point.
  */
-const PIN = L.divIcon({
-  className: "",
-  html:
-    '<div style="width:22px;height:22px;border-radius:50% 50% 50% 0;' +
-    "background:#b3261e;border:3px solid #fff;transform:rotate(-45deg);" +
-    'box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
-  iconSize: [22, 22],
-  iconAnchor: [11, 22],
-});
 
 const STATION_DOT = L.divIcon({
   className: "",
@@ -78,34 +79,76 @@ const STATION_DOT = L.divIcon({
 });
 
 
+/** Zoom for a searched place or an existing pin: streets you can recognise. */
+const STREET_ZOOM = 15;
+
 /**
- * Move the map when the chosen city changes.
+ * Drives the map: jumps to a searched place, and reports where the centre
+ * ends up after the person moves it.
  *
  * Leaflet reads `center` ONCE, when the map is created, and ignores every
- * later change to it — so picking a different city in Settings left the old
- * city's map on screen, with the new city's name above it. React's prop looked
- * like it was driving the map and was not.
+ * later change to it — so the jump is done here, with setView, rather than by
+ * changing a prop that looks like it drives the map and does not.
  */
-function Recentre({
-  centre,
-  zoom,
+function MapController({
+  jumpTo,
+  onEngage,
+  onCentre,
 }: {
-  centre: { latitude: number; longitude: number };
-  /** Set when arriving from a search, where the city-wide view is no use. */
-  zoom?: number;
+  /** A place to move to; a new object each search, so the same spot re-jumps. */
+  jumpTo: { latitude: number; longitude: number } | null;
+  /** The person has started choosing: dragged, tapped or zoomed by hand. */
+  onEngage: () => void;
+  /** The map has stopped moving with its centre here. */
+  onCentre: (lat: number, lng: number) => void;
 }) {
   const map = useMap();
   useEffect(() => {
-    map.setView([centre.latitude, centre.longitude], zoom ?? map.getZoom());
-  }, [map, centre.latitude, centre.longitude, zoom]);
+    if (jumpTo) map.setView([jumpTo.latitude, jumpTo.longitude], STREET_ZOOM);
+  }, [map, jumpTo]);
+  useMapEvents({
+    dragstart: onEngage,
+    // A tap moves that spot under the pin — a second way to adjust, for
+    // anyone who taps out of habit rather than dragging.
+    click: (e) => {
+      onEngage();
+      map.panTo(e.latlng);
+    },
+    moveend: () => {
+      const c = map.getCenter();
+      onCentre(c.lat, c.lng);
+    },
+  });
   return null;
 }
 
-function ClickCatcher({ onPick }: { onPick: (lat: number, lng: number) => void }) {
-  useMapEvents({
-    click: (e) => onPick(e.latlng.lat, e.latlng.lng),
-  });
-  return null;
+/**
+ * The person's pin, fixed over the middle of the map. Its tip is the exact
+ * centre, which is the point that gets saved. Ignores the pointer so drags go
+ * straight through it to the map.
+ */
+function CentrePin({ faded }: { faded: boolean }) {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute left-1/2 top-1/2 z-[500]"
+      // Up by its own height plus ~5px: the rotated square's tip pokes that
+      // far below its box, and the TIP is what must sit on the centre.
+      style={{ transform: "translate(-50%, calc(-100% - 5px))", opacity: faded ? 0.55 : 1 }}
+    >
+      <div
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: "50% 50% 50% 0",
+          background: "#b3261e",
+          border: "3px solid #fff",
+          transform: "rotate(-45deg)",
+          boxShadow: "0 1px 4px rgba(0,0,0,.4)",
+        }}
+      />
+    </div>
+  );
 }
 
 export default function LocationPicker({
@@ -126,8 +169,19 @@ export default function LocationPicker({
   const [label, setLabel] = useState(value?.label ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** Where a search put us, so the map follows it rather than the city. */
-  const [searched, setSearched] = useState<{ latitude: number; longitude: number } | null>(null);
+  /** Where a search put us; the map jumps there. */
+  const [jumpTo, setJumpTo] = useState<{ latitude: number; longitude: number } | null>(null);
+  /**
+   * Whether the person has chosen anything yet. Until they search or move the
+   * map, the pin sits on the city centre FADED and nothing is reported, so
+   * nobody saves the city centre as "home" by pressing Next without looking.
+   */
+  const engaged = useRef(Boolean(value));
+  const [isEngaged, setIsEngaged] = useState(Boolean(value));
+  const engage = () => {
+    engaged.current = true;
+    setIsEngaged(true);
+  };
   // Set when the user edits the label, so a later pin move stops overwriting it.
   const labelTouched = useRef(Boolean(value?.label));
 
@@ -194,10 +248,11 @@ export default function LocationPicker({
       <PlaceSearch
         near={centre}
         onPick={(hit: SearchHit) => {
+          engage();
           setPoint({ lat: hit.latitude, lng: hit.longitude });
           // Moves the map AND zooms in, so what arrives is a street-level view
           // someone can recognise and adjust rather than the whole city again.
-          setSearched({ latitude: hit.latitude, longitude: hit.longitude });
+          setJumpTo({ latitude: hit.latitude, longitude: hit.longitude });
           // Their words for the place, not a monitoring site's name. They can
           // still edit it below.
           setLabel(hit.label);
@@ -205,10 +260,10 @@ export default function LocationPicker({
         }}
       />
 
-      <div className="h-64 w-full overflow-hidden rounded-md border border-gray-300">
+      <div className="relative h-72 w-full overflow-hidden rounded-md border border-gray-300">
         <MapContainer
-          center={[centre.latitude, centre.longitude]}
-          zoom={11}
+          center={value ? [value.latitude, value.longitude] : [centre.latitude, centre.longitude]}
+          zoom={value ? STREET_ZOOM : 11}
           scrollWheelZoom={false}
           style={{ height: "100%", width: "100%" }}
         >
@@ -216,9 +271,13 @@ export default function LocationPicker({
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <Recentre centre={searched ?? centre} zoom={searched ? 14 : undefined} />
-          <ClickCatcher onPick={(lat, lng) => setPoint({ lat, lng })} />
-          {point && <Marker position={[point.lat, point.lng]} icon={PIN} />}
+          <MapController
+            jumpTo={jumpTo}
+            onEngage={engage}
+            onCentre={(lat, lng) => {
+              if (engaged.current) setPoint({ lat, lng });
+            }}
+          />
           {/* The stations themselves. Named on hover/tap, so the list below and
               the map are obviously the same three things. */}
           {stations.map((st) =>
@@ -245,16 +304,16 @@ export default function LocationPicker({
             />
           )}
         </MapContainer>
-      </div>
-
-      {/* The search box above already says both ways of choosing, so this is
-          now a quieter reminder rather than the instruction. Kept because the
-          map is directly above it and a pin has still not been dropped. */}
-      {!point && (
-        <p className="text-sm text-gray-600">
-          Tap the map to place a pin anywhere in {city}.
+        <CentrePin faded={!isEngaged} />
+        {/* The instruction sits ON the map, where the eye already is. */}
+        <p className="pointer-events-none absolute inset-x-0 top-2 z-[500] text-center">
+          <span className="rounded-full bg-white/95 px-3 py-1 text-xs font-medium text-gray-800 shadow">
+            {isEngaged
+              ? "Move the map to adjust the pin"
+              : `Search above, or move the map to your place in ${city}`}
+          </span>
         </p>
-      )}
+      </div>
 
       {busy && <p className="text-sm text-gray-500">Finding the nearest stations…</p>}
       {error && <p className="text-sm text-red-700">{error}</p>}
