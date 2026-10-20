@@ -25,9 +25,9 @@
 // cache-first, so a browser that already holds a copy never asks for it
 // again — which is right for an icon, and wrong the day the icon changes.
 // Renaming the cache makes `activate` delete the old one and fetch afresh.
-// Bumped to v2 for the beta, ahead of the real app icon replacing the
-// generated placeholders.
-const VERSION = "v2";
+// v3 (20 Oct 2026): Amrita's logo replaced the generated placeholder icons.
+// v2 had already shipped WITH the placeholders, so it could not carry them.
+const VERSION = "v3";
 const SHELL_CACHE = `shell-${VERSION}`;
 
 // Enough to render something recognisable with no network. Deliberately short:

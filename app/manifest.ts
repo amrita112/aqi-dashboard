@@ -39,7 +39,7 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "en-IN",
     icons: [
       // "any" and "maskable" are listed separately on purpose. A launcher that
-      // crops a maskable icon would cut the gauge off if it only had the
+      // crops a maskable icon would cut the logo off if it only had the
       // tightly-framed version; one that does not mask would show the
       // maskable version floating in too much padding.
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
