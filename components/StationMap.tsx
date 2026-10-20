@@ -75,7 +75,12 @@ export default function StationMap({
   // Local to this screen. Switching the pollutant here changes what the map
   // shows and nothing else -- it is a way of looking, not a change of mind
   // about the setting chosen in setup.
-  const [measurement, setMeasurement] = useState<Measurement>("aqi");
+  //
+  // NULL UNTIL THE SETTING IS READ. It used to start as "aqi" and switch to
+  // the setting a moment later, which sent TWO requests — AQI, then PM2.5 —
+  // and whichever came back last won. Often that was the AQI one, so a
+  // PM2.5 reader saw AQI numbers on the dots under a selector saying PM2.5.
+  const [measurement, setMeasurement] = useState<Measurement | null>(null);
   const [selected, setSelected] = useState<DetailStation | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
 
@@ -91,28 +96,37 @@ export default function StationMap({
   // Seeded from the person's own setting, then free to differ while they look.
   useEffect(() => {
     const p = loadPrefs();
-    if (p) setMeasurement(p.measurement);
+    setMeasurement(p?.measurement ?? "aqi");
   }, []);
 
   useEffect(() => {
     const p = loadPrefs();
-    if (!p) return;
+    if (!p || !measurement) return;
     setPrefs(p);
+    // Switching the selector quickly can still put two requests in flight;
+    // only the answer for the CURRENT choice may land.
+    let current = true;
     fetch(
       `/api/map?lat=${p.anchor.latitude}&lng=${p.anchor.longitude}` +
         `&radius_km=30&limit=80&pollutant=${measurement}`,
     )
       .then((r) => r.json())
       .then((b) => {
+        if (!current) return;
         if (b?.error) setError(b.error.message);
         else {
           setStations(b.data as Station[]);
         }
       })
-      .catch(() => setError("Could not load the map."));
+      .catch(() => {
+        if (current) setError("Could not load the map.");
+      });
+    return () => {
+      current = false;
+    };
   }, [measurement]);
 
-  if (!prefs) return <p className="text-gray-500">Loading…</p>;
+  if (!prefs || !measurement) return <p className="text-gray-500">Loading…</p>;
   if (error) {
     return <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>;
   }
