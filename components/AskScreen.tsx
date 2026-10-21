@@ -38,6 +38,9 @@ import { ASK_DAILY_LIMIT, isShortPause, isTooBig } from "@/lib/ai/quota";
 import { loadPrefs, type Prefs } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
 import AnswerChart from "@/components/AnswerChart";
+import ShareButton from "@/components/ShareButton";
+import { chartImage } from "@/lib/chart-image";
+import { SITE_URL } from "@/lib/share";
 import type { AnswerChart as ChartSpec, Provenance } from "@/lib/ai/chart";
 import { trackFailure, trackQuestion, type FailureReason } from "@/lib/analytics";
 import {
@@ -72,6 +75,8 @@ export default function AskScreen() {
   const [state, setState] = useState<State>({ status: "idle" });
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const asked = useRef(false);
+  /** The answer's chart, captured as an image when it is shared. */
+  const chartRef = useRef<HTMLDivElement>(null);
   /**
    * True while a short pause is counting down. The send button is off for
    * those seconds: sending early was refused again, and each refusal still
@@ -295,7 +300,33 @@ export default function AskScreen() {
               </span>
             </p>
 
-            {state.entry.chart && <AnswerChart chart={state.entry.chart} />}
+            {state.entry.chart && (
+              <div ref={chartRef}>
+                <AnswerChart chart={state.entry.chart} />
+              </div>
+            )}
+
+            {/* SHARE THIS RESULT, only with a chart: a picture travels in a
+                group chat in a way two sentences do not. The question goes
+                in as the person typed it — they can see it, and choose. */}
+            {state.entry.chart && (
+              <div>
+                <ShareButton
+                  label="Share this result"
+                  build={async () => {
+                    const entry = state.entry;
+                    const image = chartRef.current
+                      ? await chartImage(chartRef.current, { title: oneLine(entry.question, 70) })
+                      : null;
+                    return {
+                      text: `"${entry.question}"\n${entry.answer}\n— AirGyaan, air quality forecasts for Indian cities: ${SITE_URL}`,
+                      image,
+                      fileName: "airgyaan-answer.png",
+                    };
+                  }}
+                />
+              </div>
+            )}
 
             {nextQuestion && (
               <div>
@@ -515,6 +546,12 @@ function provenanceLine(entry: AskEntry): string | null {
     parts.push(h < 48 ? `latest reading ${h} h ago` : `latest reading ${Math.round(h / 24)} days ago`);
   }
   return parts.length ? parts.join(" · ") : null;
+}
+
+/** A question shortened to fit one line of an image's heading. */
+function oneLine(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 }
 
 /** Automatic re-asks after a short pause before leaving it to the person. */

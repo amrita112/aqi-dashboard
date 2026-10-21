@@ -25,7 +25,7 @@
  * no account to read it from on the server.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { loadPrefs, placeQuery, MEASUREMENT_COPY, NEAREST_K, type Prefs } from "@/lib/prefs";
@@ -33,6 +33,9 @@ import { APP_NAME } from "@/lib/brand";
 import ForecastChart, { type ForecastDayInput } from "@/components/ForecastChart";
 import InstallHint from "@/components/InstallHint";
 import BandLegend from "@/components/BandLegend";
+import ShareButton from "@/components/ShareButton";
+import { chartImage } from "@/lib/chart-image";
+import { SITE_URL } from "@/lib/share";
 
 interface Band {
   label: string;
@@ -142,6 +145,8 @@ export default function HomeScreen() {
   const [showStations, setShowStations] = useState(false);
   /** The point under the cursor, shown in the Forecast card's header. */
   const [hovered, setHovered] = useState<string | null>(null);
+  /** The forecast chart, captured as an image when it is shared. */
+  const forecastRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const p = loadPrefs();
@@ -177,6 +182,7 @@ export default function HomeScreen() {
   if (!prefs) return <p className="text-gray-500">Loading…</p>;
 
   const unit = MEASUREMENT_COPY[prefs.measurement].unit;
+  const axisName = prefs.measurement === "pm25" ? `PM2.5 (${unit})` : "AQI";
   const short = MEASUREMENT_COPY[prefs.measurement].short;
 
   const today = days?.find((d) => d.target_date === todayIso) ?? days?.[0] ?? null;
@@ -324,7 +330,7 @@ export default function HomeScreen() {
               {unit ? ` · ${unit}` : ""}
             </span>
           </div>
-          <div className="mt-1.5">
+          <div className="mt-1.5" ref={forecastRef}>
             <ForecastChart
               days={points}
               unit={unit}
@@ -354,6 +360,35 @@ export default function HomeScreen() {
             </p>
           )}
         </section>
+      )}
+
+      {/* SHARE AIRGYAAN, under the forecast card. The label invites sharing
+          the app; what goes out is still this forecast, as the picture that
+          shows what the app does. Names the CITY, not the neighbourhood: a
+          forecast forwarded to a family group should not also tell everyone
+          in it where this person lives. */}
+      {points.length >= 2 && (
+        <div className="-mt-2 flex justify-center">
+          <ShareButton
+            label="Share AirGyaan"
+            build={async () => {
+              const image = forecastRef.current
+                ? await chartImage(forecastRef.current, {
+                    title: `Air quality, next 24 hours · ${prefs.city}`,
+                    subtitle: axisName,
+                  })
+                : null;
+              const line = tomorrow
+                ? ` Tomorrow: ${describeChange(today?.value ?? null, tomorrow.value)}.`
+                : "";
+              return {
+                text: `The air quality forecast for the next 24 hours in ${prefs.city}, from AirGyaan.${line} See the forecast for your area: ${SITE_URL}`,
+                image,
+                fileName: "airgyaan-forecast.png",
+              };
+            }}
+          />
+        </div>
       )}
 
     </div>

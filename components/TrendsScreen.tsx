@@ -22,7 +22,7 @@
  * axis label is noise.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -32,6 +32,9 @@ import {
   type Prefs,
 } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
+import ShareButton from "@/components/ShareButton";
+import { chartImage } from "@/lib/chart-image";
+import { SITE_URL } from "@/lib/share";
 import TrendsChart, {
   SERIES_COLORS,
   type HoverReading,
@@ -171,6 +174,16 @@ export default function TrendsScreen() {
   const [editing, setEditing] = useState<number | null>(null);
   const [fHover, setFHover] = useState<HoverReading | null>(null);
   const [hHover, setHHover] = useState<HoverReading | null>(null);
+  /** The two charts, captured as images when shared. */
+  const forecastChartRef = useRef<HTMLDivElement>(null);
+  const historyChartRef = useRef<HTMLDivElement>(null);
+  /**
+   * Which round of loading is current. Switching pollutant or range while
+   * answers are still coming back let a late answer for the OLD choice land
+   * last and be drawn — the same race the map had. Only the current round
+   * may write.
+   */
+  const loadRound = useRef(0);
 
   useEffect(() => {
     const p = loadPrefs();
@@ -200,7 +213,7 @@ export default function TrendsScreen() {
   }, [router]);
 
   const load = useCallback(
-    async (place: TrendsPlace) => {
+    async (place: TrendsPlace, round: number) => {
       const base = new URLSearchParams({ ...place.query, pollutant: measurement });
       const fDays = fRange === "days7" ? 7 : fRange === "days3" ? 3 : 2;
       const f = new URLSearchParams(base);
@@ -222,6 +235,7 @@ export default function TrendsScreen() {
           ? fetch(`/api/history-hourly?${h}`).then((r) => r.json()).catch(() => null)
           : Promise.resolve(null),
       ]);
+      if (round !== loadRound.current) return;
       setHourlies((prev) => ({
         ...prev,
         [place.key]: hh && !hh.error && Array.isArray(hh.data) ? hh.data : null,
@@ -253,7 +267,10 @@ export default function TrendsScreen() {
     // no coordinates — which answered, correctly, "Provide either monitor_id,
     // or lat and lng", and that sentence appeared on screen as though the app
     // were broken. It is a slot waiting to be filled, not an error.
-    void Promise.all(places.filter((pl) => Object.keys(pl.query).length > 0).map(load));
+    const round = ++loadRound.current;
+    void Promise.all(
+      places.filter((pl) => Object.keys(pl.query).length > 0).map((pl) => load(pl, round)),
+    );
   }, [places, load]);
 
   const unit = MEASUREMENT_COPY[measurement].unit;
@@ -397,6 +414,28 @@ export default function TrendsScreen() {
       : `${humanDate(days[0].target_date)} – ${humanDate(days[days.length - 1].target_date)}`;
   }, [forecasts, places]);
 
+  /**
+   * A chart card as an image: the chart only, with its own heading naming the
+   * places (in their line colours) and the measure, since the pills that say
+   * so on screen are not part of the card.
+   */
+  const shareChart =
+    (chartRef: React.RefObject<HTMLDivElement>, series: Series[], title: string, fileName: string) =>
+    async () => {
+      // Read on press, not when the button was drawn: the chart may have
+      // been replaced since (a new range, a new place).
+      const node = chartRef.current;
+      const shown = series.filter((s) => s.points.some((pt) => pt.value !== null));
+      const image = node
+        ? await chartImage(node, {
+            title,
+            subtitle: unit ? `PM2.5 (${unit})` : "AQI",
+            legend: shown.map((s) => ({ label: s.label, color: s.color })),
+          })
+        : null;
+      return { text: `From AirGyaan: ${SITE_URL}`, image, fileName };
+    };
+
   if (!prefs) return <p className="text-gray-500">Loading…</p>;
 
   return (
@@ -486,6 +525,7 @@ export default function TrendsScreen() {
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="shrink-0 font-semibold">Forecast</h2>
+          <div className="flex items-center gap-1">
           <select
             value={fRange}
             onChange={(e) => setFRange(e.target.value as ForecastRange)}
@@ -498,6 +538,17 @@ export default function TrendsScreen() {
               </option>
             ))}
           </select>
+          {/* No label: the icon is enough beside a selector, and a word here
+              would push the selector off a narrow screen. */}
+          <ShareButton
+            build={shareChart(
+              forecastChartRef,
+              forecastSeries,
+              `Air quality forecast${forecastDates ? ` · ${forecastDates}` : ""}`,
+              "airgyaan-forecast.png",
+            )}
+          />
+          </div>
         </div>
         {/* The dates, stated. Someone should never have to trust that the app
             knows what day it is. */}
@@ -510,7 +561,7 @@ export default function TrendsScreen() {
             of its own, allowed to wrap, with its height reserved so the chart
             does not jump as a finger moves. */}
         <Readout reading={fHover} />
-        <div className="mt-3">
+        <div className="mt-3" ref={forecastChartRef}>
           {forecastSeries.every((s) => !s.points.length) ? (
             <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
           ) : (
@@ -539,6 +590,7 @@ export default function TrendsScreen() {
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="shrink-0 font-semibold">History</h2>
+          <div className="flex items-center gap-1">
           <select
             value={hRange}
             onChange={(e) => setHRange(Number(e.target.value) as HistoryRange)}
@@ -548,6 +600,15 @@ export default function TrendsScreen() {
             <option value={7}>7 days</option>
             <option value={30}>30 days</option>
           </select>
+          <ShareButton
+            build={shareChart(
+              historyChartRef,
+              historySeries,
+              `Measured air quality · last ${hRange} days`,
+              "airgyaan-history.png",
+            )}
+          />
+          </div>
         </div>
         <Readout reading={hHover} />
         {/* WHY THERE ARE HOLES IN THIS LINE. The axis is the window asked
@@ -565,7 +626,7 @@ export default function TrendsScreen() {
           {places.some((pl) => pl.key.startsWith("city:")) &&
             " A city average is left blank when fewer than 1 in 10 of the city's monitors reported."}
         </p>
-        <div className="mt-3">
+        <div className="mt-3" ref={historyChartRef}>
           {historyLoading ? (
             <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
           ) : historySeries.every((s) => s.points.every((p) => p.value === null)) ? (
