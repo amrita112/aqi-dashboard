@@ -1,6 +1,0 @@
-# Everything the notebook needs. No database, no API keys.
-pandas>=2.0
-numpy>=1.24
-duckdb>=0.10
-matplotlib>=3.7
-jupyter>=1.0
