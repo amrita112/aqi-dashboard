@@ -61,3 +61,4 @@ next-env.d.ts
 
 # XKDR contribution (contrib/) is kept local and shared with XKDR directly,
 # not through this repo. /contrib under "research notebooks" above covers it.
+/Marketing

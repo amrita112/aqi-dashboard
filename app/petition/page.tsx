@@ -37,9 +37,9 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Measure the air where people actually live",
+  title: "We need more AQI monitoring",
   description:
-    "A few dozen government air quality monitors cover each Indian city, and the public data reaches apps like this one days late. Add your name to the case for measuring street by street.",
+    "AirGyaan’s forecasts are limited by the availability of public AQI data. Add your name to the case for denser air quality measurements.",
 };
 
 /**
@@ -73,18 +73,15 @@ export default async function PetitionPage() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-14">
       <h1 className="text-3xl font-bold tracking-tight">
-        Measure the air where people actually live
+        We need more AQI monitoring.
       </h1>
 
       <p className="mt-4 text-lg text-gray-700">
-        This app tells you what tomorrow&apos;s air is likely to be. Quite often it has to
-        tell you something much weaker — that the number on screen is just the seasonal
-        average, because no monitor near you has reported recently enough to predict from.
+        AirGyaan’s forecasts are limited by the availability of public AQI data. When the data is lacking, the forecast has to be just a seasonal trend, or an aggregate of monitors many kilometers from your location, which may have reported days ago.
       </p>
 
       <p className="mt-4 text-gray-700">
-        That is not a flaw in the forecast. It is what the underlying data looks like — and
-        air quality this old cannot answer a question about today.
+        Here's a snapshot of the data availability on 6th October, 2026.
       </p>
 
       <section className="mt-8 rounded-lg border border-gray-200 bg-white p-5">
@@ -123,30 +120,22 @@ export default async function PetitionPage() {
         </p>
       </section>
 
-      <h2 className="mt-10 text-xl font-semibold">Why this matters more than it sounds</h2>
+      <h2 className="mt-10 text-xl font-semibold">Why this matters</h2>
       <p className="mt-3 text-gray-700">
-        Delhi NCR has 63 government monitors for a metropolitan area of more than thirty
-        million people. Bengaluru has eleven. However promptly those monitors reported, a
-        few dozen points cannot tell you about the road you walk down or the park you run
-        in. Air quality varies street by street — near traffic, near construction, near
-        burning — and a city-wide average hides exactly the differences that would change
-        what someone does that day.
+        The density of monitors is abysmal given the urgency of the situation. Delhi NCR has 63 government monitors for a metropolitan area of more than 3 crore people. Bengaluru has 11. However promptly those monitors reported, a few dozen points cannot tell you about the road you walk down or the park you run in. Air quality varies street by street — near traffic, near construction, near burning — and a city-wide average hides exactly the differences that would change what someone does that day.
       </p>
       <p className="mt-3 text-gray-700">
-        Denser, faster measurement is not technically hard. Low-cost sensors already exist
-        and already work — the handful reporting live while we built this are proof of it.
-        What is missing is enough of them, in enough places, reporting promptly, with the
-        data made open.
+        Denser, faster measurement is not technically hard or necessarily expensive. Low-cost sensors already exist
+        and already work. But there are not enough of them, in enough places, reporting promptly.
       </p>
 
       <h2 className="mt-10 text-xl font-semibold">What your name is for</h2>
       <p className="mt-3 text-gray-700">
-        We are making the case to funders for building this out — a dense, open network
-        measuring air street by street, starting in the cities this app already covers.
-        Showing that people want it is a large part of that argument.
+        We are making the case to fund this build out privately—a dense network measuring air street by street, starting in the cities this app already covers. We are calling it hyperlocal measurement. And we need to show investors that people (you) care.
       </p>
       <p className="mt-3 text-gray-700">
-        Signing costs you nothing and commits you to nothing.
+        Sign below to say that you would be interested in hyperlocal AQI data, if it were to exist. No commitments to anything.
+
       </p>
 
       {count !== null && count > 0 && (
