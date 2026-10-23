@@ -44,11 +44,13 @@ insistent about data age.
 - **Frontend:** Next.js 14 (App Router), TypeScript (strict), Tailwind
 - **Database:** Supabase (Postgres + PostGIS, row-level security)
 - **Charts:** Recharts. **Maps:** Leaflet + OpenStreetMap
-- **AI:** Groq free tier, through a provider-swappable OpenAI-compatible client
+- **AI:** gpt-oss-120b via OpenRouter (paid, prepaid credit), through a provider-swappable OpenAI-compatible client
 - **Scheduled jobs:** GitHub Actions. **Hosting:** Vercel
 
-Everything runs on a free tier, which is a design constraint rather than a
-temporary state.
+Everything except the AI runs on a free tier, which is a design constraint
+rather than a temporary state. The AI moved to paid OpenRouter credit in
+October 2026, when Groq's free tier proved too small (about one question a
+minute for the whole app) and its paid tier was closed to new sign-ups.
 
 ## Getting Started
 
@@ -143,7 +145,9 @@ Copy `.env.local.example` to `.env.local` and fill it in:
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-GROQ_API_KEY=...            # or AI_API_KEY; without it the Ask tab says so and the rest works
+AI_API_KEY=...              # without it the Ask tab says so and the rest works
+AI_BASE_URL=https://openrouter.ai/api/v1
+AI_MODEL=openai/gpt-oss-120b
 SUPABASE_SERVICE_ROLE_KEY=  # LOCAL AND CI ONLY — see the warning below
 ```
 
@@ -156,7 +160,7 @@ The first two are in your Supabase dashboard under Settings > API.
 
 The AI provider is swappable: Groq, Cerebras and OpenRouter are all
 OpenAI-compatible, so moving is a base URL and a model name (`AI_BASE_URL`,
-`AI_MODEL`). Free tiers disappear — GitHub Models was retired in July 2026 — so
+`AI_MODEL`; the code defaults to Groq when they are unset). Free tiers disappear — GitHub Models was retired in July 2026 — so
 nothing hardcodes one.
 
 ### 3. Install and run

@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 };
 
 /** Last substantive change. Shown so a reader can tell whether it is current. */
-const UPDATED = "13 October 2026";
+const UPDATED = "23 October 2026";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -58,8 +58,9 @@ export default function PrivacyPage() {
             <strong> on your device only</strong>. We never receive them.
           </li>
           <li>
-            <strong>Questions you type into the Ask tab are sent to Groq to be
-            answered</strong>, along with the coordinates of your chosen place.
+            <strong>Questions you type into the Ask tab are sent to an outside AI
+            service to be answered</strong>, along with the coordinates of your
+            chosen place.
             This is the one part of the app that shares anything you have written.
           </li>
           <li>
@@ -90,15 +91,19 @@ export default function PrivacyPage() {
 
       <Section title="Questions you ask the AI">
         <p>
-          When you ask a question, it is sent to <strong>Groq</strong>, a company in
-          the United States, which runs the language model that writes the answer.
-          Sent with it: the latitude and longitude of the place you picked, the name
-          you gave that place, your city, and whether you read AQI or PM2.5.
+          When you ask a question, it is sent to <strong>OpenRouter</strong>, a
+          company in the United States, which passes it on to one of several
+          companies that run the open-source language model that writes the
+          answer. Which company that is can change from one question to the next,
+          and it may be outside the United States. Sent with it: the latitude and
+          longitude of the place you picked, the name you gave that place, your
+          city, and whether you read AQI or PM2.5.
         </p>
         <p>
-          Groq states that it does not retain data submitted through its free API by
-          default. We do not control that policy and cannot promise it on their
-          behalf.
+          Our OpenRouter account is set to use only companies that state they do
+          not keep the questions sent to them and do not train AI models on them.
+          We rely on those stated policies; we do not control them and cannot
+          promise them on anyone&apos;s behalf.
         </p>
         <p>
           We do not store your questions. Our own server does not log the text of
