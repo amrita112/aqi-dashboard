@@ -81,7 +81,7 @@ export default async function PetitionPage() {
       </p>
 
       <p className="mt-4 text-gray-700">
-        Here's a snapshot of the data availability on 6th October, 2026.
+        Here&apos;s a snapshot of the data availability on 6th October, 2026.
       </p>
 
       <section className="mt-8 rounded-lg border border-gray-200 bg-white p-5">
