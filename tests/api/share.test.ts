@@ -3,7 +3,7 @@
  * (most laptops), and closing the menu is not treated as a failure.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { share } from "@/lib/share";
+import { APP_SHARE_TEXT, listNames, share } from "@/lib/share";
 
 const nav = navigator as unknown as Record<string, unknown>;
 const saved = { share: nav.share, canShare: nav.canShare, clipboard: nav.clipboard };
@@ -42,5 +42,20 @@ describe("share", () => {
     const abort = Object.assign(new Error("closed"), { name: "AbortError" });
     setNav("share", vi.fn(async () => Promise.reject(abort)));
     expect(await share({ text: "t" })).toBe("cancelled");
+  });
+});
+
+describe("share text", () => {
+  it("shares the app from Home with the install link", () => {
+    expect(APP_SHARE_TEXT).toBe(
+      "AirGyaan is an app that helps you manage your exposure to air pollution. Click to download: https://airgyaan.in/install",
+    );
+  });
+
+  it("lists places the way a sentence would", () => {
+    expect(listNames([])).toBe("");
+    expect(listNames(["Baner"])).toBe("Baner");
+    expect(listNames(["Baner", "Hinjewadi"])).toBe("Baner and Hinjewadi");
+    expect(listNames(["A", "B", "C"])).toBe("A, B and C");
   });
 });

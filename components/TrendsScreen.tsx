@@ -34,7 +34,7 @@ import {
 import { APP_NAME } from "@/lib/brand";
 import ShareButton from "@/components/ShareButton";
 import { chartImage } from "@/lib/chart-image";
-import { SITE_URL } from "@/lib/share";
+import { SEE_YOUR_AREA, listNames } from "@/lib/share";
 import TrendsChart, {
   SERIES_COLORS,
   type HoverReading,
@@ -420,7 +420,14 @@ export default function TrendsScreen() {
    * so on screen are not part of the card.
    */
   const shareChart =
-    (chartRef: React.RefObject<HTMLDivElement>, series: Series[], title: string, fileName: string) =>
+    (
+      chartRef: React.RefObject<HTMLDivElement>,
+      series: Series[],
+      title: string,
+      fileName: string,
+      /** The message's opening words, e.g. "The air quality forecast"; the places follow. */
+      lead: string,
+    ) =>
     async () => {
       // Read on press, not when the button was drawn: the chart may have
       // been replaced since (a new range, a new place).
@@ -433,7 +440,14 @@ export default function TrendsScreen() {
             legend: shown.map((s) => ({ label: s.label, color: s.color })),
           })
         : null;
-      return { text: `From AirGyaan: ${SITE_URL}`, image, fileName };
+      // Says what the picture is, so it reads on its own in a chat. Names only
+      // the places already in the picture's legend.
+      const where = listNames(shown.map((s) => s.label));
+      return {
+        text: `${lead}${where ? ` for ${where}` : ""}, from AirGyaan. ${SEE_YOUR_AREA}`,
+        image,
+        fileName,
+      };
     };
 
   if (!prefs) return <p className="text-gray-500">Loading…</p>;
@@ -546,6 +560,7 @@ export default function TrendsScreen() {
               forecastSeries,
               `Air quality forecast${forecastDates ? ` · ${forecastDates}` : ""}`,
               "airgyaan-forecast.png",
+              "The air quality forecast",
             )}
           />
           </div>
@@ -606,6 +621,7 @@ export default function TrendsScreen() {
               historySeries,
               `Measured air quality · last ${hRange} days`,
               "airgyaan-history.png",
+              `Measured air quality over the last ${hRange} days`,
             )}
           />
           </div>

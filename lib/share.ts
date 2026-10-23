@@ -20,6 +20,25 @@
 /** The app's public address, put at the end of everything shared. */
 export const SITE_URL = "https://airgyaan.in";
 
+/**
+ * What "Share AirGyaan" on Home sends: the app itself, not a forecast. Text
+ * only, pointing at the install page, because the point is to get someone to
+ * add the app, and a forecast for a city they may not live in does not.
+ */
+export const APP_SHARE_TEXT = `AirGyaan is an app that helps you manage your exposure to air pollution. Click to download: ${SITE_URL}/install`;
+
+/**
+ * The closing line for a shared chart or answer: what it is from, and where to
+ * see the same for your own area.
+ */
+export const SEE_YOUR_AREA = `See the forecast for your area: ${SITE_URL}`;
+
+/** "A", "A and B", "A, B and C". */
+export function listNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 export type ShareOutcome = "shared" | "cancelled" | "copied" | "downloaded" | "failed";
 
 export interface ShareContent {

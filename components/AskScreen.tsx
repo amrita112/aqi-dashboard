@@ -40,7 +40,7 @@ import { APP_NAME } from "@/lib/brand";
 import AnswerChart from "@/components/AnswerChart";
 import ShareButton from "@/components/ShareButton";
 import { chartImage } from "@/lib/chart-image";
-import { SITE_URL } from "@/lib/share";
+import { SEE_YOUR_AREA } from "@/lib/share";
 import type { AnswerChart as ChartSpec, Provenance } from "@/lib/ai/chart";
 import { trackFailure, trackQuestion, type FailureReason } from "@/lib/analytics";
 import {
@@ -319,7 +319,7 @@ export default function AskScreen() {
                       ? await chartImage(chartRef.current, { title: oneLine(entry.question, 70) })
                       : null;
                     return {
-                      text: `"${entry.question}"\n${entry.answer}\n— AirGyaan, air quality forecasts for Indian cities: ${SITE_URL}`,
+                      text: `"${entry.question}"\n${entry.answer}\nFrom AirGyaan. ${SEE_YOUR_AREA}`,
                       image,
                       fileName: "airgyaan-answer.png",
                     };
