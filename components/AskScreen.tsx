@@ -571,9 +571,9 @@ function quotaHeadline(kind: QuotaInfo["kind"]): string {
     case "provider_minute":
       return "That was a few questions in quick succession for the AI service. It needs a short break.";
     case "too_big":
-      return "That question needed more of the free AI than it allows at once. Try asking about one place, or one day, at a time.";
+      return "That question needed more of the AI service than it allows at once. Try asking about one place, or one day, at a time.";
     default:
-      return "The AI service has hit its free daily limit.";
+      return "The AI service this app uses is not taking questions right now.";
   }
 }
 

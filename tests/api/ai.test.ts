@@ -158,6 +158,28 @@ describe("tool executors", () => {
     expect(out.dominant_pollutant).toBe("pm10");
   });
 
+  it("says in words what the numbers are, so PM2.5 is not called AQI", async () => {
+    const supabase = fakeSupabase({
+      monitors: [DELHI_MONITORS[0]],
+      readings: [{ id: "r1", recorded_at: new Date().toISOString() }],
+      measurements: [{ pollutant: "pm25", value: 55 }],
+    });
+    // The model asks for "aqi"; the person's setting is PM2.5 and wins.
+    const out = await executeTool(
+      supabase,
+      "current_aqi",
+      { location: "Anand Vihar", pollutant: "aqi" },
+      { measurement: "pm25" },
+    );
+    expect(out.pollutant).toBe("pm25");
+    expect(String(out.values_are)).toMatch(/µg\/m³, NOT AQI/);
+    // First, so it is read before any number.
+    expect(Object.keys(out)[0]).toBe("values_are");
+    // Results without a measure (errors) carry no such line.
+    const missing = await executeTool(supabase, "current_aqi", { location: "Atlantis" });
+    expect(missing.values_are).toBeUndefined();
+  });
+
   it("refuses to recommend a time when no hourly profile exists", async () => {
     const supabase = fakeSupabase({
       monitors: [DELHI_MONITORS[0]],

@@ -42,6 +42,21 @@ const POLLUTANT_PARAM = {
     "'aqi' is the composite 0-500 index. 'pm25' is the fine-particle concentration in ug/m3. Leave this out unless the person names one: the app then uses the measure they chose in their settings.",
 };
 
+/**
+ * For history and compare, which also cover single pollutants.
+ *
+ * AQI IS INCLUDED. These used to say "composite AQI is not stored
+ * historically", which was true once; it is now derived from the measured
+ * pollutants (see getHistoryAqi). The stale line made the model refuse "how
+ * was last week?" outright, without trying, for anyone reading AQI.
+ */
+const PAST_POLLUTANT_PARAM = {
+  type: "string",
+  enum: ["aqi", "pm25", "pm10", "no2", "so2"],
+  description:
+    "Leave this out unless the person names a measure or pollutant: the app then uses the measure they chose in their settings.",
+};
+
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     type: "function",
@@ -122,11 +137,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         type: "object",
         properties: {
           location: LOCATION_PARAM,
-          pollutant: {
-            type: "string",
-            enum: ["pm25", "pm10", "no2", "so2"],
-            description: "Measured pollutants only; composite AQI is not stored historically.",
-          },
+          pollutant: PAST_POLLUTANT_PARAM,
           days: { type: "integer", minimum: 1, maximum: 365, description: "Days back from today. Default 7." },
         },
         required: ["location"],
@@ -144,10 +155,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         properties: {
           location_a: LOCATION_PARAM,
           location_b: LOCATION_PARAM,
-          pollutant: {
-            type: "string",
-            enum: ["pm25", "pm10", "no2", "so2"],
-          },
+          pollutant: PAST_POLLUTANT_PARAM,
           days: { type: "integer", minimum: 1, maximum: 365, description: "Default 7." },
         },
         required: ["location_a", "location_b"],
@@ -364,11 +372,38 @@ export function measureFor(args: Record<string, unknown>, ctx: AskContext): stri
   return asked ?? ctx.measurement ?? "aqi";
 }
 
+/**
+ * What the numbers in a result ARE, in words the model can copy.
+ *
+ * THE MODEL LABELLED PM2.5 AS AQI. Asked "cleanest station in Mumbai right
+ * now?" with the setting on PM2.5, it passed pollutant "aqi", the setting
+ * rightly overrode that (see measureFor), the data came back in µg/m³ — and
+ * the sentence still said "an AQI of 63". It names the number after what it
+ * ASKED for, not what came back; a bare `pollutant: "pm25"` field was not
+ * enough to correct it. A sentence first in the result is.
+ */
+const VALUES_ARE: Record<string, string> = {
+  pm25: "PM2.5 concentrations in µg/m³, NOT AQI. Call them PM2.5 and give the unit µg/m³.",
+  aqi: "AQI values on the CPCB 0-500 scale. Call them AQI; they have no unit.",
+};
+
 export async function executeTool(
   supabase: SupabaseClient,
   name: string,
   args: Record<string, unknown>,
   ctx: AskContext = {},
+): Promise<ToolResult> {
+  const result = await runTool(supabase, name, args, ctx);
+  const valuesAre = typeof result.pollutant === "string" ? VALUES_ARE[result.pollutant] : undefined;
+  // First in the object, so it is read before any number.
+  return valuesAre ? { values_are: valuesAre, ...result } : result;
+}
+
+async function runTool(
+  supabase: SupabaseClient,
+  name: string,
+  args: Record<string, unknown>,
+  ctx: AskContext,
 ): Promise<ToolResult> {
   switch (name) {
     case "current_aqi": {
@@ -659,14 +694,20 @@ export async function executeTool(
       );
       const flat = series.flat();
       if (!flat.length) return { location: loc.label, error: "no_history" };
+      const mean = meanAcross(flat.map((d) => d.mean));
       return {
         location: loc.label,
         pollutant,
         days_requested: days,
         days_with_data: new Set(flat.map((d) => d.date)).size,
-        mean: meanAcross(flat.map((d) => d.mean)),
-        min: Math.min(...flat.map((d) => d.min)),
-        max: Math.max(...flat.map((d) => d.max)),
+        mean,
+        // The category of the average, worked out here. Without it the model
+        // named one itself and got it wrong: an AQI average of 133 came back
+        // as "Poor", when 101-200 is Moderate.
+        band: pollutant === "aqi" && mean !== null ? getAqiLabel(mean) : null,
+        // Whole numbers, as everywhere else: "3.98-269.57" was being read out.
+        min: Math.round(Math.min(...flat.map((d) => d.min))),
+        max: Math.round(Math.max(...flat.map((d) => d.max))),
         // A short daily series so the answer can be shown as a chart. Capped
         // and down-sampled rather than returned whole: a year of history is 365
         // numbers, which would cost more tokens than the rest of the request
@@ -690,10 +731,14 @@ export async function executeTool(
               sample(loc).map((m) => getHistory(supabase, m, pollutant, daysAgo(days), istToday())),
             )
           ).flat();
+          const mean = meanAcross(series.map((d) => d.mean));
           return {
             location: loc.label,
             days_with_data: new Set(series.map((d) => d.date)).size,
-            mean: meanAcross(series.map((d) => d.mean)),
+            mean,
+            // Named here for the same reason as in history: left to itself the
+            // model picks the wrong category.
+            band: pollutant === "aqi" && mean !== null ? getAqiLabel(mean) : null,
           };
         }),
       );

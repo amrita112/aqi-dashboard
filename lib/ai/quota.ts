@@ -7,9 +7,13 @@
  *   per-minute, per-IP   asking faster than the provider's token bucket refills
  *   per-day, per-IP      one visitor's share of the shared budget
  *   daily global         everyone's share of the shared budget
- *   provider 429         Groq's own free-tier limit, which we do not control —
- *                        split by whether its own message says the empty
- *                        bucket refills in a minute or tomorrow
+ *   provider 429 / 402   the AI service's own limit (or our credit with it
+ *                        running out), which we do not control — split by
+ *                        whether its message says it refills in a minute
+ *
+ * NOT "FREE" ANY MORE. The wording said "hit its free daily limit" while the
+ * AI ran on Groq's free tier. Since 22 Oct 2026 it runs on paid OpenRouter
+ * credit, so those limits are rare and are not about anything being free.
  *
  * The honest framing is that this is a free app running on a free model quota
  * shared by everyone using it — not a fault, not a paywall tease, and not a
@@ -54,14 +58,14 @@ export function quotaMessage(kind: QuotaKind, resetAt: number | null = null): Qu
     per_minute: "You asked a few questions in quick succession. The AI agent needs a short break.",
     per_day: "You have used your questions for today.",
     shared_day: "Today's shared pool of AI questions is used up.",
-    provider: "The AI service this app uses has hit its free daily limit.",
+    provider: "The AI service this app uses is not taking questions right now.",
     // A PROVIDER 429 IS USUALLY THE PER-MINUTE BUCKET, not the daily one, and
     // calling every one of them "daily" put "hit its free daily limit" on the
     // screen next to "38 questions left today". Same voice, right timescale.
     provider_minute:
       "That was a few questions in quick succession for the AI service. It needs a short break.",
     too_big:
-      "That question needed more of the free AI service than it allows at once. Try asking about one place, or one day, at a time.",
+      "That question needed more of the AI service than it allows at once. Try asking about one place, or one day, at a time.",
   };
   return {
     kind,

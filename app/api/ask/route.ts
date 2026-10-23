@@ -354,7 +354,12 @@ export async function POST(request: Request) {
         // A minute-bucket 429 recovers while the person reads the message, so
         // it gets the short-break wording and a countdown when the provider
         // sent a Retry-After. A day-bucket one does not.
-        const minute = err.window === "minute";
+        //
+        // AN UNSPECIFIED 429 IS TREATED AS A SHORT PAUSE. Groq always named
+        // its window; OpenRouter's "temporarily rate-limited upstream" names
+        // none, and it clears in seconds. Calling it "provider" (daily) shut
+        // the person out until midnight over a moment's congestion.
+        const minute = err.window !== "day";
         // TOO BIG TO EVER FIT. Groq counts this question's own earlier rounds
         // against the same per-minute allowance, so when those rounds plus
         // the refused one exceed the whole allowance, a full refill still
@@ -370,6 +375,14 @@ export async function POST(request: Request) {
           minute ? "provider_minute" : "provider",
           minute ? providerPauseEnds(err.retryAfterSeconds) : null,
         );
+      }
+      // OUT OF CREDIT. OpenRouter answers 402 when the prepaid balance is
+      // spent. Not the person's fault and not a fault in the app, so it gets
+      // the calm limit message rather than an error; the provider's text is
+      // already in the server log for Amrita to see.
+      if (err.status === 402) {
+        console.warn("ask refused: AI provider credit is used up (402)");
+        return outOfQuestions("provider", null);
       }
       return fail(err.message, 502);
     }
