@@ -34,6 +34,7 @@ import ForecastChart, { type ForecastDayInput } from "@/components/ForecastChart
 import InstallHint from "@/components/InstallHint";
 import BandLegend from "@/components/BandLegend";
 import ShareButton from "@/components/ShareButton";
+import FeedbackLink from "@/components/FeedbackLink";
 import { APP_SHARE_TEXT } from "@/lib/share";
 
 interface Band {
@@ -361,9 +362,12 @@ export default function HomeScreen() {
       {/* SHARE AIRGYAAN, under the forecast card: the app itself — a line
           about it and the install link, no forecast. Sharing a particular
           chart is what the Trends and Ask buttons are for. Shown even when the
-          forecast has not loaded, since it does not depend on it. */}
-      <div className="-mt-2 flex justify-center">
+          forecast has not loaded, since it does not depend on it.
+          GIVE FEEDBACK sits beside it: both are about the app rather than the
+          air, and wrap onto two lines on a narrow phone rather than squeeze. */}
+      <div className="-mt-2 flex flex-wrap items-start justify-center gap-2">
         <ShareButton label="Share AirGyaan" build={async () => ({ text: APP_SHARE_TEXT })} />
+        <FeedbackLink />
       </div>
 
     </div>

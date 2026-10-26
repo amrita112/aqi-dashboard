@@ -26,6 +26,7 @@ import {
 } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
 import CityRequestForm from "@/components/CityRequestForm";
+import FeedbackLink from "@/components/FeedbackLink";
 
 const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
   ssr: false,
@@ -265,6 +266,20 @@ export default function SettingsScreen() {
         </p>
         <div className="mt-3">
           <CityRequestForm />
+        </div>
+      </section>
+
+      {/* Its own card, like the city request above it, so it can be found
+          by someone who came here looking for it. */}
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          Feedback
+        </h2>
+        <p className="mt-2 text-sm text-gray-700">
+          Something wrong, confusing, or missing? Tell us. It opens a short Google Form.
+        </p>
+        <div className="mt-3">
+          <FeedbackLink />
         </div>
       </section>
 
