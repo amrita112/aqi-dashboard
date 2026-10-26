@@ -316,8 +316,43 @@ def predictions_for(series: pd.Series, test_year: int, h: int) -> pd.DataFrame:
 # only costs a round trip.
 MEASURED_POLLUTANTS = ("pm25", "pm10", "no2", "so2")
 
+# WHERE THE XKDR HISTORY LIVES: a Parquet file in Supabase Storage, not rows in
+# readings_daily. Those ~991k rows were about 310 MB of a 500 MB free database
+# (Oct 2026), and nothing but this refit reads them. Storage has its own quota.
+# The file is a complete copy of the rows, made by export_history.py.
+XKDR_HISTORY_BUCKET = "forecast-history"
+XKDR_HISTORY_OBJECT = "xkdr_daily_history.parquet"
 
-def _fetch_readings_daily(client, since: str, until: str) -> pd.DataFrame:
+
+def load_xkdr_history(client, since: str, until: str) -> pd.DataFrame:
+    """The XKDR daily history, from the file in Supabase Storage.
+
+    Set XKDR_HISTORY_FILE to a local path to read that file instead of
+    downloading it, which is how the file was checked against the database
+    before the rows were removed.
+    """
+    import io
+    import os
+
+    local = os.environ.get("XKDR_HISTORY_FILE", "").strip()
+    if local:
+        print(f"  reading XKDR history from {local}")
+        source = local
+    else:
+        print(f"  downloading {XKDR_HISTORY_BUCKET}/{XKDR_HISTORY_OBJECT} from Storage ...")
+        source = io.BytesIO(client.storage.from_(XKDR_HISTORY_BUCKET)
+                                  .download(XKDR_HISTORY_OBJECT))
+    df = pd.read_parquet(source, columns=["monitor_id", "date", "pollutant", "mean"])
+    df["date"] = df["date"].astype(str)
+    keep = (df.pollutant.isin(MEASURED_POLLUTANTS)
+            & (df["date"] >= since) & (df["date"] <= until))
+    df = df[keep].reset_index(drop=True)
+    print(f"    {len(df):,} rows")
+    return df
+
+
+def _fetch_readings_daily(client, since: str, until: str,
+                          exclude_xkdr: bool = False) -> pd.DataFrame:
     """Page the whole readings_daily table out of Supabase.
 
     PostgREST caps a response at 1000 rows, and a plain offset walk over a
@@ -332,12 +367,16 @@ def _fetch_readings_daily(client, since: str, until: str) -> pd.DataFrame:
         hi = min(until, f"{year}-12-31")
         rows, offset = [], 0
         while True:
-            r = (client.table("readings_daily")
+            q = (client.table("readings_daily")
                        .select("monitor_id, date, pollutant, mean")
                        .in_("pollutant", list(MEASURED_POLLUTANTS))
-                       .gte("date", lo).lte("date", hi)
-                       .order("date").order("monitor_id").order("pollutant")
-                       .range(offset, offset + 999).execute())
+                       .gte("date", lo).lte("date", hi))
+            if exclude_xkdr:
+                # The history comes from the Storage file instead; reading it
+                # here too, while both exist, would count every day twice.
+                q = q.neq("source", "xkdr")
+            r = (q.order("date").order("monitor_id").order("pollutant")
+                  .range(offset, offset + 999).execute())
             batch = r.data or []
             rows += batch
             if len(batch) < 1000:
@@ -394,11 +433,18 @@ def load_history_from_db(client=None, min_stations: int = 3,
     city_of = {m["id"]: APP_TO_ANALYSIS_CITY.get(m.get("city"), m.get("city"))
                for m in monitors}
 
-    print(f"  reading readings_daily {since} -> {until} ...")
-    df = _fetch_readings_daily(client, since, until)
-    if df.empty:
+    # Two sources, one frame: the XKDR history from its file in Storage, and
+    # our own rolled-up days from readings_daily. They never overlap in time
+    # (XKDR ends Sep 2025, our rollups start Aug 2026), and both are on IST
+    # calendar days, so they can simply be stacked.
+    history = load_xkdr_history(client, since, until)
+    print(f"  reading our own days from readings_daily {since} -> {until} ...")
+    ours = _fetch_readings_daily(client, since, until, exclude_xkdr=True)
+    df = pd.concat([history, ours], ignore_index=True)
+    if history.empty:
         raise RuntimeError(
-            "readings_daily returned no rows -- has load_history.py been run?")
+            f"The XKDR history file returned no rows -- has it been uploaded to "
+            f"the {XKDR_HISTORY_BUCKET} bucket?")
 
     df["city"] = df.monitor_id.map(city_of)
     df = df.dropna(subset=["city", "mean"])

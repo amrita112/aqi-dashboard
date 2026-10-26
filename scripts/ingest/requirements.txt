@@ -7,6 +7,8 @@
 # Data + HTTP
 requests>=2.31
 pandas>=2.0
+# Reads the XKDR history file the monthly refit downloads from Supabase Storage
+pyarrow>=15
 
 # Load .env.local into os.environ so scripts pick up API keys and Supabase creds
 python-dotenv>=1.0

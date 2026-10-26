@@ -6,8 +6,11 @@ name: Monthly forecast refit
 # Monthly, not nightly: these rest on years of data, so one more month barely
 # moves them, and it is the only expensive job in the set.
 #
-# Reads history back out of readings_daily (--source db) rather than the local
-# XKDR parquet export, which is gitignored and absent on a fresh runner. The
+# Reads history from Supabase (--source db) rather than the local XKDR parquet
+# export, which is gitignored and absent on a fresh runner: the XKDR years from
+# a file in the `forecast-history` Storage bucket (moved out of the database in
+# Oct 2026 to stay under the 500 MB free limit), and our own days from
+# readings_daily. The
 # one thing the daily table cannot give back is the hourly series behind the
 # diurnal shape, so this run leaves the existing diurnal_shape rows untouched.
 # That shape is a month x hour multiplier fitted on a decade of history and

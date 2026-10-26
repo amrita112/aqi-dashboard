@@ -6,8 +6,10 @@ name: Prune raw readings past the retention window
 # reconcile is skipped and reported, never deleted.
 #
 # Deliberately weekly, not daily. This is the only job in the repo that destroys
-# data, there is no rush to reclaim space we are not short of (~167 MB of 500),
-# and a weekly cadence leaves a week to notice a problem before the next run.
+# data, and a weekly cadence leaves a week to notice a problem before the next
+# run. Every run ends with the database's real size against the 500 MB free
+# limit, and warns above 450 MB. (On 26 Oct 2026 it was 1.25 GB: the size
+# estimates this job was planned on were about five times too low.)
 #
 # DELETION IS OFF UNTIL YOU TURN IT ON, then it is automatic.
 #
@@ -51,6 +53,10 @@ on:
         description: 'Also delete readings that have no measurements at all'
         required: false
         default: 'no'
+      max_days:
+        description: 'At most this many days deleted in one run (raise it to clear a backlog)'
+        required: false
+        default: '10'
 
 jobs:
   prune:
@@ -77,5 +83,6 @@ jobs:
           # PRUNE_AUTO_DELETE -- unset means dry run.
           CONFIRM_DELETE:            ${{ github.event.inputs.confirm_delete || vars.PRUNE_AUTO_DELETE }}
           PRUNE_ORPHANS:             ${{ github.event.inputs.prune_orphans || vars.PRUNE_AUTO_ORPHANS }}
+          MAX_DAYS_PER_RUN:          ${{ github.event.inputs.max_days || '10' }}
           PYTHONUNBUFFERED:          '1'
         run: python -m scripts.ingest.prune_raw

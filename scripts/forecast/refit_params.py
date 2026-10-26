@@ -214,9 +214,10 @@ def main() -> None:
         "--source", choices=("parquet", "db"), default="parquet",
         help="Where history comes from. 'parquet' is the local XKDR export "
              "(full fidelity, including the hourly series behind the diurnal "
-             "shape). 'db' reads readings_daily out of Supabase, which is the "
-             "only option on a CI runner -- it refits everything except the "
-             "diurnal shape, and leaves the existing shape rows untouched.")
+             "shape). 'db' reads the XKDR history file from Supabase Storage "
+             "plus our own days from readings_daily, which is the only option "
+             "on a CI runner -- it refits everything except the diurnal "
+             "shape, and leaves the existing shape rows untouched.")
     ap.add_argument(
         "--prune-orphans", action="store_true",
         help="Delete forecast_params rows for monitors that are no longer in "

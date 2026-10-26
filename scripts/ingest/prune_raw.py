@@ -2,9 +2,12 @@
 Delete raw readings older than the retention window, once they are safely
 rolled up.
 
-Raw readings and measurements are the bulk of our Supabase usage (~1.27 MB/day
-for seven cities). readings_daily holds the same days at roughly 1/40th the
-size, so once a day is rolled up the raw rows have done their job.
+Raw readings and measurements are the bulk of our Supabase usage: about 15 MB
+per day of data, measured 26 Oct 2026 (~13,500 readings and ~49,000
+measurements a day). The first estimate here was 1.27 MB/day, ten times too
+low, and that is how the database passed the 500 MB free limit without anyone
+noticing. readings_daily holds the same days at a small fraction of the size,
+so once a day is rolled up the raw rows have done their job.
 
 THIS IS IRREVERSIBLE. measurements.reading_id is ON DELETE CASCADE, so deleting
 a reading silently deletes its measurements too, and nothing here can bring
@@ -35,6 +38,9 @@ Env vars:
     CONFIRM_DELETE=yes    required to delete anything
     MAX_DAYS_PER_RUN=10   ceiling on days deleted in one run
     PRUNE_ORPHANS=yes     also delete readings that have no measurements at all
+
+Every run, dry or not, ends with the database's total size against the free
+limit (needs migration 21; skipped with a note if it has not been run).
 """
 
 from __future__ import annotations
@@ -59,6 +65,18 @@ MIN_RETENTION_DAYS = 14
 
 DEFAULT_MAX_DAYS_PER_RUN = 10
 PAGE = 1000
+
+# Space per row INCLUDING indexes and the PostGIS location column, measured
+# 26 Oct 2026 as Supabase's table size divided by row count (readings 290 MB /
+# 742k rows, measurements 547 MB / 2.67M rows). The previous figures, 84 and
+# 37, left out indexes and were about five times too low.
+BYTES_PER_READING = 390
+BYTES_PER_MEASUREMENT = 205
+
+# Supabase's free plan freezes the database above 500 MB. Warn while there is
+# still room to act, not at the line itself.
+FREE_LIMIT_MB = 500
+WARN_ABOVE_MB = 450
 
 
 def _page_all(query_fn) -> List[Dict[str, Any]]:
@@ -140,6 +158,51 @@ def verify_day(client, day: date) -> Tuple[bool, str, Dict[str, int]]:
     return True, "ok", stats
 
 
+def next_day_with_readings(client, start: date, cutoff: date):
+    """The first IST day on or after `start`, and before `cutoff`, that holds
+    any raw reading. None when there is none.
+
+    One query that jumps straight to the next day with data, instead of
+    stepping through every calendar day. Raw history is sparse before
+    September 2026 (a handful of days a year), and stepping a day at a time is
+    what used to spend the whole run in early 2016.
+    """
+    lo, _ = ist_day_bounds_utc(start)
+    hi, _ = ist_day_bounds_utc(cutoff)
+    row = (client.table("readings").select("recorded_at")
+                 .gte("recorded_at", lo.isoformat()).lt("recorded_at", hi.isoformat())
+                 .order("recorded_at").limit(1).execute().data)
+    if not row:
+        return None
+    return to_ist_day(datetime.fromisoformat(row[0]["recorded_at"]))
+
+
+def report_database_size(client) -> None:
+    """Print the database's size against the free limit. Never fails the job.
+
+    Needs database_size_report() from migration 21. The table sizes are
+    Postgres's own figures, the same ones the Supabase dashboard shows.
+    Deleting rows does not shrink them by itself: the space is reused for new
+    rows, but the reported size only drops after a VACUUM FULL.
+    """
+    try:
+        sizes = client.rpc("database_size_report").execute().data or {}
+    except Exception as exc:  # noqa: BLE001
+        print(f"\nCould not read the database size (has migration 21 been run?): {exc}")
+        return
+    mb = {k: v / 1e6 for k, v in sizes.items()}
+    total = mb.get("database", 0.0)
+    print(f"\nDatabase size: {total:,.0f} MB of the {FREE_LIMIT_MB} MB free limit")
+    for table in ("readings", "measurements", "readings_daily"):
+        if table in mb:
+            print(f"  {table:<15} {mb[table]:>7,.0f} MB")
+    if total > WARN_ABOVE_MB:
+        # A GitHub Actions annotation: shows on the run's summary page, so a
+        # weekly run that is otherwise green still says it.
+        print(f"::warning::Database is {total:,.0f} MB, above the {WARN_ABOVE_MB} MB "
+              f"warning line (free limit {FREE_LIMIT_MB} MB).")
+
+
 def delete_day(client, day: date) -> int:
     """Delete one IST day's readings. Measurements cascade.
 
@@ -184,20 +247,28 @@ def main() -> None:
     oldest_day = to_ist_day(datetime.fromisoformat(oldest[0]["recorded_at"]))
     if oldest_day >= cutoff:
         print(f"Oldest reading is {oldest_day}, already inside the window. Nothing to prune.")
+        report_database_size(client_)
         return
 
-    candidates = []
-    d = oldest_day
-    while d < cutoff and len(candidates) < max_days:
-        candidates.append(d)
-        d += timedelta(days=1)
-    print(f"Oldest reading: {oldest_day}. Considering {len(candidates)} day(s), "
-          f"capped at {max_days}.\n")
+    print(f"Oldest reading: {oldest_day}. Checking days before {cutoff}, "
+          f"at most {max_days} verified day(s) this run.\n")
 
     prune_orphans = os.environ.get("PRUNE_ORPHANS", "").lower() == "yes"
 
+    # WALK EVERY DAY THAT HAS DATA, AND CAP ONLY THE DAYS THAT VERIFY.
+    # The cap used to count calendar days from the oldest reading, so the same
+    # ten days of 2016 orphans filled every run and nothing after them was ever
+    # looked at. Orphaned days are cheap to check and are stepped over without
+    # counting. Failed days are also stepped over, but they get their own cap:
+    # each one costs a full verification, and a run that finds many of them
+    # should stop and say so rather than run into the job's timeout.
     verified, orphaned, skipped = [], [], []
-    for day in candidates:
+    search_from = oldest_day
+    while len(verified) < max_days and len(skipped) < max_days:
+        day = next_day_with_readings(client_, search_from, cutoff)
+        if day is None:
+            break
+        search_from = day + timedelta(days=1)
         ok, reason, stats = verify_day(client_, day)
         if stats.get("readings", 0) == 0:
             continue
@@ -219,7 +290,8 @@ def main() -> None:
         orphaned = []
 
     print(f"\n{len(verified)} day(s) verified, {len(skipped)} skipped.")
-    freed = sum(s["readings"] * 84 + s.get("measurements", 0) * 37
+    freed = sum(s["readings"] * BYTES_PER_READING
+                + s.get("measurements", 0) * BYTES_PER_MEASUREMENT
                 for _, s in verified) / 1e6
     print(f"Deleting these would free roughly {freed:.1f} MB.")
 
@@ -260,6 +332,8 @@ def main() -> None:
                 # A bookkeeping table failing to prune must never fail the job
                 # that protects the actual data budget.
                 print(f"\nCould not run {fn}: {exc}")
+
+    report_database_size(client_)
 
     if skipped:
         print("\nSkipped days need attention — they are not safely rolled up:")
