@@ -276,7 +276,8 @@ export default function SettingsScreen() {
           Feedback
         </h2>
         <p className="mt-2 text-sm text-gray-700">
-          Something wrong, confusing, or missing? Tell us. It opens a short Google Form.
+          Thank you for trying out AirGyaan. Please let us know if you have any
+          suggestions to improve the app.
         </p>
         <div className="mt-3">
           <FeedbackLink />
