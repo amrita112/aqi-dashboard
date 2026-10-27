@@ -209,13 +209,19 @@ def fit_stations(analysis_city: str, pollutant: str, city_fit: Dict[str, Any],
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument(
+        "--dump", metavar="PATH",
+        help="Also write every fitted row to this JSON file, so a dry run can "
+             "be compared against the parameters currently being served "
+             "before anything is saved.")
     ap.add_argument("--pollutants", nargs="+", default=["pm25", "aqi"])
     ap.add_argument(
         "--source", choices=("parquet", "db"), default="parquet",
         help="Where history comes from. 'parquet' is the local XKDR export "
              "(full fidelity, including the hourly series behind the diurnal "
-             "shape). 'db' reads the XKDR history file from Supabase Storage "
-             "plus our own days from readings_daily, which is the only option "
+             "shape). 'db' reads the daily history files from Supabase Storage "
+             "(XKDR, and the OpenAQ archive for Sep 2025 - Aug 2026) plus our "
+             "own days from readings_daily, which is the only option "
              "on a CI runner -- it refits everything except the diurnal "
              "shape, and leaves the existing shape rows untouched.")
     ap.add_argument(
@@ -331,6 +337,12 @@ def main() -> None:
 
     print(f"\nfitted: {len(params_rows)} param rows, {len(shape_rows)} shape rows, "
           f"{len(mode_rows)} mode rows")
+
+    if args.dump:
+        Path(args.dump).write_text(json.dumps(
+            {"forecast_params": params_rows, "diurnal_shape": shape_rows,
+             "forecast_modes": mode_rows}, default=float))
+        print(f"Fitted rows written to {args.dump}")
 
     if args.dry_run:
         print("Dry run — nothing written.")

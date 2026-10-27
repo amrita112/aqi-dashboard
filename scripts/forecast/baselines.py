@@ -316,32 +316,43 @@ def predictions_for(series: pd.Series, test_year: int, h: int) -> pd.DataFrame:
 # only costs a round trip.
 MEASURED_POLLUTANTS = ("pm25", "pm10", "no2", "so2")
 
-# WHERE THE XKDR HISTORY LIVES: a Parquet file in Supabase Storage, not rows in
-# readings_daily. Those ~991k rows were about 310 MB of a 500 MB free database
+# WHERE THE HISTORY LIVES: Parquet files in Supabase Storage, not rows in
+# readings_daily. The XKDR rows were about 310 MB of a 500 MB free database
 # (Oct 2026), and nothing but this refit reads them. Storage has its own quota.
-# The file is a complete copy of the rows, made by export_history.py.
+#   xkdr_daily_history.parquet           2009 -> 1 Sep 2025, a complete copy of
+#                                        the XKDR rows, made by export_history.py
+#   openaq_archive_daily_history.parquet 2 Sep 2025 -> 16 Aug 2026, the gap
+#                                        before our own rollups, built from the
+#                                        OpenAQ archive by archive_history.py
+# The date ranges do not overlap, so the files and readings_daily simply stack.
 XKDR_HISTORY_BUCKET = "forecast-history"
 XKDR_HISTORY_OBJECT = "xkdr_daily_history.parquet"
+ARCHIVE_HISTORY_OBJECT = "openaq_archive_daily_history.parquet"
+
+# (object in the bucket, env var that points at a local copy instead)
+HISTORY_FILES = (
+    (XKDR_HISTORY_OBJECT, "XKDR_HISTORY_FILE"),
+    (ARCHIVE_HISTORY_OBJECT, "ARCHIVE_HISTORY_FILE"),
+)
 
 
-def load_xkdr_history(client, since: str, until: str) -> pd.DataFrame:
-    """The XKDR daily history, from the file in Supabase Storage.
+def _load_history_file(client, obj: str, env_var: str,
+                       since: str, until: str) -> pd.DataFrame:
+    """One daily-history file, from Storage or from a local copy.
 
-    Set XKDR_HISTORY_FILE to a local path to read that file instead of
-    downloading it, which is how the file was checked against the database
-    before the rows were removed.
+    Set the env var to a local path to read that file instead of downloading
+    it, which is how each file was checked before the refit relied on it.
     """
     import io
     import os
 
-    local = os.environ.get("XKDR_HISTORY_FILE", "").strip()
+    local = os.environ.get(env_var, "").strip()
     if local:
-        print(f"  reading XKDR history from {local}")
+        print(f"  reading {obj} from {local}")
         source = local
     else:
-        print(f"  downloading {XKDR_HISTORY_BUCKET}/{XKDR_HISTORY_OBJECT} from Storage ...")
-        source = io.BytesIO(client.storage.from_(XKDR_HISTORY_BUCKET)
-                                  .download(XKDR_HISTORY_OBJECT))
+        print(f"  downloading {XKDR_HISTORY_BUCKET}/{obj} from Storage ...")
+        source = io.BytesIO(client.storage.from_(XKDR_HISTORY_BUCKET).download(obj))
     df = pd.read_parquet(source, columns=["monitor_id", "date", "pollutant", "mean"])
     df["date"] = df["date"].astype(str)
     keep = (df.pollutant.isin(MEASURED_POLLUTANTS)
@@ -349,6 +360,16 @@ def load_xkdr_history(client, since: str, until: str) -> pd.DataFrame:
     df = df[keep].reset_index(drop=True)
     print(f"    {len(df):,} rows")
     return df
+
+
+def load_history_files(client, since: str, until: str) -> pd.DataFrame:
+    """Every daily-history file in Storage, stacked.
+
+    A missing file is an error, not an empty frame: a refit that quietly lost
+    a year of history would still produce plausible-looking parameters.
+    """
+    return pd.concat([_load_history_file(client, obj, env, since, until)
+                      for obj, env in HISTORY_FILES], ignore_index=True)
 
 
 def _fetch_readings_daily(client, since: str, until: str,
@@ -433,17 +454,17 @@ def load_history_from_db(client=None, min_stations: int = 3,
     city_of = {m["id"]: APP_TO_ANALYSIS_CITY.get(m.get("city"), m.get("city"))
                for m in monitors}
 
-    # Two sources, one frame: the XKDR history from its file in Storage, and
-    # our own rolled-up days from readings_daily. They never overlap in time
-    # (XKDR ends Sep 2025, our rollups start Aug 2026), and both are on IST
-    # calendar days, so they can simply be stacked.
-    history = load_xkdr_history(client, since, until)
+    # Three sources, one frame: the XKDR and OpenAQ-archive history files in
+    # Storage, and our own rolled-up days from readings_daily. They never
+    # overlap in time (see HISTORY_FILES), and all are on IST calendar days,
+    # so they can simply be stacked.
+    history = load_history_files(client, since, until)
     print(f"  reading our own days from readings_daily {since} -> {until} ...")
     ours = _fetch_readings_daily(client, since, until, exclude_xkdr=True)
     df = pd.concat([history, ours], ignore_index=True)
     if history.empty:
         raise RuntimeError(
-            f"The XKDR history file returned no rows -- has it been uploaded to "
+            f"The history files returned no rows -- have they been uploaded to "
             f"the {XKDR_HISTORY_BUCKET} bucket?")
 
     df["city"] = df.monitor_id.map(city_of)
