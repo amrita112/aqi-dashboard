@@ -34,7 +34,7 @@ Usage (from repo root):
 
 Env vars:
     SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-    RETENTION_DAYS=30     keep raw readings this recent (minimum 14)
+    RETENTION_DAYS=16     keep raw readings this recent (minimum 14)
     CONFIRM_DELETE=yes    required to delete anything
     MAX_DAYS_PER_RUN=10   ceiling on days deleted in one run
     PRUNE_ORPHANS=yes     also delete readings that have no measurements at all
@@ -56,7 +56,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.ingest.lib.config import ist_day_bounds_utc, ist_today, to_ist_day  # noqa: E402
 from scripts.ingest.lib.supabase_client import make_client  # noqa: E402
 
-DEFAULT_RETENTION_DAYS = 30
+# 16 days fits the 500 MB free limit with a weekly prune (peak ~425 MB; see
+# prune-raw.yml). Nothing in the app reads raw data older than 7 days, and the
+# forecast reads the daily summaries in readings_daily, which are kept.
+DEFAULT_RETENTION_DAYS = 16
 
 # A floor, not a default. Below two weeks the forecast loses the observations
 # it needs: it reads one recent day, but gaps mean it must be able to FIND one,

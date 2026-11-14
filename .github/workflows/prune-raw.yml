@@ -48,7 +48,7 @@ on:
       retention_days:
         description: 'Keep raw readings this recent (minimum 14)'
         required: false
-        default: '30'
+        default: '16'
       prune_orphans:
         description: 'Also delete readings that have no measurements at all'
         required: false
@@ -77,7 +77,11 @@ jobs:
         env:
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          RETENTION_DAYS:            ${{ github.event.inputs.retention_days || '30' }}
+          # 16 days, chosen 14 Nov 2026 to fit the 500 MB free limit. Raw data
+          # grows ~16.5 MB/day and this job runs weekly, so the raw tables peak
+          # at retention + 7 days: 23 x 16.5 + ~46 MB fixed = ~425 MB. At 30
+          # days the peak would be ~650 MB, over the limit.
+          RETENTION_DAYS:            ${{ github.event.inputs.retention_days || '16' }}
           # Manual dispatch input wins; otherwise the repository variable
           # decides. Scheduled runs supply no input, so they follow
           # PRUNE_AUTO_DELETE -- unset means dry run.
