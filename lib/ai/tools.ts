@@ -20,10 +20,15 @@ import {
   getForecast,
   getHistory,
   meanAcross,
+  DataError,
   MAX_STATIONS_PER_CITY_QUERY,
+  type HistoryPoint,
   type ResolvedLocation,
 } from "@/lib/api/data";
+import { cityMinStations } from "@/lib/api/place";
 import type { ForecastDay } from "@/lib/api/forecast";
+import { bandFor } from "@/lib/api/forecast";
+import { DEFAULT_SCALE } from "@/lib/types";
 import { computeSubIndex, getAqiLabel } from "@/lib/aqi-utils";
 import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
 import { searchNominatim } from "@/lib/api/nominatim";
@@ -295,6 +300,39 @@ const MAX_SERIES_POINTS = 30;
  * Thinned by stride rather than truncated, so a 90-day request still shows the
  * whole 90 days instead of its first month.
  */
+/**
+ * A city's history, keeping only days when enough of its stations reported.
+ *
+ * WHY. Only complete days count (readings_daily.is_complete), so on a day when
+ * OpenAQ lost hours for most stations, a "Mumbai average" could rest on one
+ * station -- and on 18 Oct 2026 that one station read 297 µg/m³ against ~60
+ * elsewhere, which an answer then charted as a city-wide spike. Trends already
+ * drops such days for city views (cityMinStations, CITY_MIN_REPORTING_SHARE);
+ * this applies the same rule here. Points and named stations are not filtered,
+ * as on Trends: they describe a neighbourhood, not a city.
+ */
+export async function wellCoveredHistory(
+  supabase: SupabaseClient,
+  loc: ResolvedLocation,
+  perStation: HistoryPoint[][],
+): Promise<{ rows: HistoryPoint[]; daysDropped: number }> {
+  const rows = perStation.flat();
+  if (loc.kind !== "city") return { rows, daysDropped: 0 };
+  // The city-wide minimum, but never more than the stations actually sampled.
+  const need = Math.min((await cityMinStations(supabase, loc.city)) ?? 1, perStation.length);
+  const stationsOn = new Map<string, number>();
+  for (const series of perStation) {
+    for (const d of Array.from(new Set(series.map((p) => p.date)))) {
+      stationsOn.set(d, (stationsOn.get(d) ?? 0) + 1);
+    }
+  }
+  const keep = new Set(Array.from(stationsOn.entries()).filter(([, n]) => n >= need).map(([d]) => d));
+  return {
+    rows: rows.filter((p) => keep.has(p.date)),
+    daysDropped: stationsOn.size - keep.size,
+  };
+}
+
 function dailySeries(
   rows: { date: string; mean: number | null }[],
   cap: number,
@@ -393,7 +431,23 @@ export async function executeTool(
   args: Record<string, unknown>,
   ctx: AskContext = {},
 ): Promise<ToolResult> {
-  const result = await runTool(supabase, name, args, ctx);
+  let result: ToolResult;
+  try {
+    result = await runTool(supabase, name, args, ctx);
+  } catch (err) {
+    // THE DATABASE COULD NOT BE READ, which is not the same as "no data".
+    // Caught here, once, for every tool: before, a failed history read came
+    // back as an empty series and the tool reported `no_history`, so the model
+    // told the person nothing had been measured. The model gets a distinct
+    // error to relay; the raw database error goes to the server log only.
+    if (!(err instanceof DataError)) throw err;
+    console.error(`[tool ${name}] ${err.message}:`, err.detail);
+    return {
+      error: "data_unavailable",
+      message:
+        "The air-quality database could not be read just now. Say so plainly and suggest trying again in a few minutes. Do not say that nothing was measured.",
+    };
+  }
   const valuesAre = typeof result.pollutant === "string" ? VALUES_ARE[result.pollutant] : undefined;
   // First in the object, so it is read before any number.
   return valuesAre ? { values_are: valuesAre, ...result } : result;
@@ -470,8 +524,15 @@ async function runTool(
         return { location: loc.label, error: "no_forecast", message: "No forecast stored for this place yet." };
       }
       const byDay = [];
-      for (let i = 0; i < days; i++) {
-        const slice = usable.map((d) => d[i]).filter(Boolean);
+      // Matched by DATE, not position: day i of one station is not day i of
+      // another when a station is missing a row (audit §7.4).
+      const dates = Array.from(new Set(usable.flatMap((d) => d.map((x) => x.target_date))))
+        .sort()
+        .slice(0, days);
+      for (const date of dates) {
+        const slice = usable
+          .map((d) => d.find((x) => x.target_date === date))
+          .filter((x): x is ForecastDay => Boolean(x));
         if (!slice.length) continue;
         // If ANY station is serving the seasonal normal, say so rather than
         // hiding it behind an average that looks like a prediction.
@@ -497,8 +558,16 @@ async function runTool(
             : modes.has("outlook")
               ? "outlook"
               : "seasonal_normal",
-          band_label: slice[0].band.label,
-          data_age_days: slice[0].data_age_days,
+          // The band of the AVERAGED value, not of whichever station came
+          // first (audit §6.3) -- the same rule averageForecastDays follows.
+          band_label: dayValue !== null ? bandFor(pollutant, dayValue, DEFAULT_SCALE).label : null,
+          // The stalest contributor: an average is only as current as its
+          // oldest input.
+          data_age_days: slice.reduce<number | null>(
+            (worst, d) =>
+              d.data_age_days === null ? worst : Math.max(worst ?? 0, d.data_age_days),
+            null,
+          ),
         });
       }
       return { location: loc.label, pollutant, stations_used: usable.length, days: byDay };
@@ -511,7 +580,15 @@ async function runTool(
       const forecasts = await Promise.all(
         sample(loc).map((m) => getForecast(supabase, m, pollutant, 1)),
       );
-      const days = forecasts.map((f) => f[0]).filter(Boolean);
+      // Every station's row for the SAME day -- the earliest any of them has.
+      // Taking each station's first row mixed days when one lacked a row.
+      const firstDate = forecasts
+        .map((f) => f[0]?.target_date)
+        .filter((d): d is string => Boolean(d))
+        .sort()[0];
+      const days = forecasts
+        .map((f) => f.find((d) => d.target_date === firstDate))
+        .filter((d): d is ForecastDay => Boolean(d));
       if (!days.length) return { location: loc.label, error: "no_forecast" };
       if (days.every((d) => d.hourly_is_flat)) {
         return {
@@ -692,7 +769,7 @@ async function runTool(
       const series = await Promise.all(
         sample(loc).map((m) => getHistory(supabase, m, pollutant, daysAgo(days), istToday())),
       );
-      const flat = series.flat();
+      const { rows: flat, daysDropped } = await wellCoveredHistory(supabase, loc, series);
       if (!flat.length) return { location: loc.label, error: "no_history" };
       const mean = meanAcross(flat.map((d) => d.mean));
       return {
@@ -700,6 +777,9 @@ async function runTool(
         pollutant,
         days_requested: days,
         days_with_data: new Set(flat.map((d) => d.date)).size,
+        // Days left out because too few of the city's stations had a complete
+        // day -- an average of one or two stations does not describe a city.
+        days_left_out_for_low_coverage: daysDropped,
         mean,
         // The category of the average, worked out here. Without it the model
         // named one itself and got it wrong: an AQI average of 133 came back
@@ -726,11 +806,13 @@ async function runTool(
         [args.location_a, args.location_b].map(async (raw) => {
           const loc = await resolveFor(supabase, String(raw ?? ""), ctx);
           if (!loc) return { input: String(raw ?? ""), error: "unknown_location" as const };
-          const series = (
+          const { rows: series } = await wellCoveredHistory(
+            supabase,
+            loc,
             await Promise.all(
               sample(loc).map((m) => getHistory(supabase, m, pollutant, daysAgo(days), istToday())),
-            )
-          ).flat();
+            ),
+          );
           const mean = meanAcross(series.map((d) => d.mean));
           return {
             location: loc.label,

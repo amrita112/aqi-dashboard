@@ -27,6 +27,16 @@ export const THEME_COLOR = "#12171b";
 export const BACKGROUND_COLOR = "#f9fafb";
 
 /**
+ * The feedback Google Form, linked from the home screen and Settings.
+ *
+ * The plain /viewform address, without the `usp=sharing&ouid=…` that Google
+ * appends to a copied link: those only record who shared it and how, and the
+ * form opens the same without them.
+ */
+export const FEEDBACK_FORM_URL =
+  "https://docs.google.com/forms/d/e/1FAIpQLScwJv28MK72U7FAxrMSCTekVv6WXz_9n0mkVYvz6gIl9iSQWw/viewform";
+
+/**
  * Where someone writes to about their own data.
  *
  * ⚠️ REPLACE THIS. It is printed on the privacy and terms pages, and India's

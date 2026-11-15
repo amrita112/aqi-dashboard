@@ -10,19 +10,19 @@ What gets fitted, and the reasoning behind each choice:
   climatology    Smoothed day-of-year mean, per station and pollutant. Stored
                  as a 366-element array rather than 366 rows.
 
-  alpha          The anomaly-carry weight, fitted PER CITY rather than per
-                 station. Not a shortcut: averaging per-station forecasts only
-                 equals forecasting the k-station aggregate -- the thing the
-                 backtest validated -- when alpha is shared. Measured, a shared
-                 alpha leaves a 0.5-1.3 ug/m3 gap; per-station alpha doubles it.
+  alpha          The anomaly-carry weight, one per EFFECTIVE horizon (data age
+                 + days ahead, 1-10). Fitted per station when it has a year of
+                 its own history, otherwise inherited from the city (see
+                 fit_stations for why per station).
 
   diurnal_shape  Ratio of each hour to that day's mean, per CITY. Multiplying a
                  daily forecast by this is what turns 7 numbers into 168, and
                  it is what answers "when should I go out".
 
-  modes          Measured skill for every (data age, horizon) pair, and the
-                 mode that follows. This is what lets the app degrade honestly
-                 when OpenAQ is behind, which it frequently is.
+  modes          For every (data age, horizon) pair: which model to serve
+                 (blend or persistence, whichever measured better), its skill,
+                 band, and the mode that follows. This is what lets the app
+                 degrade honestly when OpenAQ is behind, which it frequently is.
 
 Usage (from repo root):
     python3 -m scripts.forecast.refit_params            # all cities, PM2.5 + AQI
@@ -51,8 +51,8 @@ from scripts.forecast.baselines import (  # noqa: E402
     diurnal_shape, fit_alpha, forecast_mode_table, station_mode_table, load_city_daily,
     load_city_daily_aqi, load_city_hourly, load_history_from_db,
     load_station_daily, load_station_daily_aqi, load_city_hourly_aqi, xkdr_names,
-    backtest,
 )
+from scripts.forecast.model import EFFECTIVE_HORIZONS  # noqa: E402
 from scripts.forecast.station_map import build_monitor_to_xkdr  # noqa: E402
 from scripts.ingest.lib.config import TARGET_STATIONS_PATH  # noqa: E402
 from scripts.ingest.lib.supabase_client import make_client  # noqa: E402
@@ -104,14 +104,18 @@ def fit_city(analysis_city: str, pollutant: str,
         return None
 
     clim = climatology(train)
-    alphas = {h: fit_alpha(train, clim, h) for h in (1, 2, 3)}
+    # One alpha per EFFECTIVE horizon (data age + days ahead), out to the
+    # stalest reading that can still be served. Nightly looks up exactly the
+    # alpha for the effective horizon it is serving -- the same one the mode
+    # table below measured the skill of (audit §7.2).
+    alphas = {h: fit_alpha(train, clim, h) for h in EFFECTIVE_HORIZONS}
 
-    # Which model actually wins here, decided by the backtest rather than
-    # assumed. This genuinely varies: persistence beats the blend in cities
-    # with a shallow seasonal swing, because anchoring on a seasonal average
-    # drags the forecast away from the truth. Measured on 2024, persistence
-    # wins in Mumbai, Hyderabad and Pune; the blend everywhere else.
-    # Measured on stations when we have their history, because the mode is
+    # Which model to serve -- blend or persistence -- decided by measurement
+    # rather than assumed, separately for each data age and horizon. This
+    # genuinely varies: persistence can beat the blend in cities with a shallow
+    # seasonal swing, because anchoring on a seasonal average drags the
+    # forecast away from the truth; and the answer can change as the data ages.
+    # Measured on stations when we have their history, because the forecast is
     # SERVED per station. Falls back to the city series only when there is no
     # station history to measure -- a city-fitted table claims skill at data
     # ages where no individual monitor still has any.
@@ -120,13 +124,16 @@ def fit_city(analysis_city: str, pollutant: str,
         modes = station_mode_table(station_hist, analysis_city, SKILL_TEST_YEAR)
     if modes.empty:
         modes = forecast_mode_table(series, SKILL_TEST_YEAR)
-    bt = backtest(series, SKILL_TEST_YEAR, [1, 2, 3])
+
+    # forecast_params.model is a one-word summary for people reading the
+    # table: the model served most often where there is a forecast at all.
+    # Nightly does NOT read it -- it takes the model from the mode row, which
+    # is specific to the data age.
     model = "blend"
-    if not bt.empty:
-        season = bt[bt.subset == "season"]
-        if not season.empty:
-            mean_mae = season.groupby("model")["mae"].mean()
-            model = str(mean_mae.idxmin())
+    if not modes.empty:
+        live = modes[modes["mode"] != "seasonal_normal"]
+        if not live.empty:
+            model = str(live["model"].value_counts().idxmax())
 
     shape_rows: List[Dict[str, Any]] = []
     # AQI gets its own shape rather than being skipped. The pollutant driving
@@ -190,12 +197,15 @@ def fit_stations(analysis_city: str, pollutant: str, city_fit: Dict[str, Any],
                 clim, hist = climatology(s), len(s)
                 if len(s) >= MIN_HISTORY_DAYS:
                     # Enough of its own history to fit its own carry weights.
-                    alphas = {h: fit_alpha(s, clim, h) for h in (1, 2, 3)}
+                    alphas = {h: fit_alpha(s, clim, h) for h in EFFECTIVE_HORIZONS}
 
         rows.append({
             "monitor_id": mon["monitor_id"],
             "pollutant": pollutant,
             "climatology": _clim_array(clim),
+            # Indexed by effective horizon; element 0 unused, like climatology.
+            "alphas": [0.0] + [float(alphas[h]) for h in EFFECTIVE_HORIZONS],
+            # Kept so the columns stay filled; nightly reads `alphas`.
             "alpha_h1": alphas[1],
             "alpha_h2": alphas[2],
             "alpha_h3": alphas[3],
@@ -209,14 +219,21 @@ def fit_stations(analysis_city: str, pollutant: str, city_fit: Dict[str, Any],
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument(
+        "--dump", metavar="PATH",
+        help="Also write every fitted row to this JSON file, so a dry run can "
+             "be compared against the parameters currently being served "
+             "before anything is saved.")
     ap.add_argument("--pollutants", nargs="+", default=["pm25", "aqi"])
     ap.add_argument(
         "--source", choices=("parquet", "db"), default="parquet",
         help="Where history comes from. 'parquet' is the local XKDR export "
              "(full fidelity, including the hourly series behind the diurnal "
-             "shape). 'db' reads readings_daily out of Supabase, which is the "
-             "only option on a CI runner -- it refits everything except the "
-             "diurnal shape, and leaves the existing shape rows untouched.")
+             "shape). 'db' reads the daily history files from Supabase Storage "
+             "(XKDR, and the OpenAQ archive for Sep 2025 - Aug 2026) plus our "
+             "own days from readings_daily, which is the only option "
+             "on a CI runner -- it refits everything except the diurnal "
+             "shape, and leaves the existing shape rows untouched.")
     ap.add_argument(
         "--prune-orphans", action="store_true",
         help="Delete forecast_params rows for monitors that are no longer in "
@@ -317,6 +334,7 @@ def main() -> None:
                     "band_p80": float(m.get("band_p80", np.nan))
                                 if m.get("band_p80", np.nan) == m.get("band_p80", np.nan) else None,
                     "mode": m["mode"],
+                    "model": m["model"],
                     "fitted_at": datetime.now(timezone.utc).isoformat(),
                 })
             # Count only the rows this (city, pollutant) just produced --
@@ -330,6 +348,12 @@ def main() -> None:
 
     print(f"\nfitted: {len(params_rows)} param rows, {len(shape_rows)} shape rows, "
           f"{len(mode_rows)} mode rows")
+
+    if args.dump:
+        Path(args.dump).write_text(json.dumps(
+            {"forecast_params": params_rows, "diurnal_shape": shape_rows,
+             "forecast_modes": mode_rows}, default=float))
+        print(f"Fitted rows written to {args.dump}")
 
     if args.dry_run:
         print("Dry run — nothing written.")

@@ -38,7 +38,15 @@ jobs:
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PYTHONUNBUFFERED:          '1'
+          # Inputs arrive as environment variables, never pasted into the
+          # script text: pasted, a crafted input would run as shell commands
+          # (audit §2.6). Pollutants are also checked against the known list.
+          POLLUTANTS_INPUT:          ${{ github.event.inputs.pollutants || 'pm25 aqi' }}
+          DRY_RUN_INPUT:             ${{ github.event.inputs.dry_run }}
         run: |
-          ARGS="--pollutants ${{ github.event.inputs.pollutants || 'pm25 aqi' }}"
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
-          python -m scripts.forecast.nightly_forecast $ARGS
+          for p in $POLLUTANTS_INPUT; do
+            case "$p" in pm25|pm10|no2|so2|aqi) ;; *) echo "Unknown pollutant: $p"; exit 1 ;; esac
+          done
+          ARGS=(--pollutants $POLLUTANTS_INPUT)
+          if [ "$DRY_RUN_INPUT" = "true" ]; then ARGS+=(--dry-run); fi
+          python -m scripts.forecast.nightly_forecast "${ARGS[@]}"

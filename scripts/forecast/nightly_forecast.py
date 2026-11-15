@@ -7,19 +7,22 @@ lookups and arithmetic and finishes in seconds.
 
 Per station and pollutant:
 
-  1. Find the most recent day in readings_daily. Its AGE is the pivot of the
-     whole job: OpenAQ's publication lag swings between roughly 17 and 80 hours
-     and individual stations go quiet for a week, so freshness is a per-station
-     fact, not a global one.
-  2. Anomaly = that day's value minus that day's climatology.
-  3. Days 1-3: climatology for the target day + alpha x anomaly, where alpha is
-     chosen for the EFFECTIVE horizon (age + horizon), because information that
-     is already three days old forecasts tomorrow about as well as it forecasts
-     four days out.
-  4. Days 4-7: bare climatology, labelled seasonal_normal. No band -- these are
-     an average, and drawing uncertainty around an average implies a prediction
-     we are not making.
-  5. Mode and band come from forecast_modes, keyed on the measured data age.
+  1. Find the most recent COMPLETE day in readings_daily (daily_quality.py).
+     Its AGE is the pivot of the whole job: OpenAQ's publication lag swings
+     between roughly 17 hours and a week, so freshness is a per-station fact,
+     not a global one.
+  2. Days 1-3: look up forecast_modes for (city, pollutant, age, horizon). That
+     row says which model to serve (blend or persistence), how to label it,
+     and the band -- all measured together on held-out data by the refit.
+     The arithmetic is model.predict; blend's alpha is the one fitted for the
+     EFFECTIVE horizon (age + horizon), the same one the skill was measured
+     with.
+  3. Days 4-7, readings older than 7 days, and any (age, horizon) whose
+     measured skill is no better than average: bare climatology, labelled
+     seasonal_normal. No band -- these are an average, and drawing uncertainty
+     around an average implies a prediction we are not making.
+  4. A city-level bias correction, applied only where it has been helping
+     (bias_correction.py).
 
 Stations with too little history, or with no recent observation at all, produce
 climatology-only rows rather than being dropped: a station that says "here is
@@ -52,17 +55,22 @@ from scripts.forecast.bias_correction import (  # noqa: E402
     city_day_errors,
     decide,
 )
+from scripts.forecast.model import (  # noqa: E402
+    FORECAST_HORIZONS,
+    MAX_SERVED_DATA_AGE,
+    alpha_for,
+    predict,
+)
 from scripts.forecast.refit_params import APP_TO_ANALYSIS, MIN_HISTORY_DAYS  # noqa: E402
 from scripts.ingest.lib.config import TARGET_STATIONS_PATH, ist_today  # noqa: E402
 from scripts.ingest.lib.supabase_client import make_client  # noqa: E402
 
 DEFAULT_HORIZON_DAYS = 7
-FORECAST_HORIZONS = (1, 2, 3)      # beyond this it is climatology, not a forecast
 
-# How far back to look for a usable observation. Past this the anomaly is so
-# stale that every horizon scores at or below the seasonal average anyway, so
-# there is nothing to gain by looking further.
-MAX_OBSERVATION_AGE_DAYS = 14
+# How far back to read readings_daily. Longer than MAX_SERVED_DATA_AGE (7):
+# the extra week is what tells the completeness rule each station's normal
+# day, i.e. whether it reports hourly or every 15 minutes.
+LOOKBACK_DAYS = 14
 
 
 def day_of_year(d: date) -> int:
@@ -74,6 +82,7 @@ def load_params(client) -> Dict[Tuple[str, str], Dict[str, Any]]:
     rows, offset = [], 0
     while True:
         r = (client.table("forecast_params").select("*")
+                   .order("monitor_id").order("pollutant")
                    .range(offset, offset + 999).execute())
         rows += r.data or []
         if not r.data or len(r.data) < 1000:
@@ -87,6 +96,8 @@ def load_modes(client) -> Dict[Tuple[str, str, int, int], Dict[str, Any]]:
     rows, offset = [], 0
     while True:
         r = (client.table("forecast_modes").select("*")
+                   .order("city").order("pollutant")
+                   .order("data_age_days").order("horizon_days")
                    .range(offset, offset + 999).execute())
         rows += r.data or []
         if not r.data or len(r.data) < 1000:
@@ -102,75 +113,86 @@ def load_modes(client) -> Dict[Tuple[str, str, int, int], Dict[str, Any]]:
 MEASURED_POLLUTANTS = ("pm25", "pm10", "no2", "so2")
 
 
-def latest_observations(client, pollutants: List[str],
-                        since: date) -> Dict[Tuple[str, str], Tuple[date, float]]:
-    """(monitor_id, pollutant) -> (date, value) of the most recent day seen.
+def fetch_daily_rows(client, since: date) -> List[Dict[str, Any]]:
+    """Every readings_daily row since `since`, with what the quality rule needs.
 
-    For measured pollutants this is the stored daily mean. For 'aqi' it is
-    derived the way CPCB defines NAQI: convert each pollutant's daily mean to
-    its sub-index and take the max over the pollutants that station reported
-    that day.
+    Ordered, so the 1000-row pages cannot skip or repeat rows: Postgres does
+    not promise a stable order between OFFSET queries unless asked for one.
     """
-    from scripts.ingest.lib.aqi_utils import compute_subindex
-
     rows, offset = [], 0
     while True:
         r = (client.table("readings_daily")
-                   .select("monitor_id, pollutant, date, mean")
+                   # is_complete is the rollup's verdict on the day (migration 25).
+                   .select("monitor_id, pollutant, date, mean, count, source, is_complete")
                    .in_("pollutant", list(MEASURED_POLLUTANTS))
                    .gte("date", since.isoformat())
+                   .order("date").order("monitor_id").order("pollutant")
                    .range(offset, offset + 999).execute())
         rows += r.data or []
         if not r.data or len(r.data) < 1000:
             break
         offset += 1000
+    return rows
 
+
+def observed_values(rows: List[Dict[str, Any]], pollutants: List[str]
+                    ) -> Dict[str, Dict[Tuple[str, str], float]]:
+    """pollutant -> {(monitor_id, date): value}, complete days only.
+
+    The single place nightly turns readings_daily rows into daily values, so
+    the day a forecast starts from and the day it is scored against are built
+    the same way. Completeness rules: scripts/forecast/daily_quality.py.
+    """
+    from scripts.forecast.daily_quality import rows_to_frame, station_day_values
+
+    df = rows_to_frame(rows)
+    out: Dict[str, Dict[Tuple[str, str], float]] = {}
+    for pollutant in pollutants:
+        vals = station_day_values(df, pollutant) if not df.empty else df
+        out[pollutant] = {(m, str(d)): float(v) for m, d, v in
+                          zip(vals.get("monitor_id", []), vals.get("date", []),
+                              vals.get("value", []))}
+    return out
+
+
+def latest_observations(client, pollutants: List[str],
+                        since: date) -> Dict[Tuple[str, str], Tuple[date, float]]:
+    """(monitor_id, pollutant) -> (date, value) of the most recent COMPLETE day.
+
+    For measured pollutants this is the stored daily mean. For 'aqi' it is
+    derived the way CPCB defines NAQI: each pollutant's daily mean becomes its
+    sub-index, and the max is taken over the pollutants of that same day.
+
+    Partial days are skipped, so a station whose newest day is only half
+    published starts from the day before instead (audit §7.3).
+    """
+    values = observed_values(fetch_daily_rows(client, since), pollutants)
     latest: Dict[Tuple[str, str], Tuple[date, float]] = {}
-    for row in rows:
-        key = (row["monitor_id"], row["pollutant"])
-        d = date.fromisoformat(row["date"])
-        if key not in latest or d > latest[key][0]:
-            latest[key] = (d, float(row["mean"]))
-
-    if "aqi" in pollutants:
-        # Group by (monitor, day) so the max is taken across pollutants
-        # measured on the SAME day -- mixing days would invent an AQI that
-        # never occurred.
-        by_day: Dict[Tuple[str, date], List[float]] = {}
-        for row in rows:
-            sub = compute_subindex(row["pollutant"], float(row["mean"]))
-            if sub is None:
-                continue
-            by_day.setdefault((row["monitor_id"], date.fromisoformat(row["date"])),
-                              []).append(float(sub))
-        for (monitor_id, d), subs in by_day.items():
-            key = (monitor_id, "aqi")
-            if key not in latest or d > latest[key][0]:
-                latest[key] = (d, max(subs))
-
+    for pollutant, by_day in values.items():
+        for (monitor_id, d), v in by_day.items():
+            key, day = (monitor_id, pollutant), date.fromisoformat(d)
+            if key not in latest or day > latest[key][0]:
+                latest[key] = (day, v)
     return latest
 
 
 def nearest_mode(modes: Dict, city: str, pollutant: str,
                  age: int, horizon: int) -> Optional[Dict[str, Any]]:
-    """Mode row for this age, falling back to the closest age that was fitted.
+    """The mode row measured at this data age, or None if there is none.
 
-    forecast_modes is fitted at a handful of ages (0,1,2,3,4,5,7) rather than
-    every integer, so an observation 6 days old has no exact row. Round UP to
-    the next fitted age: claiming the skill of a fresher reading than we have
-    would be the wrong way to be wrong.
+    forecast_modes is measured at every age from 0 to MAX_SERVED_DATA_AGE
+    (model.MODE_DATA_AGES), so an exact match is expected. Tables fitted before
+    Nov 2026 skipped age 6; for those, round UP to the next measured age --
+    claiming the skill of a fresher reading than we have would be the wrong way
+    to be wrong. Nothing is ever borrowed from a FRESHER age, and an age older
+    than anything measured gets None: there is no measured skill to claim.
     """
     exact = modes.get((city, pollutant, age, horizon))
     if exact:
         return exact
     candidates = sorted(a for (c, p, a, h) in modes
                         if c == city and p == pollutant and h == horizon and a >= age)
-    if candidates:
-        return modes.get((city, pollutant, candidates[0], horizon))
-    # Older than anything fitted: treat as the stalest case we measured.
-    worst = sorted((a for (c, p, a, h) in modes
-                    if c == city and p == pollutant and h == horizon), reverse=True)
-    return modes.get((city, pollutant, worst[0], horizon)) if worst else None
+    return modes.get((city, pollutant, candidates[0], horizon)) if candidates else None
 
 
 def build_station_rows(monitor_id: str, city: str, pollutant: str,
@@ -178,7 +200,13 @@ def build_station_rows(monitor_id: str, city: str, pollutant: str,
                        observation: Optional[Tuple[date, float]],
                        modes: Dict, today: date,
                        horizon_days: int) -> List[Dict[str, Any]]:
-    """Seven rows for one station-pollutant."""
+    """Seven rows for one station-pollutant.
+
+    For days 1-3 the mode row for this (city, pollutant, data age, horizon)
+    decides everything shown: which model makes the number, how it is
+    labelled, and the band around it -- all measured together by the refit, so
+    the label always describes the number it is attached to.
+    """
     clim = params["climatology"]
 
     def clim_for(d: date) -> Optional[float]:
@@ -186,13 +214,15 @@ def build_station_rows(monitor_id: str, city: str, pollutant: str,
         v = clim[doy] if doy < len(clim) else 0.0
         return float(v) if v else None
 
-    anomaly, based_on, age = 0.0, None, None
+    obs_value, obs_base, based_on, age = None, None, None, None
     if observation is not None:
         obs_date, obs_value = observation
         age = (today - obs_date).days
-        base = clim_for(obs_date)
-        if base is not None and age <= MAX_OBSERVATION_AGE_DAYS:
-            anomaly, based_on = obs_value - base, obs_date
+        obs_base = clim_for(obs_date)
+        # Older than the stalest age the mode table measured: no skill to
+        # claim, so this station gets the seasonal normal.
+        if obs_base is not None and 0 <= age <= MAX_SERVED_DATA_AGE:
+            based_on = obs_date
         else:
             age = None
 
@@ -207,30 +237,27 @@ def build_station_rows(monitor_id: str, city: str, pollutant: str,
         if base is None:
             continue
 
-        if degraded or h not in FORECAST_HORIZONS:
-            value, mode, band50, band80 = base, "seasonal_normal", None, None
-            model = "climatology"
-        else:
-            # Alpha for the EFFECTIVE horizon: an observation `age` days old
-            # forecasting `h` days out is really an (age + h)-step problem.
-            effective = min(age + h, 3)
-            alpha = float(params[f"alpha_h{effective}"])
+        value, mode, band50, band80 = base, "seasonal_normal", None, None
+        model = "climatology"
+        if not degraded and h in FORECAST_HORIZONS:
             m = nearest_mode(modes, city, pollutant, age, h)
-            mode = m["mode"] if m else "outlook"
-
-            if mode == "seasonal_normal":
-                # The measured skill at this data age is no better than the
-                # seasonal average, so SERVE the seasonal average. Carrying the
-                # anomaly forward while labelling the row "seasonal_normal"
-                # would put a number on screen that contradicts its own label
-                # -- the exact dishonesty this mode exists to prevent.
-                value, band50, band80 = base, None, None
-                model = "climatology"
-            else:
-                value = max(base + alpha * anomaly, 0.0)  # a negative forecast is not one
-                band50 = m.get("band_p50") if m else None
-                band80 = m.get("band_p80") if m else None
-                model = params["model"]
+            # Rows fitted before Nov 2026 carry no model: they measured the blend.
+            served = (m.get("model") or "blend") if m else None
+            # An observation `age` days old forecasting `h` days out is really
+            # an (age + h)-step problem, and alpha was fitted for exactly that.
+            alpha = alpha_for(params, age + h)
+            usable = (m is not None and m["mode"] != "seasonal_normal"
+                      and (served == "persistence" or alpha is not None))
+            # Otherwise (mode says seasonal_normal, no measured mode at all, or
+            # no alpha fitted for this effective horizon) the seasonal average
+            # is served, and labelled as exactly that. Carrying the anomaly
+            # forward under a "seasonal_normal" label would put a number on
+            # screen that contradicts its own label.
+            if usable:
+                value = max(float(predict(served, base, obs_value, obs_base, alpha)),
+                            0.0)  # a negative forecast is not one
+                mode, model = m["mode"], served
+                band50, band80 = m.get("band_p50"), m.get("band_p80")
 
         rows.append({
             "monitor_id": monitor_id,
@@ -255,15 +282,19 @@ BIAS_HISTORY_DAYS = 21
 
 
 def load_scored_history(client, pollutants: List[str], since: date
-                        ) -> Tuple[List[Dict[str, Any]], Dict[Tuple[str, str], float]]:
+                        ) -> Tuple[List[Dict[str, Any]], Dict[Tuple[str, str, str], float]]:
     """Past forecasts and what actually happened, for learning the bias.
 
     Returns the forecasts (carrying value_raw where one was stored) and the
-    observed daily value per (monitor_id, date) in the same shape the forecasts
-    are keyed by, so city_day_errors can line them up.
-    """
-    from scripts.ingest.lib.aqi_utils import compute_subindex
+    observed daily value per (monitor_id, date, pollutant) -- the same key the
+    forecasts carry, so city_day_errors can line them up.
 
+    The pollutant MUST be part of the key. Until Nov 2026 it was keyed by
+    (monitor_id, date) alone, so the AQI written second overwrote the PM2.5
+    value and every PM2.5 forecast was scored against composite AQI. AQI is
+    almost always the larger number, so the correction "learned" that PM2.5
+    was under-forecast and pushed it up towards the +50% cap.
+    """
     fc, offset = [], 0
     while True:
         r = (client.table("forecast_daily")
@@ -271,41 +302,23 @@ def load_scored_history(client, pollutants: List[str], since: date
                    .eq("horizon_days", 1)
                    .in_("pollutant", pollutants)
                    .gte("target_date", since.isoformat())
+                   .order("target_date").order("monitor_id").order("pollutant")
                    .range(offset, offset + 999).execute())
         fc += r.data or []
         if not r.data or len(r.data) < 1000:
             break
         offset += 1000
 
-    rows, offset = [], 0
-    while True:
-        r = (client.table("readings_daily")
-                   .select("monitor_id, pollutant, date, mean")
-                   .in_("pollutant", list(MEASURED_POLLUTANTS))
-                   .gte("date", since.isoformat())
-                   .range(offset, offset + 999).execute())
-        rows += r.data or []
-        if not r.data or len(r.data) < 1000:
-            break
-        offset += 1000
-
-    # Same construction as latest_observations: sub-index per pollutant, max
-    # across them for AQI. Deriving it differently here would make the measured
-    # bias an artefact of the two definitions disagreeing.
-    actuals: Dict[Tuple[str, str], float] = {}
-    by_day: Dict[Tuple[str, str], Dict[str, float]] = {}
-    for r in rows:
-        if r["mean"] is None:
-            continue
-        key = (r["monitor_id"], r["date"])
-        by_day.setdefault(key, {})[r["pollutant"]] = float(r["mean"])
-    for (mid, d), pol in by_day.items():
-        if "pm25" in pol:
-            actuals[(mid, d)] = pol["pm25"] if "pm25" in pollutants else None
-        subs = [compute_subindex(p, v) for p, v in pol.items()]
-        subs = [x for x in subs if x is not None]
-        if subs:
-            actuals[(mid, d)] = max(subs)
+    # Same construction as latest_observations, complete days only. Deriving
+    # it differently here would make the measured bias an artefact of the two
+    # definitions disagreeing -- and scoring against a half-published day
+    # would teach the correction a bias that is not there.
+    values = observed_values(fetch_daily_rows(client, since), pollutants)
+    actuals: Dict[Tuple[str, str, str], float] = {
+        (mid, d, pollutant): v
+        for pollutant, by_day in values.items()
+        for (mid, d), v in by_day.items()
+    }
     return fc, actuals
 
 
@@ -337,7 +350,7 @@ def main() -> None:
         raise SystemExit("forecast_params is empty — run refit_params first.")
 
     observations = latest_observations(
-        client, args.pollutants, today - timedelta(days=MAX_OBSERVATION_AGE_DAYS))
+        client, args.pollutants, today - timedelta(days=LOOKBACK_DAYS))
     print(f"  {len(observations)} station-pollutants have a recent observation")
 
     out_rows: List[Dict[str, Any]] = []
@@ -422,6 +435,34 @@ def main() -> None:
                .execute())
         written += len(chunk)
     print(f"\n  forecast_daily: {written} rows upserted")
+
+    # Monitors that have left the manifest (sensors gone stale) keep the
+    # future rows of their last run, and the app would go on serving them as
+    # if current (audit §7.8). Delete only rows for today onwards: past rows
+    # stay, because the bias correction scores them.
+    live = {s["monitor_id"] for s in manifest["stations"]}
+    orphans = departed_monitors(client, live, today)
+    for i in range(0, len(orphans), 100):
+        (client.table("forecast_daily").delete()
+               .in_("monitor_id", orphans[i:i + 100])
+               .gte("target_date", today.isoformat()).execute())
+    print(f"  forecast_daily: future rows removed for {len(orphans)} monitor(s) "
+          f"no longer in the station list")
+
+
+def departed_monitors(client, live: set, today: date) -> List[str]:
+    """Monitors with forecast rows from today on that are not in the manifest."""
+    seen, offset = set(), 0
+    while True:
+        r = (client.table("forecast_daily").select("monitor_id")
+                   .gte("target_date", today.isoformat())
+                   .order("monitor_id").order("pollutant").order("target_date")
+                   .range(offset, offset + 999).execute())
+        seen |= {row["monitor_id"] for row in (r.data or [])}
+        if not r.data or len(r.data) < 1000:
+            break
+        offset += 1000
+    return sorted(seen - live)
 
 
 if __name__ == "__main__":

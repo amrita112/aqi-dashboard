@@ -14,7 +14,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { fail, ok, badRequest, rateLimit, callerKey } from "@/lib/api/respond";
-import { chat, aiConfig, AiProviderError, undouble, type ChatMessage } from "@/lib/ai/provider";
+import { chat, aiConfig, AiProviderError, providerName, undouble, type ChatMessage } from "@/lib/ai/provider";
 import { TOOL_DEFINITIONS, executeTool, namesMeasure, type AskContext } from "@/lib/ai/tools";
 import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
 import { quotaMessage, ASK_DAILY_LIMIT, nextIstMidnight, type QuotaKind } from "@/lib/ai/quota";
@@ -103,7 +103,7 @@ function systemPrompt(): string {
     `   - It is called ${APP_NAME}. It forecasts air quality for seven Indian cities: Delhi NCR, Mumbai, Bengaluru, Hyderabad, Chennai, Kolkata and Pune.`,
     "   - It is an independent project, free to use, with no accounts and no advertising. It is NOT run by any government body, and it is not connected to AirNow, AirNow India, CPCB, OpenAQ or XKDR, which are sources or other services, not its authors.",
     "   - Its readings come from India's Central Pollution Control Board monitoring network, reaching it through OpenAQ and the XKDR Forum's archive.",
-    "   - You are a model served by Groq. Do not name a different provider or model.",
+    `   - You are a model served by ${providerName()}. Do not name a different provider or model.`,
     "   - You do NOT know who built it, when it launched, how many people use it, or anything about its future plans. Say so. Point people at the Settings tab, which has the data sources and the privacy page.",
     "11. ANY place in a covered city can be reported on, whether or not it has a station of its own. The tools average the three nearest stations to wherever the person names, which is what every screen in this app does — so answer for the neighbourhood they asked about, using its name. Never tell someone their neighbourhood 'has no monitoring station' and never substitute a different place's name for theirs. The one exception is rank_places, which lists stations and can only name stations. If a tool returns unknown_location, the place is outside the covered cities — say that instead.",
     "A tool result may contain an `hourly` array of 24 values. Like `series`, it is there to draw the chart beside your answer. Never list it; quote at most the one or two hours that answer the question.",
@@ -386,6 +386,6 @@ export async function POST(request: Request) {
       }
       return fail(err.message, 502);
     }
-    return fail(`Unexpected failure answering the question: ${(err as Error).message}`, 500);
+    return fail("Unexpected failure answering the question.", 500, (err as Error).message);
   }
 }

@@ -21,6 +21,7 @@ import {
   type ShapeRow,
 } from "@/lib/api/forecast";
 import { istToday } from "@/lib/api/time";
+import { completeDays, meetsAqiRule, stationDayAqi } from "@/lib/api/daily-quality";
 import { DEFAULT_SCALE, type Scale } from "@/lib/types";
 
 /** monitors.city uses the app's spelling; the analysis tables use XKDR's. */
@@ -119,24 +120,39 @@ export async function getCurrent(
   const { computeSubIndex } = await import("@/lib/aqi-utils");
   const { DEFAULT_SCALE } = await import("@/lib/types");
 
+  // THE NEWEST READING THAT CAN CARRY AN AQI, not simply the newest. OpenAQ
+  // publishes pollutants in separate bursts, so the latest timestamp often has
+  // only NO2 or SO2 so far, and its "AQI" would understate the air. Look back
+  // over the last few readings for one that meets the AQI rule (both PMs by
+  // default; lib/daily-quality-config.json) -- the same rule as everywhere else.
+  const LOOKBACK_READINGS = 12;
   const { data: readings } = await supabase
     .from("readings")
     .select("id, recorded_at")
     .eq("monitor_id", monitor.id)
+    // Official readings only. A user-submitted row (source='user') pointing
+    // at an official station would otherwise become its "current" reading
+    // (audit §2.3). Migration 24 also stops anyone inserting those rows.
+    .eq("source", "openaq")
     .order("recorded_at", { ascending: false })
-    .limit(1);
+    .limit(LOOKBACK_READINGS);
   if (!readings?.length) return null;
 
-  const reading = readings[0];
-  const { data: measurements } = await supabase
+  const { data: allMeasurements } = await supabase
     .from("measurements")
-    .select("pollutant, value")
-    .eq("reading_id", reading.id);
+    .select("reading_id, pollutant, value")
+    .in("reading_id", readings.map((r) => r.id));
 
-  const rows = (measurements ?? []).filter(
-    (m) => (MEASURED_POLLUTANTS as readonly string[]).includes(m.pollutant) && m.value >= 0,
-  );
-  if (!rows.length) return null;
+  const usableFor = (readingId: string) =>
+    (allMeasurements ?? []).filter(
+      (m) =>
+        m.reading_id === readingId &&
+        (MEASURED_POLLUTANTS as readonly string[]).includes(m.pollutant) &&
+        m.value >= 0,
+    );
+  const reading = readings.find((r) => meetsAqiRule(usableFor(r.id).map((m) => m.pollutant)));
+  if (!reading) return null;
+  const rows = usableFor(reading.id);
 
   const withSub = rows.map((m) => ({
     pollutant: m.pollutant,
@@ -177,7 +193,7 @@ export async function getForecast(
   const { data: rows } = await supabase
     .from("forecast_daily")
     .select(
-      "monitor_id, pollutant, target_date, horizon_days, value, band_p50, band_p80, mode, model, based_on_date, data_age_days",
+      "monitor_id, pollutant, target_date, horizon_days, value, band_p50, band_p80, mode, model, based_on_date, data_age_days, computed_at",
     )
     .eq("monitor_id", monitor.id)
     .eq("pollutant", pollutant)
@@ -194,7 +210,30 @@ export async function getForecast(
     .eq("pollutant", pollutant);
 
   const shape = indexShape((shapeRows ?? []) as ShapeRow[]);
-  return (rows as ForecastDailyRow[]).map((r) => expandDay(r, analysisCity, shape, { hourly: true }));
+  return (rows as ForecastDailyRow[]).map((r) =>
+    expandDay(r, analysisCity, shape, { hourly: true, today }),
+  );
+}
+
+/**
+ * The database could not be read -- as opposed to "it was read and held
+ * nothing". The two used to look identical: a failed query came back as an
+ * empty list, so the Trends screen said "Nothing was measured near this place"
+ * when the real answer was "the query broke" (Nov 2026: a column the code
+ * asked for had not been added to the database yet). Throwing this instead
+ * lets each caller say what actually happened.
+ *
+ * `detail` carries the raw database error for the SERVER LOG only; routes
+ * pass it to fail(), which keeps it out of the response.
+ */
+export class DataError extends Error {
+  constructor(
+    message: string,
+    public readonly detail: unknown,
+  ) {
+    super(message);
+    this.name = "DataError";
+  }
 }
 
 export interface HistoryPoint {
@@ -204,8 +243,73 @@ export interface HistoryPoint {
   max: number;
   count: number;
   source: string;
+  /** When the day's min and max occurred (single pollutants only). */
+  min_ts?: string | null;
+  max_ts?: string | null;
 }
 
+/**
+ * Every row of a query, 1,000 at a time. PostgREST silently stops at 1,000
+ * rows, so an unpaged query over a long range (the AI's 365-day history, the
+ * 80-station map) quietly lost rows -- for history, the MOST RECENT days,
+ * because the order is ascending (audit §7.5). The query must be ordered, or
+ * pages can overlap or skip.
+ */
+export async function pageAll<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+  pageSize = 1000,
+): Promise<{ data: T[]; error: unknown }> {
+  const out: T[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await page(offset, offset + pageSize - 1);
+    if (error) return { data: out, error };
+    const batch = (data ?? []) as T[];
+    out.push(...batch);
+    if (batch.length < pageSize) return { data: out, error: null };
+  }
+}
+
+type DailyDbRow = {
+  date: string; pollutant: string; mean: number | null; min: number | null;
+  max: number | null; min_ts: string | null; max_ts: string | null;
+  count: number | null; source: string; is_complete: boolean | null;
+};
+
+async function dailyRows(
+  supabase: SupabaseClient,
+  monitorId: string,
+  pollutants: readonly string[],
+  from: string,
+  to: string,
+): Promise<DailyDbRow[]> {
+  const { data, error } = await pageAll<DailyDbRow>((lo, hi) =>
+    supabase
+      .from("readings_daily")
+      .select("date, pollutant, mean, min, max, min_ts, max_ts, count, source, is_complete")
+      .eq("monitor_id", monitorId)
+      .in("pollutant", [...pollutants])
+      .gte("date", from)
+      .lte("date", to)
+      .order("date", { ascending: true })
+      .order("pollutant", { ascending: true })
+      .range(lo, hi),
+  );
+  // A failed read is an error, not an empty history. Returning `data` here
+  // (an empty or partial list) is how a database error reached the screen as
+  // "nothing was measured". Partial pages are not returned either: half a
+  // window drawn as if it were the whole one is the same mistake, smaller.
+  if (error) throw new DataError("Could not load daily readings", error);
+  return data;
+}
+
+/**
+ * Daily history for one station: the days the rollup marked COMPLETE
+ * (readings_daily.is_complete, the same verdict the forecast uses). A partial
+ * day is a gap in the chart, not a low point.
+ *
+ * Throws DataError when the database cannot be read, so an empty result
+ * always means "nothing complete was measured", never "the query failed".
+ */
 export async function getHistory(
   supabase: SupabaseClient,
   monitor: MonitorRow,
@@ -215,30 +319,30 @@ export async function getHistory(
 ): Promise<HistoryPoint[]> {
   if (pollutant === "aqi") return getHistoryAqi(supabase, monitor, from, to);
 
-  const { data } = await supabase
-    .from("readings_daily")
-    .select("date, mean, min, max, count, source")
-    .eq("monitor_id", monitor.id)
-    .eq("pollutant", pollutant)
-    .gte("date", from)
-    .lte("date", to)
-    .order("date", { ascending: true });
-  return (data ?? []) as HistoryPoint[];
+  const rows = await dailyRows(supabase, monitor.id, [pollutant], from, to);
+  return completeDays(rows.map((r) => ({ ...r, monitor_id: monitor.id })))
+    .filter((r) => r.mean !== null)
+    .map((r) => ({
+      date: r.date,
+      mean: r.mean as number,
+      min: r.min ?? (r.mean as number),
+      max: r.max ?? (r.mean as number),
+      count: r.count ?? 0,
+      source: r.source,
+      min_ts: r.min_ts,
+      max_ts: r.max_ts,
+    }));
 }
 
 /**
  * Composite AQI history, derived rather than stored.
  *
  * `readings_daily` holds only the four MEASURED pollutants. Composite AQI is
- * not a measurement — it is the max of their sub-indices — so there is nothing
- * to look up and it has to be computed from the day's four rows.
- *
- * Done the way CPCB defines NAQI, and the way every other AQI figure in this
- * project is built: convert each pollutant's daily mean to its sub-index, take
- * the max across the pollutants that station reported THAT DAY. Taking a max
- * across different days would invent an AQI that never happened.
- *
- * Without this, the app's default measurement has no history screen at all.
+ * not a measurement -- it is the max of their sub-indices -- so it is computed
+ * from the day's rows: each COMPLETE pollutant's daily mean -> its sub-index ->
+ * the max, on days that meet the AQI rule (both PMs by default; see
+ * lib/daily-quality-config.json). Taking a max across different days would
+ * invent an AQI that never happened.
  */
 async function getHistoryAqi(
   supabase: SupabaseClient,
@@ -250,29 +354,14 @@ async function getHistoryAqi(
   const { DEFAULT_SCALE } = await import("@/lib/types");
   type P = Parameters<typeof computeSubIndex>[0];
 
-  // Typed explicitly: postgrest-js infers never[] once .in() is given a
-  // widened array, which silently makes every field below `never`.
-  const { data } = await supabase
-    .from("readings_daily")
-    .select("date, pollutant, mean, min, max, count, source")
-    .eq("monitor_id", monitor.id)
-    .in("pollutant", [...MEASURED_POLLUTANTS])
-    .gte("date", from)
-    .lte("date", to)
-    .order("date", { ascending: true });
+  const rows = await dailyRows(supabase, monitor.id, MEASURED_POLLUTANTS, from, to);
+  const complete = completeDays(rows.map((r) => ({ ...r, monitor_id: monitor.id })));
+  const qualifying = new Map(stationDayAqi(complete).map((d) => [d.date, d]));
 
-  const rows = (data ?? []) as unknown as {
-    date: string; pollutant: string; mean: number | null;
-    min: number | null; max: number | null; count: number | null; source: string;
-  }[];
-
-  const byDate = new Map<string, { sub: number[]; count: number; source: string;
-                                   minSub: number[]; maxSub: number[] }>();
-  for (const row of rows) {
-    if (row.mean === null || row.mean < 0) continue;
-    const slot = byDate.get(row.date) ?? { sub: [], count: 0, source: row.source,
-                                           minSub: [], maxSub: [] };
-    slot.sub.push(computeSubIndex(row.pollutant as P, row.mean, DEFAULT_SCALE));
+  const byDate = new Map<string, { count: number; source: string; minSub: number[]; maxSub: number[] }>();
+  for (const row of complete) {
+    if (!qualifying.has(row.date)) continue;
+    const slot = byDate.get(row.date) ?? { count: 0, source: row.source, minSub: [], maxSub: [] };
     // The day's extremes are sub-indexed too, so min/max stay on the AQI scale
     // rather than being concentrations mixed into an index series.
     if (row.min !== null && row.min >= 0) slot.minSub.push(computeSubIndex(row.pollutant as P, row.min, DEFAULT_SCALE));
@@ -283,16 +372,20 @@ async function getHistoryAqi(
 
   return Array.from(byDate.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, s]) => ({
-      date,
-      mean: Math.max(...s.sub),
-      min: s.minSub.length ? Math.max(...s.minSub) : Math.max(...s.sub),
-      max: s.maxSub.length ? Math.max(...s.maxSub) : Math.max(...s.sub),
-      // Summed across the four pollutants, so the completeness denominator in
-      // the route has to account for that — see HISTORY_POLLUTANT_MULTIPLIER.
-      count: s.count,
-      source: s.source,
-    }));
+    .map(([date, s]) => {
+      const aqi = qualifying.get(date)!.aqi;
+      return {
+        date,
+        mean: aqi,
+        min: s.minSub.length ? Math.max(...s.minSub) : aqi,
+        max: s.maxSub.length ? Math.max(...s.maxSub) : aqi,
+        // Summed across the pollutants behind the day, so the completeness
+        // denominator in the route accounts for that -- see
+        // HISTORY_POLLUTANT_MULTIPLIER.
+        count: s.count,
+        source: s.source,
+      };
+    });
 }
 
 /**
@@ -357,7 +450,11 @@ export async function nearestMonitors(
     max_km: maxKm,
     want_city: city,
   });
-  if (error || !data) return [];
+  // A failed lookup is not "no stations nearby". Treating it as one made a
+  // database problem look like a place with no monitors (a 404 saying "No
+  // stations within 30 km"), which sends the person looking in the wrong place.
+  if (error) throw new DataError("Could not look up nearby stations", error);
+  if (!data) return [];
   return (data as { monitor_id: string; name: string; city: string; latitude: number; longitude: number; distance_km: number }[])
     .map((r) => ({
       id: r.monitor_id,
@@ -407,10 +504,22 @@ export function averageForecastDays(
   const out: ForecastDay[] = [];
   const used = new Map<string, NearbyMonitor>();
 
-  for (let i = 0; i < horizonCount; i++) {
+  // GROUP BY DATE, NOT BY POSITION. `p.days[i]` assumed every station had a
+  // row for every day. When one did not -- a new station with no row for
+  // today, a day skipped because its climatology was 0, stale rows from a
+  // monitor that left the station list -- day i of one station was averaged
+  // with day i+1 of another, and the result was labelled with the first
+  // station's date (audit §7.4).
+  const dates = Array.from(
+    new Set(withData.flatMap((p) => p.days.map((d) => d.target_date))),
+  )
+    .sort()
+    .slice(0, horizonCount);
+
+  for (const date of dates) {
     const slice = withData
-      .map((p) => ({ monitor: p.monitor, day: p.days[i] }))
-      .filter((x) => x.day);
+      .map((p) => ({ monitor: p.monitor, day: p.days.find((d) => d.target_date === date) }))
+      .filter((x): x is { monitor: NearbyMonitor; day: ForecastDay } => Boolean(x.day));
     if (!slice.length) continue;
 
     const real = slice.filter((x) => x.day.mode !== "seasonal_normal");

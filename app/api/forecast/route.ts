@@ -117,6 +117,10 @@ export async function GET(request: Request) {
       hourly_is_flat: forecast.some((d) => d.hourly_is_flat),
       // How many of the requested days came back as a real prediction.
       real_forecast_days: forecast.filter((d) => d.mode !== "seasonal_normal").length,
+      // Days since the nightly job last wrote these rows. 0-1 is normal; more
+      // means a missed run, and data_age_days (counted to today) has grown
+      // with it, so data_quality already warns the reader (audit §7.8).
+      forecast_run_age_days: tomorrow?.run_age_days ?? null,
     },
   );
 }

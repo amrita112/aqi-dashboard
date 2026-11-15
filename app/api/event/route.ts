@@ -53,7 +53,11 @@ export async function POST(request: Request) {
   if (!NAMES.has(name)) return badRequest("Unknown event name");
   if (detail !== null && !DETAIL.test(detail)) return badRequest("detail must be a short token");
 
-  const { error } = await createClient().from("usage_events").insert({ name, detail });
+  // Through record_usage_event() (migration 23); direct inserts are refused.
+  const { error } = await createClient().rpc("record_usage_event", {
+    p_name: name,
+    p_detail: detail,
+  });
   // A count that failed to record is not worth telling anyone about, and
   // certainly not worth an error on screen: this endpoint exists to observe
   // the app, never to affect it. Logged for us, 204 for them.

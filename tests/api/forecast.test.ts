@@ -152,3 +152,28 @@ describe("bestHour", () => {
     expect(bestHour(day)).toBeNull();
   });
 });
+
+describe("expandDay counts days from TODAY, not from the run night", () => {
+  it("heads today's row 'for today', not 'for tomorrow' (audit §7.9)", () => {
+    // Yesterday's horizon-1 row is today's forecast.
+    const d = expandDay(row({ target_date: "2026-11-15", horizon_days: 1 }), "Delhi",
+      indexShape(eveningShape()), { hourly: false, today: "2026-11-15" });
+    expect(d.headline).toBe("Forecast for today");
+  });
+
+  it("heads tomorrow's row 'for tomorrow' whatever its horizon_days", () => {
+    const d = expandDay(row({ target_date: "2026-11-16", horizon_days: 2, mode: "outlook" }),
+      "Delhi", indexShape(eveningShape()), { hourly: false, today: "2026-11-15" });
+    expect(d.headline).toBe("Outlook for tomorrow");
+  });
+
+  it("reports the reading's age as of today when the nightly job has stalled (audit §7.8)", () => {
+    // Computed on 12 Nov from a reading of 11 Nov; it is now 15 Nov.
+    const d = expandDay(
+      row({ target_date: "2026-11-16", horizon_days: 4, based_on_date: "2026-11-11",
+            data_age_days: 1, computed_at: "2026-11-12T05:35:00Z" }),
+      "Delhi", indexShape(eveningShape()), { hourly: false, today: "2026-11-15" });
+    expect(d.data_age_days).toBe(4);
+    expect(d.run_age_days).toBe(3);
+  });
+});

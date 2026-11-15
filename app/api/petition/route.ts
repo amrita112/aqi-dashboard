@@ -79,21 +79,16 @@ export async function POST(request: Request) {
   }
 
   const supabase = createClient();
-  // THE TOKEN IS GENERATED HERE, NOT READ BACK. Asking Postgres to RETURN the
-  // inserted row needs SELECT on the table, and this table deliberately has no
-  // SELECT policy at all — so `.insert().select()` failed with "new row
-  // violates row-level security policy", which reads like the insert was
-  // refused when in fact it succeeded and only the read-back was denied.
-  //
-  // Supplying the UUID means we already know it and never have to ask.
-  const withdrawalToken = crypto.randomUUID();
-  const { error } = await supabase.from("petition_signatures").insert({
-    name,
-    email,
-    city,
-    wants_updates: wantsUpdates,
-    purpose: PETITION_PURPOSE,
-    withdrawal_token: withdrawalToken,
+  // THROUGH sign_petition(), NOT A DIRECT INSERT (migration 23). The
+  // function sets the purpose, the expiry and the withdrawal token itself, so
+  // nobody holding the public key can choose them; direct inserts are refused
+  // after migration 24. It returns the token, shown to the signatory once.
+  const { data: withdrawalToken, error } = await supabase.rpc("sign_petition", {
+    p_kind: "petition",
+    p_name: name,
+    p_email: email,
+    p_city: city,
+    p_wants_updates: wantsUpdates,
   });
 
   if (error) {
@@ -103,6 +98,9 @@ export async function POST(request: Request) {
       return fail("That email address has already signed. Thank you.", 409);
     }
     return fail("Could not record the signature", 502, error.message);
+  }
+  if (typeof withdrawalToken !== "string") {
+    return fail("Could not record the signature", 502, "sign_petition returned no token");
   }
 
   return ok(

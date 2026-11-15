@@ -112,3 +112,74 @@ def get_admin_user_id(client: Client) -> str:
             "before running the ingest."
         )
     return result.data[0]["id"]
+
+
+# ─── Keeping readings.aqi_value in step with its measurements ────────────────
+
+MEASUREMENT_LOOKUP_CHUNK = 200   # reading ids per .in_() query, to keep URLs short
+
+
+def fetch_measurements_for(client: Client, reading_ids: Iterable[str]
+                           ) -> Dict[str, Dict[str, float]]:
+    """reading_id -> {pollutant: value}, for every measurement of those readings.
+
+    Paged within each chunk: 200 readings x 4 pollutants can pass the
+    1,000-row cap. Ordered, so pages cannot overlap or skip.
+    """
+    ids = sorted(set(reading_ids))
+    out: Dict[str, Dict[str, float]] = {}
+    for i in range(0, len(ids), MEASUREMENT_LOOKUP_CHUNK):
+        chunk = ids[i:i + MEASUREMENT_LOOKUP_CHUNK]
+        offset = 0
+        while True:
+            r = (client.table("measurements")
+                       .select("reading_id, pollutant, value")
+                       .in_("reading_id", chunk)
+                       .order("reading_id").order("pollutant")
+                       .range(offset, offset + 999).execute())
+            batch = r.data or []
+            for m in batch:
+                if m["value"] is not None:
+                    out.setdefault(m["reading_id"], {})[m["pollutant"]] = float(m["value"])
+            if len(batch) < 1000:
+                break
+            offset += 1000
+    return out
+
+
+def recompute_aqi(measurements_by_reading: Dict[str, Dict[str, float]],
+                  reading_ids: Iterable[str]) -> Dict[str, Any]:
+    """reading_id -> the AQI its measurements give now (None if the AQI rule is
+    not met). A reading with no measurements at all also gets None."""
+    from scripts.ingest.lib.aqi_rule import composite_aqi
+    return {rid: composite_aqi(measurements_by_reading.get(rid, {}))
+            for rid in set(reading_ids)}
+
+
+def write_reading_aqi(client: Client, values: Dict[str, Any], chunk: int = 1000) -> int:
+    """Write aqi_value for many readings via set_reading_aqi (migration 25).
+    Only rows whose value changes are rewritten; returns how many changed."""
+    items = sorted(values.items())
+    changed = 0
+    for i in range(0, len(items), chunk):
+        part = items[i:i + chunk]
+        r = client.rpc("set_reading_aqi", {
+            "p_ids": [rid for rid, _ in part],
+            "p_values": [v for _, v in part],
+        }).execute()
+        changed += int(r.data or 0)
+    return changed
+
+
+def refresh_reading_aqi(client: Client, reading_ids: Iterable[str]) -> int:
+    """Recompute aqi_value for these readings from ALL their measurements.
+
+    Called by both ingests for every reading that just gained a measurement.
+    Before Nov 2026 aqi_value was computed once, from whichever pollutants had
+    arrived first, and never updated (audit §1.2) -- so a timestamp first seen
+    with only NO2 kept NO2's AQI after PM2.5 and PM10 arrived.
+    """
+    ids = list(set(reading_ids))
+    if not ids:
+        return 0
+    return write_reading_aqi(client, recompute_aqi(fetch_measurements_for(client, ids), ids))

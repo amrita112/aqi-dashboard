@@ -47,10 +47,8 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
 
-from scripts.ingest.lib.aqi_utils import (
-    compute_aqi_from_measurements,
-    convert_to_canonical,
-)
+from scripts.ingest.lib.aqi_rule import composite_aqi
+from scripts.ingest.lib.aqi_utils import convert_to_canonical
 from scripts.ingest.lib.config import (
     TARGET_POLLUTANTS,
     TARGET_STATIONS_PATH,
@@ -61,6 +59,7 @@ from scripts.ingest.lib.supabase_client import (
     canonical_ts,
     get_admin_user_id,
     make_client,
+    refresh_reading_aqi,
     upsert_measurements,
     upsert_readings,
 )
@@ -241,9 +240,12 @@ def build_rows(
     readings_rows: List[Dict[str, Any]] = []
     measurements_placeholder: List[Dict[str, Any]] = []
     for ts, by_pollutant in by_ts.items():
-        composite = compute_aqi_from_measurements(
-            [{"pollutant": p, "value": v} for p, v in by_pollutant.items()]
-        )
+        # None (stored as NULL) unless PM2.5 and PM10 are both present: the AQI
+        # rule in lib/daily-quality-config.json. A timestamp where only SO2 had
+        # arrived used to be stored as AQI 25 "Good" (audit §4.2). It is
+        # recomputed when the other pollutants arrive -- see
+        # refresh_reading_aqi below.
+        composite = composite_aqi(by_pollutant)
         ts_canonical = canonical_ts(ts)
         readings_rows.append({
             "user_id":     admin_user_id,
@@ -337,6 +339,7 @@ def main() -> None:
     new_measurements = 0
     failed_sensors = 0
     empty_sensors = 0
+    aqi_refreshed = 0
 
     for i, station in enumerate(stations):
         # Fetch every target sensor on this station. openaq.get() throttles
@@ -369,6 +372,10 @@ def main() -> None:
             all_readings = fetch_existing_reading_ids(supabase, [station["monitor_id"]], since_iso)
             linked = link_measurements(meas_placeholder, all_readings)
             m_inserted = upsert_measurements(supabase, linked)
+            # Any reading that just gained a measurement gets its aqi_value
+            # recomputed from ALL its measurements, old and new.
+            aqi_refreshed += refresh_reading_aqi(
+                supabase, {m["reading_id"] for m in m_inserted if m.get("reading_id")})
             # Count attempts and actual inserts separately. The old log added
             # ATTEMPTED readings to INSERTED measurements, which made a healthy
             # run look broken: re-seen readings counted, re-seen measurements
@@ -394,6 +401,7 @@ def main() -> None:
         f"were NEW -- the rest already existed, which is expected because the "
         f"{window_hours}h window overlaps previous runs."
     )
+    print(f"      aqi_value recomputed and changed for {aqi_refreshed:,} existing readings.")
     print(
         f"      Sensors: {total_sensors} asked, {failed_sensors} FAILED, "
         f"{empty_sensors} returned nothing for the window."

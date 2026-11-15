@@ -168,6 +168,26 @@ export function rateLimitSizesOf(text: string): { limit: number; requested: numb
   return limit && requested ? { limit: Number(limit[1]), requested: Number(requested[1]) } : null;
 }
 
+/**
+ * The provider's name, from the configured base URL, for the system prompt.
+ * Derived rather than written into the prompt: the prompt said "Groq" for a
+ * month after the switch to OpenRouter, so the AI told users the wrong
+ * recipient of their questions (audit §2.6). The privacy page names the
+ * recipient too, so the two must agree.
+ */
+export function providerName(baseUrl: string = aiConfig().baseUrl): string {
+  const host = (() => {
+    try {
+      return new URL(baseUrl).hostname;
+    } catch {
+      return "";
+    }
+  })();
+  if (host.endsWith("openrouter.ai")) return "OpenRouter";
+  if (host.endsWith("groq.com")) return "Groq";
+  return host || "an external AI provider";
+}
+
 export function aiConfig() {
   const apiKey = process.env.AI_API_KEY ?? process.env.GROQ_API_KEY ?? "";
   return {

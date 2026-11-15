@@ -1,14 +1,33 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Keep headers in alphabetical order, and add new headers in the appropriate place.
+
+# data
+/data
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # dependencies
 /node_modules
 /.pnp
 .pnp.js
 .yarn/install-state.gz
-/Papa_s html prototypes
 
-# testing
-/coverage
+# documentation - code review, user feedback, plannning, design notes
+/docs
+memory_commented.md
+
+# local env files
+.env*.local
+
+# Marketing materials
+/Marketing
+
+# misc
+.DS_Store
+*.pem
 
 # next.js
 /.next/
@@ -16,24 +35,7 @@
 
 # production
 /build
-
-# misc
-.DS_Store
-*.pem
-memory_commented.md
-/XKDR_data
 /App mockups
-
-# planning docs — kept local, not published
-/docs/v1-plan.md
-/docs/v1-plan-notes.md
-/docs/llm-integration-research.md
-
-# research notebooks — kept local (may embed API keys / sample data in outputs)
-/notebooks/
-!/notebooks/.gitkeep
-/notes
-/contrib
 
 # python
 __pycache__/
@@ -41,24 +43,21 @@ __pycache__/
 *.pyo
 .pytest_cache/
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# research notebooks — kept local (may embed API keys / sample data in outputs)
+# `/notebooks/*` (not `/notebooks/`): git cannot re-include a file inside an
+# excluded directory, so the directory itself must stay visible.
+/notebooks/*
+!/notebooks/.gitkeep
+# The forecast verification notebook IS tracked: it must change with the code.
+!/notebooks/forecast_verification.ipynb
+/contrib
 
-# local env files
-.env*.local
-
-# vercel
-.vercel
+# testing
+/coverage
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-# OpenAQ raw historical archive — bulk downloaded, not source
-/data/
-
-# XKDR contribution (contrib/) is kept local and shared with XKDR directly,
-# not through this repo. /contrib under "research notebooks" above covers it.
-/Marketing
+# vercel
+.vercel

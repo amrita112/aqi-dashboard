@@ -1,0 +1,32 @@
+{
+  "_comment": "Which station-days are complete enough to use. Read by BOTH scripts/forecast/daily_quality.py and lib/api/daily-quality.ts, so the forecast and the app's own charts apply one rule. Change it here, nowhere else.",
+
+  "min_hours_for_complete_day": 12,
+  "_min_hours": "At least 12 hours of data. CPCB's rule for an official 24-hour average is 16, but OpenAQ often drops a few hours for EVERY station on the same day (a lost publication batch): measured over 12 Oct - 14 Nov 2026, 16 h kept only 9 of ~155 PM2.5 stations on 18 Oct, 27 Oct and 4 Nov, while 12 h kept 135-148. A city average resting on a handful of stations is far worse than a daily mean missing a few hours. 12 is also what the original feasibility analysis was validated with (>= 12 hourly readings per station-day). Chosen 15 Nov 2026.",
+
+  "readings_per_day_hourly": 24,
+  "readings_per_day_15min": 96,
+  "cadence_split": 30,
+  "cadence_quantile": 0.9,
+  "_cadence": "A station's cadence is not stored. It is inferred per (station, pollutant, source) from its typical day: the 90th percentile of its daily counts. Above 30 means it reports every 15 minutes (full day 96), otherwise hourly (full day 24).",
+
+  "valid_min": 0,
+  "valid_max": 2000,
+  "_valid": "Daily means outside this range (µg/m³) are instrument faults.",
+
+  "aqi_rule": "both_pm",
+  "aqi_rules": {
+    "both_pm": {
+      "required_all": ["pm25", "pm10"],
+      "required_any": [],
+      "min_pollutants": 2,
+      "_why": "Default. We store only 4 of the 8 NAQI pollutants, and PM2.5 or PM10 sets the AQI on 93-97% of days (PM10 alone on 36-64%). A day missing PM10 can understate the AQI badly; a day missing NO2/SO2 is off by ~11-13 points on 3-7% of days. So both PMs are required, and NO2/SO2 join the max when present."
+    },
+    "cpcb": {
+      "required_all": [],
+      "required_any": ["pm25", "pm10"],
+      "min_pollutants": 3,
+      "_why": "CPCB's NAQI minimum: at least 3 pollutants, one of them PM2.5 or PM10."
+    }
+  }
+}

@@ -1,0 +1,3055 @@
+{
+ "_comment": "Shared by tests/test_serving_mirror.py (the Python mirror, scripts/forecast/serving_mirror.py) and tests/api/serving-mirror.test.ts (the app's TypeScript, lib/api/forecast.ts expandDay and lib/api/data.ts averageForecastDays). Both must produce `expected` exactly. Band colours/labels, computed_at and run_age_days are not mirrored and are left out of the comparison.",
+ "shape_rows": [
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 0,
+   "ratio": 1.1768
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 1,
+   "ratio": 1.125
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 2,
+   "ratio": 1.0647
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 3,
+   "ratio": 1.0
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 4,
+   "ratio": 0.9353
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 5,
+   "ratio": 0.875
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 6,
+   "ratio": 0.8232
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 7,
+   "ratio": 0.7835
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 8,
+   "ratio": 0.7585
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 9,
+   "ratio": 0.75
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 10,
+   "ratio": 0.7585
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 11,
+   "ratio": 0.7835
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 12,
+   "ratio": 0.8232
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 13,
+   "ratio": 0.875
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 14,
+   "ratio": 0.9353
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 15,
+   "ratio": 1.0
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 16,
+   "ratio": 1.0647
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 17,
+   "ratio": 1.125
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 18,
+   "ratio": 1.1768
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 19,
+   "ratio": 1.2165
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 20,
+   "ratio": 1.2415
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 21,
+   "ratio": 1.25
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 22,
+   "ratio": 1.2415
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 23,
+   "ratio": 1.2165
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 0,
+   "ratio": 1.2121
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 1,
+   "ratio": 1.15
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 2,
+   "ratio": 1.0776
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 3,
+   "ratio": 1.0
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 4,
+   "ratio": 0.9224
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 5,
+   "ratio": 0.85
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 6,
+   "ratio": 0.7879
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 7,
+   "ratio": 0.7402
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 8,
+   "ratio": 0.7102
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 9,
+   "ratio": 0.7
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 10,
+   "ratio": 0.7102
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 11,
+   "ratio": 0.7402
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 12,
+   "ratio": 0.7879
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 13,
+   "ratio": 0.85
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 14,
+   "ratio": 0.9224
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 15,
+   "ratio": 1.0
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 16,
+   "ratio": 1.0776
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 17,
+   "ratio": 1.15
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 18,
+   "ratio": 1.2121
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 19,
+   "ratio": 1.2598
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 20,
+   "ratio": 1.2898
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 21,
+   "ratio": 1.3
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 22,
+   "ratio": 1.2898
+  },
+  {
+   "city": "Delhi",
+   "pollutant": "pm25",
+   "month": 11,
+   "hour": 23,
+   "ratio": 1.2598
+  },
+  {
+   "city": "Pune",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 0,
+   "ratio": 1.15
+  },
+  {
+   "city": "Pune",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 9,
+   "ratio": 0.85
+  },
+  {
+   "city": "Pune",
+   "pollutant": "aqi",
+   "month": 11,
+   "hour": 21,
+   "ratio": 1.25
+  }
+ ],
+ "expand_cases": [
+  {
+   "name": "forecast with shape and band, tomorrow",
+   "row": {
+    "monitor_id": "m1",
+    "pollutant": "aqi",
+    "target_date": "2026-11-16",
+    "horizon_days": 1,
+    "value": 212.37,
+    "band_p50": 0.15,
+    "band_p80": 0.3,
+    "mode": "forecast",
+    "model": "blend",
+    "based_on_date": "2026-11-12",
+    "data_age_days": 3
+   },
+   "city": "Delhi",
+   "today": "2026-11-15",
+   "expected": {
+    "target_date": "2026-11-16",
+    "horizon_days": 1,
+    "value": 212.4,
+    "band_low": 148.7,
+    "band_high": 276.1,
+    "mode": "forecast",
+    "headline": "Forecast for tomorrow",
+    "model": "blend",
+    "based_on_date": "2026-11-12",
+    "data_age_days": 3,
+    "hourly": [
+     {
+      "hour": 0,
+      "local_time": "2026-11-16T00:00",
+      "value": 249.9,
+      "band_low": 174.9,
+      "band_high": 324.9
+     },
+     {
+      "hour": 1,
+      "local_time": "2026-11-16T01:00",
+      "value": 238.9,
+      "band_low": 167.2,
+      "band_high": 310.6
+     },
+     {
+      "hour": 2,
+      "local_time": "2026-11-16T02:00",
+      "value": 226.1,
+      "band_low": 158.3,
+      "band_high": 293.9
+     },
+     {
+      "hour": 3,
+      "local_time": "2026-11-16T03:00",
+      "value": 212.4,
+      "band_low": 148.7,
+      "band_high": 276.1
+     },
+     {
+      "hour": 4,
+      "local_time": "2026-11-16T04:00",
+      "value": 198.6,
+      "band_low": 139.0,
+      "band_high": 258.2
+     },
+     {
+      "hour": 5,
+      "local_time": "2026-11-16T05:00",
+      "value": 185.8,
+      "band_low": 130.1,
+      "band_high": 241.5
+     },
+     {
+      "hour": 6,
+      "local_time": "2026-11-16T06:00",
+      "value": 174.8,
+      "band_low": 122.4,
+      "band_high": 227.2
+     },
+     {
+      "hour": 7,
+      "local_time": "2026-11-16T07:00",
+      "value": 166.4,
+      "band_low": 116.5,
+      "band_high": 216.3
+     },
+     {
+      "hour": 8,
+      "local_time": "2026-11-16T08:00",
+      "value": 161.1,
+      "band_low": 112.8,
+      "band_high": 209.4
+     },
+     {
+      "hour": 9,
+      "local_time": "2026-11-16T09:00",
+      "value": 159.3,
+      "band_low": 111.5,
+      "band_high": 207.1
+     },
+     {
+      "hour": 10,
+      "local_time": "2026-11-16T10:00",
+      "value": 161.1,
+      "band_low": 112.8,
+      "band_high": 209.4
+     },
+     {
+      "hour": 11,
+      "local_time": "2026-11-16T11:00",
+      "value": 166.4,
+      "band_low": 116.5,
+      "band_high": 216.3
+     },
+     {
+      "hour": 12,
+      "local_time": "2026-11-16T12:00",
+      "value": 174.8,
+      "band_low": 122.4,
+      "band_high": 227.2
+     },
+     {
+      "hour": 13,
+      "local_time": "2026-11-16T13:00",
+      "value": 185.8,
+      "band_low": 130.1,
+      "band_high": 241.5
+     },
+     {
+      "hour": 14,
+      "local_time": "2026-11-16T14:00",
+      "value": 198.6,
+      "band_low": 139.0,
+      "band_high": 258.2
+     },
+     {
+      "hour": 15,
+      "local_time": "2026-11-16T15:00",
+      "value": 212.4,
+      "band_low": 148.7,
+      "band_high": 276.1
+     },
+     {
+      "hour": 16,
+      "local_time": "2026-11-16T16:00",
+      "value": 226.1,
+      "band_low": 158.3,
+      "band_high": 293.9
+     },
+     {
+      "hour": 17,
+      "local_time": "2026-11-16T17:00",
+      "value": 238.9,
+      "band_low": 167.2,
+      "band_high": 310.6
+     },
+     {
+      "hour": 18,
+      "local_time": "2026-11-16T18:00",
+      "value": 249.9,
+      "band_low": 174.9,
+      "band_high": 324.9
+     },
+     {
+      "hour": 19,
+      "local_time": "2026-11-16T19:00",
+      "value": 258.3,
+      "band_low": 180.8,
+      "band_high": 335.8
+     },
+     {
+      "hour": 20,
+      "local_time": "2026-11-16T20:00",
+      "value": 263.7,
+      "band_low": 184.6,
+      "band_high": 342.8
+     },
+     {
+      "hour": 21,
+      "local_time": "2026-11-16T21:00",
+      "value": 265.5,
+      "band_low": 185.9,
+      "band_high": 345.2
+     },
+     {
+      "hour": 22,
+      "local_time": "2026-11-16T22:00",
+      "value": 263.7,
+      "band_low": 184.6,
+      "band_high": 342.8
+     },
+     {
+      "hour": 23,
+      "local_time": "2026-11-16T23:00",
+      "value": 258.3,
+      "band_low": 180.8,
+      "band_high": 335.8
+     }
+    ],
+    "hourly_is_flat": false
+   }
+  },
+  {
+   "name": "exact half rounds UP like JavaScript (100.25 -> 100.3)",
+   "row": {
+    "monitor_id": "m1",
+    "pollutant": "aqi",
+    "target_date": "2026-11-17",
+    "horizon_days": 2,
+    "value": 100.25,
+    "band_p50": 0.15,
+    "band_p80": 0.45,
+    "mode": "outlook",
+    "model": "blend",
+    "based_on_date": "2026-11-13",
+    "data_age_days": 2
+   },
+   "city": "Delhi",
+   "today": "2026-11-15",
+   "expected": {
+    "target_date": "2026-11-17",
+    "horizon_days": 2,
+    "value": 100.3,
+    "band_low": 55.1,
+    "band_high": 145.4,
+    "mode": "outlook",
+    "headline": "Outlook, 2 days ahead",
+    "model": "blend",
+    "based_on_date": "2026-11-13",
+    "data_age_days": 2,
+    "hourly": [
+     {
+      "hour": 0,
+      "local_time": "2026-11-17T00:00",
+      "value": 118.0,
+      "band_low": 64.9,
+      "band_high": 171.1
+     },
+     {
+      "hour": 1,
+      "local_time": "2026-11-17T01:00",
+      "value": 112.8,
+      "band_low": 62.0,
+      "band_high": 163.6
+     },
+     {
+      "hour": 2,
+      "local_time": "2026-11-17T02:00",
+      "value": 106.7,
+      "band_low": 58.7,
+      "band_high": 154.7
+     },
+     {
+      "hour": 3,
+      "local_time": "2026-11-17T03:00",
+      "value": 100.3,
+      "band_low": 55.2,
+      "band_high": 145.4
+     },
+     {
+      "hour": 4,
+      "local_time": "2026-11-17T04:00",
+      "value": 93.8,
+      "band_low": 51.6,
+      "band_high": 136.0
+     },
+     {
+      "hour": 5,
+      "local_time": "2026-11-17T05:00",
+      "value": 87.7,
+      "band_low": 48.2,
+      "band_high": 127.2
+     },
+     {
+      "hour": 6,
+      "local_time": "2026-11-17T06:00",
+      "value": 82.5,
+      "band_low": 45.4,
+      "band_high": 119.6
+     },
+     {
+      "hour": 7,
+      "local_time": "2026-11-17T07:00",
+      "value": 78.5,
+      "band_low": 43.2,
+      "band_high": 113.8
+     },
+     {
+      "hour": 8,
+      "local_time": "2026-11-17T08:00",
+      "value": 76.0,
+      "band_low": 41.8,
+      "band_high": 110.2
+     },
+     {
+      "hour": 9,
+      "local_time": "2026-11-17T09:00",
+      "value": 75.2,
+      "band_low": 41.4,
+      "band_high": 109.0
+     },
+     {
+      "hour": 10,
+      "local_time": "2026-11-17T10:00",
+      "value": 76.0,
+      "band_low": 41.8,
+      "band_high": 110.2
+     },
+     {
+      "hour": 11,
+      "local_time": "2026-11-17T11:00",
+      "value": 78.5,
+      "band_low": 43.2,
+      "band_high": 113.8
+     },
+     {
+      "hour": 12,
+      "local_time": "2026-11-17T12:00",
+      "value": 82.5,
+      "band_low": 45.4,
+      "band_high": 119.6
+     },
+     {
+      "hour": 13,
+      "local_time": "2026-11-17T13:00",
+      "value": 87.7,
+      "band_low": 48.2,
+      "band_high": 127.2
+     },
+     {
+      "hour": 14,
+      "local_time": "2026-11-17T14:00",
+      "value": 93.8,
+      "band_low": 51.6,
+      "band_high": 136.0
+     },
+     {
+      "hour": 15,
+      "local_time": "2026-11-17T15:00",
+      "value": 100.3,
+      "band_low": 55.2,
+      "band_high": 145.4
+     },
+     {
+      "hour": 16,
+      "local_time": "2026-11-17T16:00",
+      "value": 106.7,
+      "band_low": 58.7,
+      "band_high": 154.7
+     },
+     {
+      "hour": 17,
+      "local_time": "2026-11-17T17:00",
+      "value": 112.8,
+      "band_low": 62.0,
+      "band_high": 163.6
+     },
+     {
+      "hour": 18,
+      "local_time": "2026-11-17T18:00",
+      "value": 118.0,
+      "band_low": 64.9,
+      "band_high": 171.1
+     },
+     {
+      "hour": 19,
+      "local_time": "2026-11-17T19:00",
+      "value": 122.0,
+      "band_low": 67.1,
+      "band_high": 176.9
+     },
+     {
+      "hour": 20,
+      "local_time": "2026-11-17T20:00",
+      "value": 124.5,
+      "band_low": 68.5,
+      "band_high": 180.5
+     },
+     {
+      "hour": 21,
+      "local_time": "2026-11-17T21:00",
+      "value": 125.3,
+      "band_low": 68.9,
+      "band_high": 181.7
+     },
+     {
+      "hour": 22,
+      "local_time": "2026-11-17T22:00",
+      "value": 124.5,
+      "band_low": 68.5,
+      "band_high": 180.5
+     },
+     {
+      "hour": 23,
+      "local_time": "2026-11-17T23:00",
+      "value": 122.0,
+      "band_low": 67.1,
+      "band_high": 176.9
+     }
+    ],
+    "hourly_is_flat": false
+   }
+  },
+  {
+   "name": "seasonal normal: no band, no shape for this city (flat hours)",
+   "row": {
+    "monitor_id": "m2",
+    "pollutant": "aqi",
+    "target_date": "2026-11-18",
+    "horizon_days": 3,
+    "value": 88.4,
+    "band_p50": null,
+    "band_p80": null,
+    "mode": "seasonal_normal",
+    "model": "climatology",
+    "based_on_date": null,
+    "data_age_days": null
+   },
+   "city": "Kolkata",
+   "today": "2026-11-15",
+   "expected": {
+    "target_date": "2026-11-18",
+    "horizon_days": 3,
+    "value": 88.4,
+    "band_low": null,
+    "band_high": null,
+    "mode": "seasonal_normal",
+    "headline": "Typical for this time of year — no recent reading to predict from",
+    "model": "climatology",
+    "based_on_date": null,
+    "data_age_days": null,
+    "hourly": [
+     {
+      "hour": 0,
+      "local_time": "2026-11-18T00:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 1,
+      "local_time": "2026-11-18T01:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 2,
+      "local_time": "2026-11-18T02:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 3,
+      "local_time": "2026-11-18T03:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 4,
+      "local_time": "2026-11-18T04:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 5,
+      "local_time": "2026-11-18T05:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 6,
+      "local_time": "2026-11-18T06:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 7,
+      "local_time": "2026-11-18T07:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 8,
+      "local_time": "2026-11-18T08:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 9,
+      "local_time": "2026-11-18T09:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 10,
+      "local_time": "2026-11-18T10:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 11,
+      "local_time": "2026-11-18T11:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 12,
+      "local_time": "2026-11-18T12:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 13,
+      "local_time": "2026-11-18T13:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 14,
+      "local_time": "2026-11-18T14:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 15,
+      "local_time": "2026-11-18T15:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 16,
+      "local_time": "2026-11-18T16:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 17,
+      "local_time": "2026-11-18T17:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 18,
+      "local_time": "2026-11-18T18:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 19,
+      "local_time": "2026-11-18T19:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 20,
+      "local_time": "2026-11-18T20:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 21,
+      "local_time": "2026-11-18T21:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 22,
+      "local_time": "2026-11-18T22:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     },
+     {
+      "hour": 23,
+      "local_time": "2026-11-18T23:00",
+      "value": 88.4,
+      "band_low": null,
+      "band_high": null
+     }
+    ],
+    "hourly_is_flat": true
+   }
+  },
+  {
+   "name": "today's row, thin shape (missing hours default to 1)",
+   "row": {
+    "monitor_id": "m3",
+    "pollutant": "aqi",
+    "target_date": "2026-11-15",
+    "horizon_days": 1,
+    "value": 150.0,
+    "band_p50": 0.15,
+    "band_p80": 0.3,
+    "mode": "forecast",
+    "model": "persistence",
+    "based_on_date": "2026-11-12",
+    "data_age_days": 2
+   },
+   "city": "Pune",
+   "today": "2026-11-15",
+   "expected": {
+    "target_date": "2026-11-15",
+    "horizon_days": 1,
+    "value": 150.0,
+    "band_low": 105.0,
+    "band_high": 195.0,
+    "mode": "forecast",
+    "headline": "Forecast for today",
+    "model": "persistence",
+    "based_on_date": "2026-11-12",
+    "data_age_days": 3,
+    "hourly": [
+     {
+      "hour": 0,
+      "local_time": "2026-11-15T00:00",
+      "value": 172.5,
+      "band_low": 120.7,
+      "band_high": 224.3
+     },
+     {
+      "hour": 1,
+      "local_time": "2026-11-15T01:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 2,
+      "local_time": "2026-11-15T02:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 3,
+      "local_time": "2026-11-15T03:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 4,
+      "local_time": "2026-11-15T04:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 5,
+      "local_time": "2026-11-15T05:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 6,
+      "local_time": "2026-11-15T06:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 7,
+      "local_time": "2026-11-15T07:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 8,
+      "local_time": "2026-11-15T08:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 9,
+      "local_time": "2026-11-15T09:00",
+      "value": 127.5,
+      "band_low": 89.3,
+      "band_high": 165.8
+     },
+     {
+      "hour": 10,
+      "local_time": "2026-11-15T10:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 11,
+      "local_time": "2026-11-15T11:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 12,
+      "local_time": "2026-11-15T12:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 13,
+      "local_time": "2026-11-15T13:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 14,
+      "local_time": "2026-11-15T14:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 15,
+      "local_time": "2026-11-15T15:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 16,
+      "local_time": "2026-11-15T16:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 17,
+      "local_time": "2026-11-15T17:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 18,
+      "local_time": "2026-11-15T18:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 19,
+      "local_time": "2026-11-15T19:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 20,
+      "local_time": "2026-11-15T20:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 21,
+      "local_time": "2026-11-15T21:00",
+      "value": 187.5,
+      "band_low": 131.3,
+      "band_high": 243.8
+     },
+     {
+      "hour": 22,
+      "local_time": "2026-11-15T22:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     },
+     {
+      "hour": 23,
+      "local_time": "2026-11-15T23:00",
+      "value": 150.0,
+      "band_low": 105.0,
+      "band_high": 195.0
+     }
+    ],
+    "hourly_is_flat": false
+   }
+  },
+  {
+   "name": "pm25 row, data age counted to today not to the run",
+   "row": {
+    "monitor_id": "m1",
+    "pollutant": "pm25",
+    "target_date": "2026-11-16",
+    "horizon_days": 1,
+    "value": 140.05,
+    "band_p50": 0.15,
+    "band_p80": 0.3,
+    "mode": "forecast",
+    "model": "blend",
+    "based_on_date": "2026-11-10",
+    "data_age_days": 4
+   },
+   "city": "Delhi",
+   "today": "2026-11-15",
+   "expected": {
+    "target_date": "2026-11-16",
+    "horizon_days": 1,
+    "value": 140.1,
+    "band_low": 98.0,
+    "band_high": 182.1,
+    "mode": "forecast",
+    "headline": "Forecast for tomorrow",
+    "model": "blend",
+    "based_on_date": "2026-11-10",
+    "data_age_days": 5,
+    "hourly": [
+     {
+      "hour": 0,
+      "local_time": "2026-11-16T00:00",
+      "value": 169.8,
+      "band_low": 118.9,
+      "band_high": 220.7
+     },
+     {
+      "hour": 1,
+      "local_time": "2026-11-16T01:00",
+      "value": 161.1,
+      "band_low": 112.8,
+      "band_high": 209.4
+     },
+     {
+      "hour": 2,
+      "local_time": "2026-11-16T02:00",
+      "value": 150.9,
+      "band_low": 105.6,
+      "band_high": 196.2
+     },
+     {
+      "hour": 3,
+      "local_time": "2026-11-16T03:00",
+      "value": 140.1,
+      "band_low": 98.1,
+      "band_high": 182.1
+     },
+     {
+      "hour": 4,
+      "local_time": "2026-11-16T04:00",
+      "value": 129.2,
+      "band_low": 90.4,
+      "band_high": 168.0
+     },
+     {
+      "hour": 5,
+      "local_time": "2026-11-16T05:00",
+      "value": 119.0,
+      "band_low": 83.3,
+      "band_high": 154.7
+     },
+     {
+      "hour": 6,
+      "local_time": "2026-11-16T06:00",
+      "value": 110.3,
+      "band_low": 77.2,
+      "band_high": 143.4
+     },
+     {
+      "hour": 7,
+      "local_time": "2026-11-16T07:00",
+      "value": 103.7,
+      "band_low": 72.6,
+      "band_high": 134.8
+     },
+     {
+      "hour": 8,
+      "local_time": "2026-11-16T08:00",
+      "value": 99.5,
+      "band_low": 69.6,
+      "band_high": 129.4
+     },
+     {
+      "hour": 9,
+      "local_time": "2026-11-16T09:00",
+      "value": 98.0,
+      "band_low": 68.6,
+      "band_high": 127.4
+     },
+     {
+      "hour": 10,
+      "local_time": "2026-11-16T10:00",
+      "value": 99.5,
+      "band_low": 69.6,
+      "band_high": 129.4
+     },
+     {
+      "hour": 11,
+      "local_time": "2026-11-16T11:00",
+      "value": 103.7,
+      "band_low": 72.6,
+      "band_high": 134.8
+     },
+     {
+      "hour": 12,
+      "local_time": "2026-11-16T12:00",
+      "value": 110.3,
+      "band_low": 77.2,
+      "band_high": 143.4
+     },
+     {
+      "hour": 13,
+      "local_time": "2026-11-16T13:00",
+      "value": 119.0,
+      "band_low": 83.3,
+      "band_high": 154.7
+     },
+     {
+      "hour": 14,
+      "local_time": "2026-11-16T14:00",
+      "value": 129.2,
+      "band_low": 90.4,
+      "band_high": 168.0
+     },
+     {
+      "hour": 15,
+      "local_time": "2026-11-16T15:00",
+      "value": 140.1,
+      "band_low": 98.1,
+      "band_high": 182.1
+     },
+     {
+      "hour": 16,
+      "local_time": "2026-11-16T16:00",
+      "value": 150.9,
+      "band_low": 105.6,
+      "band_high": 196.2
+     },
+     {
+      "hour": 17,
+      "local_time": "2026-11-16T17:00",
+      "value": 161.1,
+      "band_low": 112.8,
+      "band_high": 209.4
+     },
+     {
+      "hour": 18,
+      "local_time": "2026-11-16T18:00",
+      "value": 169.8,
+      "band_low": 118.9,
+      "band_high": 220.7
+     },
+     {
+      "hour": 19,
+      "local_time": "2026-11-16T19:00",
+      "value": 176.4,
+      "band_low": 123.5,
+      "band_high": 229.3
+     },
+     {
+      "hour": 20,
+      "local_time": "2026-11-16T20:00",
+      "value": 180.6,
+      "band_low": 126.4,
+      "band_high": 234.8
+     },
+     {
+      "hour": 21,
+      "local_time": "2026-11-16T21:00",
+      "value": 182.1,
+      "band_low": 127.5,
+      "band_high": 236.7
+     },
+     {
+      "hour": 22,
+      "local_time": "2026-11-16T22:00",
+      "value": 180.6,
+      "band_low": 126.4,
+      "band_high": 234.8
+     },
+     {
+      "hour": 23,
+      "local_time": "2026-11-16T23:00",
+      "value": 176.4,
+      "band_low": 123.5,
+      "band_high": 229.3
+     }
+    ],
+    "hourly_is_flat": false
+   }
+  }
+ ],
+ "average_cases": [
+  {
+   "name": "seasonal_normal neighbour is left out when a real forecast exists",
+   "today": "2026-11-15",
+   "horizon_count": 3,
+   "pollutant": "aqi",
+   "stations": [
+    {
+     "monitor": {
+      "id": "a",
+      "name": "Station a",
+      "distance_km": 1.2
+     },
+     "rows": [
+      {
+       "monitor_id": "a",
+       "pollutant": "aqi",
+       "target_date": "2026-11-16",
+       "horizon_days": 1,
+       "value": 200.0,
+       "band_p50": 0.15,
+       "band_p80": 0.3,
+       "mode": "forecast",
+       "model": "blend",
+       "based_on_date": "2026-11-12",
+       "data_age_days": 3
+      },
+      {
+       "monitor_id": "a",
+       "pollutant": "aqi",
+       "target_date": "2026-11-17",
+       "horizon_days": 2,
+       "value": 190.0,
+       "band_p50": 0.15,
+       "band_p80": 0.3,
+       "mode": "forecast",
+       "model": "blend",
+       "based_on_date": "2026-11-12",
+       "data_age_days": 3
+      }
+     ],
+     "city": "Delhi"
+    },
+    {
+     "monitor": {
+      "id": "b",
+      "name": "Station b",
+      "distance_km": 3.4
+     },
+     "rows": [
+      {
+       "monitor_id": "b",
+       "pollutant": "aqi",
+       "target_date": "2026-11-16",
+       "horizon_days": 1,
+       "value": 120.0,
+       "band_p50": null,
+       "band_p80": null,
+       "mode": "seasonal_normal",
+       "model": "climatology",
+       "based_on_date": null,
+       "data_age_days": null
+      },
+      {
+       "monitor_id": "b",
+       "pollutant": "aqi",
+       "target_date": "2026-11-17",
+       "horizon_days": 2,
+       "value": 118.0,
+       "band_p50": null,
+       "band_p80": null,
+       "mode": "seasonal_normal",
+       "model": "climatology",
+       "based_on_date": null,
+       "data_age_days": null
+      }
+     ],
+     "city": "Delhi"
+    },
+    {
+     "monitor": {
+      "id": "c",
+      "name": "Station c",
+      "distance_km": 7.9
+     },
+     "rows": [
+      {
+       "monitor_id": "c",
+       "pollutant": "aqi",
+       "target_date": "2026-11-16",
+       "horizon_days": 1,
+       "value": 231.0,
+       "band_p50": 0.15,
+       "band_p80": 0.5,
+       "mode": "outlook",
+       "model": "blend",
+       "based_on_date": "2026-11-13",
+       "data_age_days": 2
+      },
+      {
+       "monitor_id": "c",
+       "pollutant": "aqi",
+       "target_date": "2026-11-17",
+       "horizon_days": 2,
+       "value": 205.0,
+       "band_p50": 0.15,
+       "band_p80": 0.5,
+       "mode": "outlook",
+       "model": "blend",
+       "based_on_date": "2026-11-13",
+       "data_age_days": 2
+      }
+     ],
+     "city": "Delhi"
+    }
+   ],
+   "expected": {
+    "value": [
+     {
+      "target_date": "2026-11-16",
+      "horizon_days": 1,
+      "value": 215.5,
+      "band_low": 127.8,
+      "band_high": 303.3,
+      "mode": "forecast",
+      "headline": "Forecast for tomorrow",
+      "model": "blend",
+      "based_on_date": "2026-11-12",
+      "data_age_days": 2.5,
+      "hourly": [
+       {
+        "hour": 0,
+        "local_time": "2026-11-16T00:00",
+        "value": 253.6,
+        "band_low": 150.4,
+        "band_high": 356.9
+       },
+       {
+        "hour": 1,
+        "local_time": "2026-11-16T01:00",
+        "value": 242.5,
+        "band_low": 143.8,
+        "band_high": 341.2
+       },
+       {
+        "hour": 2,
+        "local_time": "2026-11-16T02:00",
+        "value": 229.4,
+        "band_low": 136.0,
+        "band_high": 322.9
+       },
+       {
+        "hour": 3,
+        "local_time": "2026-11-16T03:00",
+        "value": 215.5,
+        "band_low": 127.8,
+        "band_high": 303.3
+       },
+       {
+        "hour": 4,
+        "local_time": "2026-11-16T04:00",
+        "value": 201.6,
+        "band_low": 119.6,
+        "band_high": 283.7
+       },
+       {
+        "hour": 5,
+        "local_time": "2026-11-16T05:00",
+        "value": 188.6,
+        "band_low": 111.8,
+        "band_high": 265.4
+       },
+       {
+        "hour": 6,
+        "local_time": "2026-11-16T06:00",
+        "value": 177.4,
+        "band_low": 105.2,
+        "band_high": 249.7
+       },
+       {
+        "hour": 7,
+        "local_time": "2026-11-16T07:00",
+        "value": 168.9,
+        "band_low": 100.1,
+        "band_high": 237.6
+       },
+       {
+        "hour": 8,
+        "local_time": "2026-11-16T08:00",
+        "value": 163.5,
+        "band_low": 96.9,
+        "band_high": 230.0
+       },
+       {
+        "hour": 9,
+        "local_time": "2026-11-16T09:00",
+        "value": 161.7,
+        "band_low": 95.9,
+        "band_high": 227.5
+       },
+       {
+        "hour": 10,
+        "local_time": "2026-11-16T10:00",
+        "value": 163.5,
+        "band_low": 96.9,
+        "band_high": 230.0
+       },
+       {
+        "hour": 11,
+        "local_time": "2026-11-16T11:00",
+        "value": 168.9,
+        "band_low": 100.1,
+        "band_high": 237.6
+       },
+       {
+        "hour": 12,
+        "local_time": "2026-11-16T12:00",
+        "value": 177.4,
+        "band_low": 105.2,
+        "band_high": 249.7
+       },
+       {
+        "hour": 13,
+        "local_time": "2026-11-16T13:00",
+        "value": 188.6,
+        "band_low": 111.8,
+        "band_high": 265.4
+       },
+       {
+        "hour": 14,
+        "local_time": "2026-11-16T14:00",
+        "value": 201.6,
+        "band_low": 119.6,
+        "band_high": 283.7
+       },
+       {
+        "hour": 15,
+        "local_time": "2026-11-16T15:00",
+        "value": 215.5,
+        "band_low": 127.8,
+        "band_high": 303.3
+       },
+       {
+        "hour": 16,
+        "local_time": "2026-11-16T16:00",
+        "value": 229.4,
+        "band_low": 136.0,
+        "band_high": 322.9
+       },
+       {
+        "hour": 17,
+        "local_time": "2026-11-16T17:00",
+        "value": 242.5,
+        "band_low": 143.8,
+        "band_high": 341.2
+       },
+       {
+        "hour": 18,
+        "local_time": "2026-11-16T18:00",
+        "value": 253.6,
+        "band_low": 150.4,
+        "band_high": 356.9
+       },
+       {
+        "hour": 19,
+        "local_time": "2026-11-16T19:00",
+        "value": 262.2,
+        "band_low": 155.4,
+        "band_high": 368.9
+       },
+       {
+        "hour": 20,
+        "local_time": "2026-11-16T20:00",
+        "value": 267.6,
+        "band_low": 158.6,
+        "band_high": 376.5
+       },
+       {
+        "hour": 21,
+        "local_time": "2026-11-16T21:00",
+        "value": 269.4,
+        "band_low": 159.7,
+        "band_high": 379.1
+       },
+       {
+        "hour": 22,
+        "local_time": "2026-11-16T22:00",
+        "value": 267.6,
+        "band_low": 158.6,
+        "band_high": 376.5
+       },
+       {
+        "hour": 23,
+        "local_time": "2026-11-16T23:00",
+        "value": 262.2,
+        "band_low": 155.4,
+        "band_high": 368.9
+       }
+      ],
+      "hourly_is_flat": false
+     },
+     {
+      "target_date": "2026-11-17",
+      "horizon_days": 2,
+      "value": 197.5,
+      "band_low": 117.8,
+      "band_high": 277.3,
+      "mode": "forecast",
+      "headline": "Forecast, 2 days ahead",
+      "model": "blend",
+      "based_on_date": "2026-11-12",
+      "data_age_days": 2.5,
+      "hourly": [
+       {
+        "hour": 0,
+        "local_time": "2026-11-17T00:00",
+        "value": 232.4,
+        "band_low": 138.6,
+        "band_high": 326.3
+       },
+       {
+        "hour": 1,
+        "local_time": "2026-11-17T01:00",
+        "value": 222.2,
+        "band_low": 132.5,
+        "band_high": 311.9
+       },
+       {
+        "hour": 2,
+        "local_time": "2026-11-17T02:00",
+        "value": 210.3,
+        "band_low": 125.4,
+        "band_high": 295.3
+       },
+       {
+        "hour": 3,
+        "local_time": "2026-11-17T03:00",
+        "value": 197.5,
+        "band_low": 117.8,
+        "band_high": 277.3
+       },
+       {
+        "hour": 4,
+        "local_time": "2026-11-17T04:00",
+        "value": 184.7,
+        "band_low": 110.2,
+        "band_high": 259.3
+       },
+       {
+        "hour": 5,
+        "local_time": "2026-11-17T05:00",
+        "value": 172.9,
+        "band_low": 103.1,
+        "band_high": 242.7
+       },
+       {
+        "hour": 6,
+        "local_time": "2026-11-17T06:00",
+        "value": 162.6,
+        "band_low": 97.0,
+        "band_high": 228.3
+       },
+       {
+        "hour": 7,
+        "local_time": "2026-11-17T07:00",
+        "value": 154.8,
+        "band_low": 92.3,
+        "band_high": 217.3
+       },
+       {
+        "hour": 8,
+        "local_time": "2026-11-17T08:00",
+        "value": 149.8,
+        "band_low": 89.4,
+        "band_high": 210.3
+       },
+       {
+        "hour": 9,
+        "local_time": "2026-11-17T09:00",
+        "value": 148.2,
+        "band_low": 88.4,
+        "band_high": 208.0
+       },
+       {
+        "hour": 10,
+        "local_time": "2026-11-17T10:00",
+        "value": 149.8,
+        "band_low": 89.4,
+        "band_high": 210.3
+       },
+       {
+        "hour": 11,
+        "local_time": "2026-11-17T11:00",
+        "value": 154.8,
+        "band_low": 92.3,
+        "band_high": 217.3
+       },
+       {
+        "hour": 12,
+        "local_time": "2026-11-17T12:00",
+        "value": 162.6,
+        "band_low": 97.0,
+        "band_high": 228.3
+       },
+       {
+        "hour": 13,
+        "local_time": "2026-11-17T13:00",
+        "value": 172.9,
+        "band_low": 103.1,
+        "band_high": 242.7
+       },
+       {
+        "hour": 14,
+        "local_time": "2026-11-17T14:00",
+        "value": 184.7,
+        "band_low": 110.2,
+        "band_high": 259.3
+       },
+       {
+        "hour": 15,
+        "local_time": "2026-11-17T15:00",
+        "value": 197.5,
+        "band_low": 117.8,
+        "band_high": 277.3
+       },
+       {
+        "hour": 16,
+        "local_time": "2026-11-17T16:00",
+        "value": 210.3,
+        "band_low": 125.4,
+        "band_high": 295.3
+       },
+       {
+        "hour": 17,
+        "local_time": "2026-11-17T17:00",
+        "value": 222.2,
+        "band_low": 132.5,
+        "band_high": 311.9
+       },
+       {
+        "hour": 18,
+        "local_time": "2026-11-17T18:00",
+        "value": 232.4,
+        "band_low": 138.6,
+        "band_high": 326.3
+       },
+       {
+        "hour": 19,
+        "local_time": "2026-11-17T19:00",
+        "value": 240.3,
+        "band_low": 143.3,
+        "band_high": 337.3
+       },
+       {
+        "hour": 20,
+        "local_time": "2026-11-17T20:00",
+        "value": 245.2,
+        "band_low": 146.2,
+        "band_high": 344.3
+       },
+       {
+        "hour": 21,
+        "local_time": "2026-11-17T21:00",
+        "value": 246.9,
+        "band_low": 147.3,
+        "band_high": 346.7
+       },
+       {
+        "hour": 22,
+        "local_time": "2026-11-17T22:00",
+        "value": 245.2,
+        "band_low": 146.2,
+        "band_high": 344.3
+       },
+       {
+        "hour": 23,
+        "local_time": "2026-11-17T23:00",
+        "value": 240.3,
+        "band_low": 143.3,
+        "band_high": 337.3
+       }
+      ],
+      "hourly_is_flat": false
+     }
+    ],
+    "stations": [
+     {
+      "monitor_id": "a",
+      "name": "Station a",
+      "distance_km": 1.2
+     },
+     {
+      "monitor_id": "c",
+      "name": "Station c",
+      "distance_km": 7.9
+     }
+    ]
+   }
+  },
+  {
+   "name": "all seasonal_normal: averaged and labelled as such",
+   "today": "2026-11-15",
+   "horizon_count": 2,
+   "pollutant": "aqi",
+   "stations": [
+    {
+     "monitor": {
+      "id": "a",
+      "name": "Station a",
+      "distance_km": 2.0
+     },
+     "rows": [
+      {
+       "monitor_id": "a",
+       "pollutant": "aqi",
+       "target_date": "2026-11-16",
+       "horizon_days": 1,
+       "value": 101.0,
+       "band_p50": null,
+       "band_p80": null,
+       "mode": "seasonal_normal",
+       "model": "climatology",
+       "based_on_date": null,
+       "data_age_days": null
+      }
+     ],
+     "city": "Delhi"
+    },
+    {
+     "monitor": {
+      "id": "b",
+      "name": "Station b",
+      "distance_km": 4.0
+     },
+     "rows": [
+      {
+       "monitor_id": "b",
+       "pollutant": "aqi",
+       "target_date": "2026-11-16",
+       "horizon_days": 1,
+       "value": 110.0,
+       "band_p50": null,
+       "band_p80": null,
+       "mode": "seasonal_normal",
+       "model": "climatology",
+       "based_on_date": null,
+       "data_age_days": null
+      }
+     ],
+     "city": "Delhi"
+    }
+   ],
+   "expected": {
+    "value": [
+     {
+      "target_date": "2026-11-16",
+      "horizon_days": 1,
+      "value": 105.5,
+      "band_low": null,
+      "band_high": null,
+      "mode": "seasonal_normal",
+      "headline": "Typical for this time of year — no recent reading to predict from",
+      "model": "climatology",
+      "based_on_date": null,
+      "data_age_days": null,
+      "hourly": [
+       {
+        "hour": 0,
+        "local_time": "2026-11-16T00:00",
+        "value": 124.2,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 1,
+        "local_time": "2026-11-16T01:00",
+        "value": 118.7,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 2,
+        "local_time": "2026-11-16T02:00",
+        "value": 112.3,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 3,
+        "local_time": "2026-11-16T03:00",
+        "value": 105.5,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 4,
+        "local_time": "2026-11-16T04:00",
+        "value": 98.7,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 5,
+        "local_time": "2026-11-16T05:00",
+        "value": 92.4,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 6,
+        "local_time": "2026-11-16T06:00",
+        "value": 86.9,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 7,
+        "local_time": "2026-11-16T07:00",
+        "value": 82.7,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 8,
+        "local_time": "2026-11-16T08:00",
+        "value": 80.0,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 9,
+        "local_time": "2026-11-16T09:00",
+        "value": 79.2,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 10,
+        "local_time": "2026-11-16T10:00",
+        "value": 80.0,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 11,
+        "local_time": "2026-11-16T11:00",
+        "value": 82.7,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 12,
+        "local_time": "2026-11-16T12:00",
+        "value": 86.9,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 13,
+        "local_time": "2026-11-16T13:00",
+        "value": 92.4,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 14,
+        "local_time": "2026-11-16T14:00",
+        "value": 98.7,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 15,
+        "local_time": "2026-11-16T15:00",
+        "value": 105.5,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 16,
+        "local_time": "2026-11-16T16:00",
+        "value": 112.3,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 17,
+        "local_time": "2026-11-16T17:00",
+        "value": 118.7,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 18,
+        "local_time": "2026-11-16T18:00",
+        "value": 124.2,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 19,
+        "local_time": "2026-11-16T19:00",
+        "value": 128.4,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 20,
+        "local_time": "2026-11-16T20:00",
+        "value": 131.0,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 21,
+        "local_time": "2026-11-16T21:00",
+        "value": 131.9,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 22,
+        "local_time": "2026-11-16T22:00",
+        "value": 131.0,
+        "band_low": null,
+        "band_high": null
+       },
+       {
+        "hour": 23,
+        "local_time": "2026-11-16T23:00",
+        "value": 128.4,
+        "band_low": null,
+        "band_high": null
+       }
+      ],
+      "hourly_is_flat": false
+     }
+    ],
+    "stations": [
+     {
+      "monitor_id": "a",
+      "name": "Station a",
+      "distance_km": 2.0
+     },
+     {
+      "monitor_id": "b",
+      "name": "Station b",
+      "distance_km": 4.0
+     }
+    ]
+   }
+  },
+  {
+   "name": "matched by DATE when stations have different days (audit 7.4)",
+   "today": "2026-11-15",
+   "horizon_count": 3,
+   "pollutant": "aqi",
+   "stations": [
+    {
+     "monitor": {
+      "id": "a",
+      "name": "Station a",
+      "distance_km": 0.8
+     },
+     "rows": [
+      {
+       "monitor_id": "a",
+       "pollutant": "aqi",
+       "target_date": "2026-11-16",
+       "horizon_days": 1,
+       "value": 180.0,
+       "band_p50": 0.15,
+       "band_p80": 0.3,
+       "mode": "forecast",
+       "model": "blend",
+       "based_on_date": "2026-11-13",
+       "data_age_days": 2
+      },
+      {
+       "monitor_id": "a",
+       "pollutant": "aqi",
+       "target_date": "2026-11-17",
+       "horizon_days": 2,
+       "value": 175.0,
+       "band_p50": 0.15,
+       "band_p80": 0.3,
+       "mode": "forecast",
+       "model": "blend",
+       "based_on_date": "2026-11-13",
+       "data_age_days": 2
+      },
+      {
+       "monitor_id": "a",
+       "pollutant": "aqi",
+       "target_date": "2026-11-18",
+       "horizon_days": 3,
+       "value": 170.0,
+       "band_p50": 0.15,
+       "band_p80": 0.3,
+       "mode": "forecast",
+       "model": "blend",
+       "based_on_date": "2026-11-13",
+       "data_age_days": 2
+      }
+     ],
+     "city": "Delhi"
+    },
+    {
+     "monitor": {
+      "id": "b",
+      "name": "Station b",
+      "distance_km": 5.5
+     },
+     "rows": [
+      {
+       "monitor_id": "b",
+       "pollutant": "aqi",
+       "target_date": "2026-11-17",
+       "horizon_days": 2,
+       "value": 260.0,
+       "band_p50": 0.15,
+       "band_p80": 0.3,
+       "mode": "forecast",
+       "model": "blend",
+       "based_on_date": "2026-11-11",
+       "data_age_days": 4
+      },
+      {
+       "monitor_id": "b",
+       "pollutant": "aqi",
+       "target_date": "2026-11-18",
+       "horizon_days": 3,
+       "value": 250.0,
+       "band_p50": 0.15,
+       "band_p80": 0.3,
+       "mode": "forecast",
+       "model": "blend",
+       "based_on_date": "2026-11-11",
+       "data_age_days": 4
+      },
+      {
+       "monitor_id": "b",
+       "pollutant": "aqi",
+       "target_date": "2026-11-19",
+       "horizon_days": 4,
+       "value": 240.0,
+       "band_p50": null,
+       "band_p80": null,
+       "mode": "seasonal_normal",
+       "model": "climatology",
+       "based_on_date": null,
+       "data_age_days": null
+      }
+     ],
+     "city": "Delhi"
+    },
+    {
+     "monitor": {
+      "id": "c",
+      "name": "Station c",
+      "distance_km": 9.0
+     },
+     "rows": [],
+     "city": "Delhi"
+    }
+   ],
+   "expected": {
+    "value": [
+     {
+      "target_date": "2026-11-16",
+      "horizon_days": 1,
+      "value": 180.0,
+      "band_low": 126.0,
+      "band_high": 234.0,
+      "mode": "forecast",
+      "headline": "Forecast for tomorrow",
+      "model": "blend",
+      "based_on_date": "2026-11-13",
+      "data_age_days": 2.0,
+      "hourly": [
+       {
+        "hour": 0,
+        "local_time": "2026-11-16T00:00",
+        "value": 211.8,
+        "band_low": 148.3,
+        "band_high": 275.3
+       },
+       {
+        "hour": 1,
+        "local_time": "2026-11-16T01:00",
+        "value": 202.5,
+        "band_low": 141.8,
+        "band_high": 263.3
+       },
+       {
+        "hour": 2,
+        "local_time": "2026-11-16T02:00",
+        "value": 191.6,
+        "band_low": 134.1,
+        "band_high": 249.1
+       },
+       {
+        "hour": 3,
+        "local_time": "2026-11-16T03:00",
+        "value": 180.0,
+        "band_low": 126.0,
+        "band_high": 234.0
+       },
+       {
+        "hour": 4,
+        "local_time": "2026-11-16T04:00",
+        "value": 168.4,
+        "band_low": 117.9,
+        "band_high": 218.9
+       },
+       {
+        "hour": 5,
+        "local_time": "2026-11-16T05:00",
+        "value": 157.5,
+        "band_low": 110.3,
+        "band_high": 204.8
+       },
+       {
+        "hour": 6,
+        "local_time": "2026-11-16T06:00",
+        "value": 148.2,
+        "band_low": 103.7,
+        "band_high": 192.7
+       },
+       {
+        "hour": 7,
+        "local_time": "2026-11-16T07:00",
+        "value": 141.0,
+        "band_low": 98.7,
+        "band_high": 183.3
+       },
+       {
+        "hour": 8,
+        "local_time": "2026-11-16T08:00",
+        "value": 136.5,
+        "band_low": 95.6,
+        "band_high": 177.5
+       },
+       {
+        "hour": 9,
+        "local_time": "2026-11-16T09:00",
+        "value": 135.0,
+        "band_low": 94.5,
+        "band_high": 175.5
+       },
+       {
+        "hour": 10,
+        "local_time": "2026-11-16T10:00",
+        "value": 136.5,
+        "band_low": 95.6,
+        "band_high": 177.5
+       },
+       {
+        "hour": 11,
+        "local_time": "2026-11-16T11:00",
+        "value": 141.0,
+        "band_low": 98.7,
+        "band_high": 183.3
+       },
+       {
+        "hour": 12,
+        "local_time": "2026-11-16T12:00",
+        "value": 148.2,
+        "band_low": 103.7,
+        "band_high": 192.7
+       },
+       {
+        "hour": 13,
+        "local_time": "2026-11-16T13:00",
+        "value": 157.5,
+        "band_low": 110.3,
+        "band_high": 204.8
+       },
+       {
+        "hour": 14,
+        "local_time": "2026-11-16T14:00",
+        "value": 168.4,
+        "band_low": 117.9,
+        "band_high": 218.9
+       },
+       {
+        "hour": 15,
+        "local_time": "2026-11-16T15:00",
+        "value": 180.0,
+        "band_low": 126.0,
+        "band_high": 234.0
+       },
+       {
+        "hour": 16,
+        "local_time": "2026-11-16T16:00",
+        "value": 191.6,
+        "band_low": 134.1,
+        "band_high": 249.1
+       },
+       {
+        "hour": 17,
+        "local_time": "2026-11-16T17:00",
+        "value": 202.5,
+        "band_low": 141.8,
+        "band_high": 263.3
+       },
+       {
+        "hour": 18,
+        "local_time": "2026-11-16T18:00",
+        "value": 211.8,
+        "band_low": 148.3,
+        "band_high": 275.3
+       },
+       {
+        "hour": 19,
+        "local_time": "2026-11-16T19:00",
+        "value": 219.0,
+        "band_low": 153.3,
+        "band_high": 284.7
+       },
+       {
+        "hour": 20,
+        "local_time": "2026-11-16T20:00",
+        "value": 223.5,
+        "band_low": 156.5,
+        "band_high": 290.6
+       },
+       {
+        "hour": 21,
+        "local_time": "2026-11-16T21:00",
+        "value": 225.0,
+        "band_low": 157.5,
+        "band_high": 292.5
+       },
+       {
+        "hour": 22,
+        "local_time": "2026-11-16T22:00",
+        "value": 223.5,
+        "band_low": 156.5,
+        "band_high": 290.6
+       },
+       {
+        "hour": 23,
+        "local_time": "2026-11-16T23:00",
+        "value": 219.0,
+        "band_low": 153.3,
+        "band_high": 284.7
+       }
+      ],
+      "hourly_is_flat": false
+     },
+     {
+      "target_date": "2026-11-17",
+      "horizon_days": 2,
+      "value": 217.5,
+      "band_low": 152.3,
+      "band_high": 282.8,
+      "mode": "forecast",
+      "headline": "Forecast, 2 days ahead",
+      "model": "blend",
+      "based_on_date": "2026-11-13",
+      "data_age_days": 3.0,
+      "hourly": [
+       {
+        "hour": 0,
+        "local_time": "2026-11-17T00:00",
+        "value": 256.0,
+        "band_low": 179.1,
+        "band_high": 332.8
+       },
+       {
+        "hour": 1,
+        "local_time": "2026-11-17T01:00",
+        "value": 244.7,
+        "band_low": 171.3,
+        "band_high": 318.2
+       },
+       {
+        "hour": 2,
+        "local_time": "2026-11-17T02:00",
+        "value": 231.6,
+        "band_low": 162.1,
+        "band_high": 301.0
+       },
+       {
+        "hour": 3,
+        "local_time": "2026-11-17T03:00",
+        "value": 217.5,
+        "band_low": 152.3,
+        "band_high": 282.8
+       },
+       {
+        "hour": 4,
+        "local_time": "2026-11-17T04:00",
+        "value": 203.5,
+        "band_low": 142.4,
+        "band_high": 264.5
+       },
+       {
+        "hour": 5,
+        "local_time": "2026-11-17T05:00",
+        "value": 190.3,
+        "band_low": 133.3,
+        "band_high": 247.4
+       },
+       {
+        "hour": 6,
+        "local_time": "2026-11-17T06:00",
+        "value": 179.1,
+        "band_low": 125.4,
+        "band_high": 232.8
+       },
+       {
+        "hour": 7,
+        "local_time": "2026-11-17T07:00",
+        "value": 170.4,
+        "band_low": 119.3,
+        "band_high": 221.5
+       },
+       {
+        "hour": 8,
+        "local_time": "2026-11-17T08:00",
+        "value": 165.0,
+        "band_low": 115.5,
+        "band_high": 214.5
+       },
+       {
+        "hour": 9,
+        "local_time": "2026-11-17T09:00",
+        "value": 163.2,
+        "band_low": 114.2,
+        "band_high": 212.1
+       },
+       {
+        "hour": 10,
+        "local_time": "2026-11-17T10:00",
+        "value": 165.0,
+        "band_low": 115.5,
+        "band_high": 214.5
+       },
+       {
+        "hour": 11,
+        "local_time": "2026-11-17T11:00",
+        "value": 170.4,
+        "band_low": 119.3,
+        "band_high": 221.5
+       },
+       {
+        "hour": 12,
+        "local_time": "2026-11-17T12:00",
+        "value": 179.1,
+        "band_low": 125.4,
+        "band_high": 232.8
+       },
+       {
+        "hour": 13,
+        "local_time": "2026-11-17T13:00",
+        "value": 190.3,
+        "band_low": 133.3,
+        "band_high": 247.4
+       },
+       {
+        "hour": 14,
+        "local_time": "2026-11-17T14:00",
+        "value": 203.5,
+        "band_low": 142.4,
+        "band_high": 264.5
+       },
+       {
+        "hour": 15,
+        "local_time": "2026-11-17T15:00",
+        "value": 217.5,
+        "band_low": 152.3,
+        "band_high": 282.8
+       },
+       {
+        "hour": 16,
+        "local_time": "2026-11-17T16:00",
+        "value": 231.6,
+        "band_low": 162.1,
+        "band_high": 301.0
+       },
+       {
+        "hour": 17,
+        "local_time": "2026-11-17T17:00",
+        "value": 244.7,
+        "band_low": 171.3,
+        "band_high": 318.2
+       },
+       {
+        "hour": 18,
+        "local_time": "2026-11-17T18:00",
+        "value": 256.0,
+        "band_low": 179.1,
+        "band_high": 332.8
+       },
+       {
+        "hour": 19,
+        "local_time": "2026-11-17T19:00",
+        "value": 264.6,
+        "band_low": 185.2,
+        "band_high": 344.0
+       },
+       {
+        "hour": 20,
+        "local_time": "2026-11-17T20:00",
+        "value": 270.1,
+        "band_low": 189.1,
+        "band_high": 351.1
+       },
+       {
+        "hour": 21,
+        "local_time": "2026-11-17T21:00",
+        "value": 271.9,
+        "band_low": 190.4,
+        "band_high": 353.5
+       },
+       {
+        "hour": 22,
+        "local_time": "2026-11-17T22:00",
+        "value": 270.1,
+        "band_low": 189.1,
+        "band_high": 351.1
+       },
+       {
+        "hour": 23,
+        "local_time": "2026-11-17T23:00",
+        "value": 264.6,
+        "band_low": 185.2,
+        "band_high": 344.0
+       }
+      ],
+      "hourly_is_flat": false
+     },
+     {
+      "target_date": "2026-11-18",
+      "horizon_days": 3,
+      "value": 210.0,
+      "band_low": 147.0,
+      "band_high": 273.0,
+      "mode": "forecast",
+      "headline": "Forecast, 3 days ahead",
+      "model": "blend",
+      "based_on_date": "2026-11-13",
+      "data_age_days": 3.0,
+      "hourly": [
+       {
+        "hour": 0,
+        "local_time": "2026-11-18T00:00",
+        "value": 247.2,
+        "band_low": 173.0,
+        "band_high": 321.3
+       },
+       {
+        "hour": 1,
+        "local_time": "2026-11-18T01:00",
+        "value": 236.3,
+        "band_low": 165.4,
+        "band_high": 307.2
+       },
+       {
+        "hour": 2,
+        "local_time": "2026-11-18T02:00",
+        "value": 223.6,
+        "band_low": 156.5,
+        "band_high": 290.7
+       },
+       {
+        "hour": 3,
+        "local_time": "2026-11-18T03:00",
+        "value": 210.0,
+        "band_low": 147.0,
+        "band_high": 273.0
+       },
+       {
+        "hour": 4,
+        "local_time": "2026-11-18T04:00",
+        "value": 196.4,
+        "band_low": 137.5,
+        "band_high": 255.3
+       },
+       {
+        "hour": 5,
+        "local_time": "2026-11-18T05:00",
+        "value": 183.8,
+        "band_low": 128.7,
+        "band_high": 238.9
+       },
+       {
+        "hour": 6,
+        "local_time": "2026-11-18T06:00",
+        "value": 172.9,
+        "band_low": 121.0,
+        "band_high": 224.7
+       },
+       {
+        "hour": 7,
+        "local_time": "2026-11-18T07:00",
+        "value": 164.6,
+        "band_low": 115.2,
+        "band_high": 214.0
+       },
+       {
+        "hour": 8,
+        "local_time": "2026-11-18T08:00",
+        "value": 159.3,
+        "band_low": 111.5,
+        "band_high": 207.1
+       },
+       {
+        "hour": 9,
+        "local_time": "2026-11-18T09:00",
+        "value": 157.5,
+        "band_low": 110.3,
+        "band_high": 204.8
+       },
+       {
+        "hour": 10,
+        "local_time": "2026-11-18T10:00",
+        "value": 159.3,
+        "band_low": 111.5,
+        "band_high": 207.1
+       },
+       {
+        "hour": 11,
+        "local_time": "2026-11-18T11:00",
+        "value": 164.6,
+        "band_low": 115.2,
+        "band_high": 214.0
+       },
+       {
+        "hour": 12,
+        "local_time": "2026-11-18T12:00",
+        "value": 172.9,
+        "band_low": 121.0,
+        "band_high": 224.7
+       },
+       {
+        "hour": 13,
+        "local_time": "2026-11-18T13:00",
+        "value": 183.8,
+        "band_low": 128.7,
+        "band_high": 238.9
+       },
+       {
+        "hour": 14,
+        "local_time": "2026-11-18T14:00",
+        "value": 196.4,
+        "band_low": 137.5,
+        "band_high": 255.3
+       },
+       {
+        "hour": 15,
+        "local_time": "2026-11-18T15:00",
+        "value": 210.0,
+        "band_low": 147.0,
+        "band_high": 273.0
+       },
+       {
+        "hour": 16,
+        "local_time": "2026-11-18T16:00",
+        "value": 223.6,
+        "band_low": 156.5,
+        "band_high": 290.7
+       },
+       {
+        "hour": 17,
+        "local_time": "2026-11-18T17:00",
+        "value": 236.3,
+        "band_low": 165.4,
+        "band_high": 307.2
+       },
+       {
+        "hour": 18,
+        "local_time": "2026-11-18T18:00",
+        "value": 247.2,
+        "band_low": 173.0,
+        "band_high": 321.3
+       },
+       {
+        "hour": 19,
+        "local_time": "2026-11-18T19:00",
+        "value": 255.5,
+        "band_low": 178.9,
+        "band_high": 332.1
+       },
+       {
+        "hour": 20,
+        "local_time": "2026-11-18T20:00",
+        "value": 260.8,
+        "band_low": 182.6,
+        "band_high": 339.0
+       },
+       {
+        "hour": 21,
+        "local_time": "2026-11-18T21:00",
+        "value": 262.5,
+        "band_low": 183.8,
+        "band_high": 341.3
+       },
+       {
+        "hour": 22,
+        "local_time": "2026-11-18T22:00",
+        "value": 260.8,
+        "band_low": 182.6,
+        "band_high": 339.0
+       },
+       {
+        "hour": 23,
+        "local_time": "2026-11-18T23:00",
+        "value": 255.5,
+        "band_low": 178.9,
+        "band_high": 332.1
+       }
+      ],
+      "hourly_is_flat": false
+     }
+    ],
+    "stations": [
+     {
+      "monitor_id": "a",
+      "name": "Station a",
+      "distance_km": 0.8
+     },
+     {
+      "monitor_id": "b",
+      "name": "Station b",
+      "distance_km": 5.5
+     }
+    ]
+   }
+  },
+  {
+   "name": "one station without a shape: hours still averaged, not flat overall",
+   "today": "2026-11-15",
+   "horizon_count": 1,
+   "pollutant": "aqi",
+   "stations": [
+    {
+     "monitor": {
+      "id": "a",
+      "name": "Station a",
+      "distance_km": 1.0
+     },
+     "rows": [
+      {
+       "monitor_id": "a",
+       "pollutant": "aqi",
+       "target_date": "2026-11-16",
+       "horizon_days": 1,
+       "value": 150.0,
+       "band_p50": 0.15,
+       "band_p80": 0.3,
+       "mode": "forecast",
+       "model": "blend",
+       "based_on_date": "2026-11-13",
+       "data_age_days": 2
+      }
+     ],
+     "city": "Delhi"
+    },
+    {
+     "monitor": {
+      "id": "b",
+      "name": "Station b",
+      "distance_km": 2.0
+     },
+     "rows": [
+      {
+       "monitor_id": "b",
+       "pollutant": "aqi",
+       "target_date": "2026-11-16",
+       "horizon_days": 1,
+       "value": 170.0,
+       "band_p50": 0.15,
+       "band_p80": 0.3,
+       "mode": "forecast",
+       "model": "blend",
+       "based_on_date": "2026-11-13",
+       "data_age_days": 2
+      }
+     ],
+     "city": "Kolkata"
+    }
+   ],
+   "expected": {
+    "value": [
+     {
+      "target_date": "2026-11-16",
+      "horizon_days": 1,
+      "value": 160.0,
+      "band_low": 112.0,
+      "band_high": 208.0,
+      "mode": "forecast",
+      "headline": "Forecast for tomorrow",
+      "model": "blend",
+      "based_on_date": "2026-11-13",
+      "data_age_days": 2.0,
+      "hourly": [
+       {
+        "hour": 0,
+        "local_time": "2026-11-16T00:00",
+        "value": 173.3,
+        "band_low": 121.3,
+        "band_high": 225.3
+       },
+       {
+        "hour": 1,
+        "local_time": "2026-11-16T01:00",
+        "value": 169.4,
+        "band_low": 118.6,
+        "band_high": 220.2
+       },
+       {
+        "hour": 2,
+        "local_time": "2026-11-16T02:00",
+        "value": 164.9,
+        "band_low": 115.4,
+        "band_high": 214.3
+       },
+       {
+        "hour": 3,
+        "local_time": "2026-11-16T03:00",
+        "value": 160.0,
+        "band_low": 112.0,
+        "band_high": 208.0
+       },
+       {
+        "hour": 4,
+        "local_time": "2026-11-16T04:00",
+        "value": 155.2,
+        "band_low": 108.6,
+        "band_high": 201.7
+       },
+       {
+        "hour": 5,
+        "local_time": "2026-11-16T05:00",
+        "value": 150.7,
+        "band_low": 105.5,
+        "band_high": 195.9
+       },
+       {
+        "hour": 6,
+        "local_time": "2026-11-16T06:00",
+        "value": 146.8,
+        "band_low": 102.7,
+        "band_high": 190.8
+       },
+       {
+        "hour": 7,
+        "local_time": "2026-11-16T07:00",
+        "value": 143.8,
+        "band_low": 100.7,
+        "band_high": 186.9
+       },
+       {
+        "hour": 8,
+        "local_time": "2026-11-16T08:00",
+        "value": 141.9,
+        "band_low": 99.4,
+        "band_high": 184.5
+       },
+       {
+        "hour": 9,
+        "local_time": "2026-11-16T09:00",
+        "value": 141.3,
+        "band_low": 98.9,
+        "band_high": 183.7
+       },
+       {
+        "hour": 10,
+        "local_time": "2026-11-16T10:00",
+        "value": 141.9,
+        "band_low": 99.4,
+        "band_high": 184.5
+       },
+       {
+        "hour": 11,
+        "local_time": "2026-11-16T11:00",
+        "value": 143.8,
+        "band_low": 100.7,
+        "band_high": 186.9
+       },
+       {
+        "hour": 12,
+        "local_time": "2026-11-16T12:00",
+        "value": 146.8,
+        "band_low": 102.7,
+        "band_high": 190.8
+       },
+       {
+        "hour": 13,
+        "local_time": "2026-11-16T13:00",
+        "value": 150.7,
+        "band_low": 105.5,
+        "band_high": 195.9
+       },
+       {
+        "hour": 14,
+        "local_time": "2026-11-16T14:00",
+        "value": 155.2,
+        "band_low": 108.6,
+        "band_high": 201.7
+       },
+       {
+        "hour": 15,
+        "local_time": "2026-11-16T15:00",
+        "value": 160.0,
+        "band_low": 112.0,
+        "band_high": 208.0
+       },
+       {
+        "hour": 16,
+        "local_time": "2026-11-16T16:00",
+        "value": 164.9,
+        "band_low": 115.4,
+        "band_high": 214.3
+       },
+       {
+        "hour": 17,
+        "local_time": "2026-11-16T17:00",
+        "value": 169.4,
+        "band_low": 118.6,
+        "band_high": 220.2
+       },
+       {
+        "hour": 18,
+        "local_time": "2026-11-16T18:00",
+        "value": 173.3,
+        "band_low": 121.3,
+        "band_high": 225.3
+       },
+       {
+        "hour": 19,
+        "local_time": "2026-11-16T19:00",
+        "value": 176.3,
+        "band_low": 123.4,
+        "band_high": 229.2
+       },
+       {
+        "hour": 20,
+        "local_time": "2026-11-16T20:00",
+        "value": 178.1,
+        "band_low": 124.7,
+        "band_high": 231.6
+       },
+       {
+        "hour": 21,
+        "local_time": "2026-11-16T21:00",
+        "value": 178.8,
+        "band_low": 125.2,
+        "band_high": 232.4
+       },
+       {
+        "hour": 22,
+        "local_time": "2026-11-16T22:00",
+        "value": 178.1,
+        "band_low": 124.7,
+        "band_high": 231.6
+       },
+       {
+        "hour": 23,
+        "local_time": "2026-11-16T23:00",
+        "value": 176.3,
+        "band_low": 123.4,
+        "band_high": 229.2
+       }
+      ],
+      "hourly_is_flat": false
+     }
+    ],
+    "stations": [
+     {
+      "monitor_id": "a",
+      "name": "Station a",
+      "distance_km": 1.0
+     },
+     {
+      "monitor_id": "b",
+      "name": "Station b",
+      "distance_km": 2.0
+     }
+    ]
+   }
+  }
+ ]
+}

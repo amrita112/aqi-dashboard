@@ -11,7 +11,7 @@
 --
 -- Without this column the `count` on a row means different things depending on
 -- an invisible property of its origin, and any completeness check -- including
--- the one in notebooks/rollup_verification.ipynb -- would read every historical
+-- the one in notebooks/archive/rollup_verification.ipynb -- would read every historical
 -- row as three-quarters missing.
 --
 -- The values themselves are comparable: both are daily means over whatever the

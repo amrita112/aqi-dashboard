@@ -24,8 +24,9 @@ nothing about next week. That decay is the whole result: where alpha reaches
 zero, the model has collapsed into climatology and the forecast is honest
 only if you stop calling it one.
 
-Used by notebooks/forecast_feasibility.ipynb and, once a live source exists,
-by the nightly job that precomputes the app's forecast table.
+Used by the monthly refit (refit_params.py) and checked by
+notebooks/forecast_verification.ipynb. (The notebook it was first written for,
+forecast_feasibility.ipynb, is archived in notebooks/archive/.)
 """
 
 from __future__ import annotations
@@ -38,7 +39,12 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.forecast.model import (  # noqa: E402
+    FORECAST_HORIZONS, MODE_DATA_AGES, SERVED_MODELS, predict,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 XKDR_GLOB = str(PROJECT_ROOT / "data" / "XKDR_data" / "data" / "v1"
@@ -316,8 +322,67 @@ def predictions_for(series: pd.Series, test_year: int, h: int) -> pd.DataFrame:
 # only costs a round trip.
 MEASURED_POLLUTANTS = ("pm25", "pm10", "no2", "so2")
 
+# WHERE THE HISTORY LIVES: Parquet files in Supabase Storage, not rows in
+# readings_daily. The XKDR rows were about 310 MB of a 500 MB free database
+# (Oct 2026), and nothing but this refit reads them. Storage has its own quota.
+#   xkdr_daily_history.parquet           2009 -> 1 Sep 2025, a complete copy of
+#                                        the XKDR rows, made by export_history.py
+#   openaq_archive_daily_history.parquet 2 Sep 2025 -> 16 Aug 2026, the gap
+#                                        before our own rollups, built from the
+#                                        OpenAQ archive by archive_history.py
+# The date ranges do not overlap, so the files and readings_daily simply stack.
+XKDR_HISTORY_BUCKET = "forecast-history"
+XKDR_HISTORY_OBJECT = "xkdr_daily_history.parquet"
+ARCHIVE_HISTORY_OBJECT = "openaq_archive_daily_history.parquet"
 
-def _fetch_readings_daily(client, since: str, until: str) -> pd.DataFrame:
+# (object in the bucket, env var that points at a local copy instead)
+HISTORY_FILES = (
+    (XKDR_HISTORY_OBJECT, "XKDR_HISTORY_FILE"),
+    (ARCHIVE_HISTORY_OBJECT, "ARCHIVE_HISTORY_FILE"),
+)
+
+
+def _load_history_file(client, obj: str, env_var: str,
+                       since: str, until: str) -> pd.DataFrame:
+    """One daily-history file, from Storage or from a local copy.
+
+    Set the env var to a local path to read that file instead of downloading
+    it, which is how each file was checked before the refit relied on it.
+    """
+    import io
+    import os
+
+    local = os.environ.get(env_var, "").strip()
+    if local:
+        print(f"  reading {obj} from {local}")
+        source = local
+    else:
+        print(f"  downloading {XKDR_HISTORY_BUCKET}/{obj} from Storage ...")
+        source = io.BytesIO(client.storage.from_(XKDR_HISTORY_BUCKET).download(obj))
+    # count and source feed the completeness rule (daily_quality.py): the
+    # count only means something once you know the station's cadence.
+    df = pd.read_parquet(source, columns=["monitor_id", "date", "pollutant",
+                                          "mean", "count", "source"])
+    df["date"] = df["date"].astype(str)
+    keep = (df.pollutant.isin(MEASURED_POLLUTANTS)
+            & (df["date"] >= since) & (df["date"] <= until))
+    df = df[keep].reset_index(drop=True)
+    print(f"    {len(df):,} rows")
+    return df
+
+
+def load_history_files(client, since: str, until: str) -> pd.DataFrame:
+    """Every daily-history file in Storage, stacked.
+
+    A missing file is an error, not an empty frame: a refit that quietly lost
+    a year of history would still produce plausible-looking parameters.
+    """
+    return pd.concat([_load_history_file(client, obj, env, since, until)
+                      for obj, env in HISTORY_FILES], ignore_index=True)
+
+
+def _fetch_readings_daily(client, since: str, until: str,
+                          exclude_xkdr: bool = False) -> pd.DataFrame:
     """Page the whole readings_daily table out of Supabase.
 
     PostgREST caps a response at 1000 rows, and a plain offset walk over a
@@ -332,12 +397,19 @@ def _fetch_readings_daily(client, since: str, until: str) -> pd.DataFrame:
         hi = min(until, f"{year}-12-31")
         rows, offset = [], 0
         while True:
-            r = (client.table("readings_daily")
-                       .select("monitor_id, date, pollutant, mean")
+            q = (client.table("readings_daily")
+                       # is_complete: the rollup's stored verdict (migration 25).
+                       # The history files carry no flag, so theirs is computed
+                       # at load time with the same function.
+                       .select("monitor_id, date, pollutant, mean, count, source, is_complete")
                        .in_("pollutant", list(MEASURED_POLLUTANTS))
-                       .gte("date", lo).lte("date", hi)
-                       .order("date").order("monitor_id").order("pollutant")
-                       .range(offset, offset + 999).execute())
+                       .gte("date", lo).lte("date", hi))
+            if exclude_xkdr:
+                # The history comes from the Storage file instead; reading it
+                # here too, while both exist, would count every day twice.
+                q = q.neq("source", "xkdr")
+            r = (q.order("date").order("monitor_id").order("pollutant")
+                  .range(offset, offset + 999).execute())
             batch = r.data or []
             rows += batch
             if len(batch) < 1000:
@@ -347,7 +419,8 @@ def _fetch_readings_daily(client, since: str, until: str) -> pd.DataFrame:
             frames.append(pd.DataFrame(rows))
         print(f"    {year}: {len(rows):,} rows")
     if not frames:
-        return pd.DataFrame(columns=["monitor_id", "date", "pollutant", "mean"])
+        return pd.DataFrame(columns=["monitor_id", "date", "pollutant", "mean",
+                                     "count", "source"])
     return pd.concat(frames, ignore_index=True)
 
 
@@ -379,11 +452,13 @@ def load_history_from_db(client=None, min_stations: int = 3,
         from scripts.ingest.lib.supabase_client import make_client
         client = make_client()
     if until is None:
-        until = str(pd.Timestamp.utcnow().date())
+        # IST, like every date in readings_daily (audit §5.3).
+        from scripts.ingest.lib.config import ist_today
+        until = str(ist_today())
 
     monitors, offset = [], 0
     while True:
-        r = (client.table("monitors").select("id, city")
+        r = (client.table("monitors").select("id, city").order("id")
                    .range(offset, offset + 999).execute())
         batch = r.data or []
         monitors += batch
@@ -394,56 +469,76 @@ def load_history_from_db(client=None, min_stations: int = 3,
     city_of = {m["id"]: APP_TO_ANALYSIS_CITY.get(m.get("city"), m.get("city"))
                for m in monitors}
 
-    print(f"  reading readings_daily {since} -> {until} ...")
-    df = _fetch_readings_daily(client, since, until)
-    if df.empty:
+    # Three sources, one frame: the XKDR and OpenAQ-archive history files in
+    # Storage, and our own rolled-up days from readings_daily. They never
+    # overlap in time (see HISTORY_FILES), and all are on IST calendar days,
+    # so they can simply be stacked.
+    history = load_history_files(client, since, until)
+    print(f"  reading our own days from readings_daily {since} -> {until} ...")
+    ours = _fetch_readings_daily(client, since, until, exclude_xkdr=True)
+    df = pd.concat([f for f in (history, ours) if not f.empty] or [history],
+                   ignore_index=True)
+    if history.empty:
         raise RuntimeError(
-            "readings_daily returned no rows -- has load_history.py been run?")
+            f"The history files returned no rows -- have they been uploaded to "
+            f"the {XKDR_HISTORY_BUCKET} bucket?")
 
     df["city"] = df.monitor_id.map(city_of)
     df = df.dropna(subset=["city", "mean"])
+
+    # ── Quality filter: the SAME rule nightly applies (daily_quality.py) ──
+    # Complete days only (>= 12 hours of readings), values 0-2000, and for AQI
+    # at least 3 pollutants including a PM. Before Nov 2026 this path had no
+    # filter at all, unlike the notebook it was validated against (audit D2).
+    from scripts.forecast.daily_quality import complete_days, station_day_aqi
+    n_before = len(df)
+    df = complete_days(df).copy()
+    print(f"  complete station-pollutant-days: {len(df):,} of {n_before:,}")
     df["d"] = pd.to_datetime(df["date"])
 
-    # Per-station daily PM2.5, the input both the city series and the
-    # per-station climatologies are built from.
-    pm = df[df.pollutant == "pm25"]
-    station_daily = (pm.rename(columns={"monitor_id": "station", "mean": "v"})
-                       [["city", "station", "d", "v"]]
-                       .groupby(["city", "station", "d"], as_index=False)["v"].mean())
+    def _station_frames(frame: pd.DataFrame):
+        """Per-station daily PM2.5 and AQI, as (city, station, d, v) frames."""
+        pm = frame[frame.pollutant == "pm25"]
+        pm25 = (pm.rename(columns={"monitor_id": "station", "mean": "v"})
+                  [["city", "station", "d", "v"]]
+                  .groupby(["city", "station", "d"], as_index=False)["v"].mean())
+        # Composite NAQI per station-day, CPCB's way: each pollutant's daily
+        # mean -> its sub-index -> the max across pollutants (station_day_aqi).
+        aqi = station_day_aqi(frame)
+        aqi["d"] = pd.to_datetime(aqi["date"])
+        aqi = (aqi.rename(columns={"monitor_id": "station", "aqi": "v"})
+                  [["city", "station", "d", "v", "dominant"]])
+        return pm25, aqi
+
+    # Per-STATION frames keep every monitor: each one serves its own forecast,
+    # so each needs its own history even when two share a physical station.
+    station_daily, station_aqi_full = _station_frames(df)
+    station_aqi = station_aqi_full[["city", "station", "d", "v"]]
+
+    # The CITY series must not count a physical station twice. load_history.py
+    # copied one XKDR station's rows onto every monitor that maps to it (OpenAQ
+    # sometimes lists the same CPCB station twice), which double-weighted those
+    # stations in the city mean and inflated n_stations (audit D3). The copies
+    # are identical raw rows -- the same unrounded mean and count on the same
+    # day -- which two genuinely different stations never are.
+    unique = df.drop_duplicates(subset=["city", "date", "pollutant", "mean", "count"])
+    print(f"  duplicate copies of a shared station dropped for city means: "
+          f"{len(df) - len(unique):,} rows")
+    city_pm25, city_aqi = _station_frames(unique)
 
     # Two-step average, as everywhere else: the stored per-station daily mean,
     # then the mean across stations. Averaging raw readings instead would let
     # the busiest station set the city's number.
-    daily = (station_daily.groupby(["city", "d"], as_index=False)
-                          .agg(pm25=("v", "mean"), n_stations=("station", "nunique")))
+    daily = (city_pm25.groupby(["city", "d"], as_index=False)
+                      .agg(pm25=("v", "mean"), n_stations=("station", "nunique")))
     daily = daily[daily.n_stations >= min_stations].rename(columns={"city": "city_name"})
 
-    # Composite NAQI, built the way CPCB defines it: each pollutant's daily
-    # mean at a station -> its sub-index -> the max across pollutants. Station
-    # sub-indices are then averaged across the city, consistent with PM2.5.
-    from scripts.ingest.lib.aqi_utils import compute_subindex
-    sub = df[df["mean"] >= 0].copy()   # compute_subindex raises on negatives
-    sub["si"] = [compute_subindex(p, v)
-                 for p, v in zip(sub.pollutant, sub["mean"])]
-    idx = sub.groupby(["city", "monitor_id", "d"])["si"].idxmax()
-    station_aqi_rows = sub.loc[idx, ["city", "monitor_id", "d", "si", "pollutant"]]
-    daily_aqi = (station_aqi_rows.groupby(["city", "d"], as_index=False)
-                                 .agg(aqi=("si", "mean"),
-                                      n_stations=("monitor_id", "nunique"),
-                                      dominant=("pollutant",
-                                                lambda s: s.value_counts().idxmax())))
+    daily_aqi = (city_aqi.groupby(["city", "d"], as_index=False)
+                         .agg(aqi=("v", "mean"),
+                              n_stations=("station", "nunique"),
+                              dominant=("dominant",
+                                        lambda s: s.value_counts().idxmax())))
     daily_aqi = daily_aqi[daily_aqi.n_stations >= min_stations]
-
-    # Per-STATION daily AQI. This is the input the per-station AQI climatology
-    # must be fitted on. Without it, fit_stations() reuses station_daily --
-    # which is PM2.5 -- and every station with its own history ends up with a
-    # PM2.5 curve stored as its AQI climatology, roughly halving the forecast.
-    # Same columns as station_daily so the caller can hand either to
-    # fit_stations() unchanged.
-    station_aqi = (station_aqi_rows
-                   .rename(columns={"monitor_id": "station", "si": "v"})
-                   [["city", "station", "d", "v"]]
-                   .groupby(["city", "station", "d"], as_index=False)["v"].mean())
 
     print(f"  city-days: pm25={len(daily):,}  aqi={len(daily_aqi):,}  "
           f"station-days: pm25={len(station_daily):,} aqi={len(station_aqi):,}")
@@ -1141,22 +1236,42 @@ def residual_bands(series: pd.Series, test_year: int,
 MIN_USEFUL_SKILL_PCT = 5.0
 
 
-def forecast_mode_table(series: pd.Series, test_year: int,
-                        data_ages: Iterable[int] = (0, 1, 2, 3, 4, 5, 7),
-                        horizons: Iterable[int] = (1, 2, 3),
-                        quantiles: Iterable[int] = (50, 80)) -> pd.DataFrame:
-    """Expected error and serving mode for each (data age, horizon) pair.
+def _mode_for(skill):
+    """forecast / outlook / seasonal_normal from a skill percentage."""
+    return np.where(skill >= 20, "forecast",
+           np.where(skill >= MIN_USEFUL_SKILL_PCT, "outlook", "seasonal_normal"))
 
-    Returns one row per combination with the mode the app should use:
 
-      forecast         - beats climatology comfortably; show it as a forecast
-      outlook          - still beats climatology, but show a wide band and
-                         softer language
-      seasonal_normal  - no better than the long-run average, so say that
-                         instead of dressing an average up as a prediction
+def _pick_served_model(table: pd.DataFrame) -> pd.DataFrame:
+    """Per (data age, horizon), keep the row of the model with the best skill.
 
-    The band columns are RATIOS of the forecast, so one number works at Delhi's
-    200 ug/m3 and Bengaluru's 30.
+    Ties go to the blend (listed first in SERVED_MODELS): it degrades towards
+    the seasonal normal as data ages, persistence does not.
+    """
+    order = {m: i for i, m in enumerate(SERVED_MODELS)}
+    t = table.assign(_rank=table["model"].map(order))
+    t = t.sort_values(["data_age_days", "horizon_days", "skill_pct", "_rank"],
+                      ascending=[True, True, False, True])
+    best = t.drop_duplicates(["data_age_days", "horizon_days"]).drop(columns="_rank")
+    best = best.assign(mode=_mode_for(best["skill_pct"]))
+    return best.reset_index(drop=True)
+
+
+def model_skill_table(series: pd.Series, test_year: int,
+                      data_ages: Iterable[int] = MODE_DATA_AGES,
+                      horizons: Iterable[int] = FORECAST_HORIZONS,
+                      models: Iterable[str] = SERVED_MODELS,
+                      quantiles: Iterable[int] = (50, 80)) -> pd.DataFrame:
+    """Every served model's skill at every (data age, horizon), one series.
+
+    One row per (data age, horizon, model). Trained on years before
+    `test_year`, scored on the pollution season of `test_year`, against
+    climatology. The prediction is model.predict -- the same function nightly
+    serves with -- and blend's alpha is fitted at the EFFECTIVE horizon
+    (age + h), which is also the alpha nightly serves (model.alpha_for).
+
+    The band columns are RATIOS of the forecast, so one number works at
+    Delhi's 200 ug/m3 and Bengaluru's 30.
     """
     train = series[series.index.year < test_year].dropna()
     test = series[series.index.year == test_year].dropna()
@@ -1174,60 +1289,65 @@ def forecast_mode_table(series: pd.Series, test_year: int,
     for age in data_ages:
         for h in horizons:
             # The model's information is `age + h` days old by the time the
-            # forecast lands, because the anomaly it carries forward was
-            # measured `age` days ago.
+            # forecast lands, because the reading it starts from was taken
+            # `age` days ago.
             effective = age + h
             alpha = fit_alpha(train, clim, effective)
             prev = _lagged(series, idx, effective)
             cl_prev = pd.Series(
                 clim.reindex((idx - pd.Timedelta(days=effective)).dayofyear).values, index=idx)
-            pred = cl_now + alpha * (prev - cl_prev)
-            m = pred.notna() & test.notna()
-            if m.sum() < 20:
-                continue
-            err = np.abs(pred[m] - test[m])
-            mae = float(err.mean())
-            skill = 100 * (clim_mae - mae) / clim_mae
-
-            if skill >= 20:
-                mode = "forecast"
-            elif skill >= MIN_USEFUL_SKILL_PCT:
-                mode = "outlook"
-            else:
-                mode = "seasonal_normal"
-
-            row = {"city": series.name, "data_age_days": age, "horizon_days": h,
-                   "effective_horizon": effective, "alpha": alpha,
-                   "mae": mae, "clim_mae": clim_mae, "skill_pct": skill,
-                   "mode": mode, "n": int(m.sum())}
-            # Band as a fraction of the prediction, guarding against the
-            # near-zero predictions that would otherwise produce absurd ratios.
-            safe = pred[m] > 1
-            if safe.sum() > 20:
-                rel = (err[safe] / pred[m][safe]).values
-                for q in quantiles:
-                    row[f"band_p{q}"] = float(np.percentile(rel, q))
-            rows.append(row)
+            for model in models:
+                pred = predict(model, cl_now, prev, cl_prev, alpha)
+                m = pred.notna() & test.notna()
+                if m.sum() < 20:
+                    continue
+                err = np.abs(pred[m] - test[m])
+                mae = float(err.mean())
+                row = {"city": series.name, "data_age_days": age, "horizon_days": h,
+                       "effective_horizon": effective, "model": model,
+                       "alpha": alpha if model == "blend" else np.nan,
+                       "mae": mae, "clim_mae": clim_mae,
+                       "skill_pct": 100 * (clim_mae - mae) / clim_mae,
+                       "n": int(m.sum())}
+                # Band as a fraction of the prediction, guarding against the
+                # near-zero predictions that would otherwise give absurd ratios.
+                safe = pred[m] > 1
+                if safe.sum() > 20:
+                    rel = (err[safe] / pred[m][safe]).values
+                    for q in quantiles:
+                        row[f"band_p{q}"] = float(np.percentile(rel, q))
+                rows.append(row)
     return pd.DataFrame(rows)
 
 
-def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
-                       min_history: int = 365,
-                       data_ages: Iterable[int] = (0, 1, 2, 3, 4, 5, 7),
-                       horizons: Iterable[int] = (1, 2, 3)) -> pd.DataFrame:
-    """forecast_mode_table, but measured on STATIONS rather than the city mean.
+def forecast_mode_table(series: pd.Series, test_year: int,
+                        data_ages: Iterable[int] = MODE_DATA_AGES,
+                        horizons: Iterable[int] = FORECAST_HORIZONS,
+                        quantiles: Iterable[int] = (50, 80)) -> pd.DataFrame:
+    """The model to serve, its expected error and its mode, per (age, horizon).
 
-    The mode decides whether the app calls a number a forecast or admits it is
-    the seasonal average. It is served per station, so it has to be measured
-    per station. A city mean is far more predictable than any monitor in it --
-    averaging ~70 Delhi stations cancels local noise, and for AQI it also
-    cancels the max-over-pollutants operator jumping between pollutants -- so a
-    city-fitted table says "forecast" at data ages where no individual station
-    has any skill left.
+    One row per combination: the better of blend and persistence (see
+    model_skill_table), and the mode that follows from ITS skill:
 
-    Each station gets its own table; the city's row is the MEDIAN skill across
-    stations, with the mode re-derived from that median. Median rather than
-    mean so one erratic monitor cannot drag a whole city's labelling.
+      forecast         - beats climatology comfortably; show it as a forecast
+      outlook          - still beats climatology, but show a wide band and
+                         softer language
+      seasonal_normal  - no better than the long-run average, so say that
+                         instead of dressing an average up as a prediction
+    """
+    t = model_skill_table(series, test_year, data_ages, horizons,
+                          quantiles=quantiles)
+    return _pick_served_model(t) if not t.empty else t
+
+
+def station_model_skill(station_daily: pd.DataFrame, city: str, test_year: int,
+                        min_history: int = 365,
+                        data_ages: Iterable[int] = MODE_DATA_AGES,
+                        horizons: Iterable[int] = FORECAST_HORIZONS) -> pd.DataFrame:
+    """model_skill_table per STATION, summarised as the median across stations.
+
+    One row per (data age, horizon, model). The median rather than the mean so
+    one erratic monitor cannot drag a whole city's labelling.
     """
     per_station = []
     for st, sub in station_daily[station_daily.city == city].groupby("station"):
@@ -1235,7 +1355,7 @@ def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
         if s.dropna().shape[0] < min_history:
             continue
         s.name = city
-        t = forecast_mode_table(s, test_year, data_ages=data_ages, horizons=horizons)
+        t = model_skill_table(s, test_year, data_ages=data_ages, horizons=horizons)
         if not t.empty:
             per_station.append(t)
 
@@ -1243,7 +1363,10 @@ def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
         return pd.DataFrame()
 
     allt = pd.concat(per_station, ignore_index=True)
-    agg = (allt.groupby(["data_age_days", "horizon_days"], as_index=False)
+    for col in ("band_p50", "band_p80"):
+        if col not in allt.columns:
+            allt[col] = np.nan
+    agg = (allt.groupby(["data_age_days", "horizon_days", "model"], as_index=False)
                .agg(effective_horizon=("effective_horizon", "first"),
                     alpha=("alpha", "median"),
                     mae=("mae", "median"),
@@ -1254,10 +1377,28 @@ def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
                     n=("n", "sum"),
                     n_stations=("mae", "size")))
     agg["city"] = city
-    agg["mode"] = np.where(agg.skill_pct >= 20, "forecast",
-                  np.where(agg.skill_pct >= MIN_USEFUL_SKILL_PCT, "outlook",
-                           "seasonal_normal"))
     return agg
+
+
+def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
+                       min_history: int = 365,
+                       data_ages: Iterable[int] = MODE_DATA_AGES,
+                       horizons: Iterable[int] = FORECAST_HORIZONS) -> pd.DataFrame:
+    """forecast_mode_table, but measured on STATIONS rather than the city mean.
+
+    The mode decides whether the app calls a number a forecast or admits it is
+    the seasonal average. It is served per station, so it has to be measured
+    per station. A city mean is far more predictable than any monitor in it --
+    averaging ~70 Delhi stations cancels local noise, and for AQI it also
+    cancels the max-over-pollutants operator jumping between pollutants -- so a
+    city-fitted table says "forecast" at data ages where no individual station
+    has any skill left.
+
+    The served model is chosen on the median station skill, per (age, horizon).
+    """
+    agg = station_model_skill(station_daily, city, test_year, min_history,
+                              data_ages, horizons)
+    return _pick_served_model(agg) if not agg.empty else agg
 
 
 def max_useful_age(mode_table: pd.DataFrame, horizon: int = 1) -> Optional[int]:

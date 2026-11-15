@@ -76,6 +76,8 @@ export async function GET(request: Request) {
       .from("readings")
       .select("id, monitor_id, recorded_at, aqi_value")
       .in("monitor_id", ids)
+      // Official readings only (audit §2.3); see getCurrent.
+      .eq("source", "openaq")
       .gte("recorded_at", since)
       .order("recorded_at", { ascending: true })
       .range(lo, hi),

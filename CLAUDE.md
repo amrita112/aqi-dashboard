@@ -31,6 +31,11 @@ I am a senior policy researcher with some computer science background. I can und
 - Keep components small and focused
 - Add detailed comments explaining what the code does and why
 
+## Forecast verification notebook
+- Whenever forecasting logic changes (scripts/forecast/*, lib/api/forecast.ts, averageForecastDays, daily-quality config), update notebooks/forecast_verification.ipynb in the same commit and re-run it.
+- It calls the app's own functions (lines marked `# ▶ APP CODE`); fix a changed call there rather than copying logic into the notebook.
+- The TypeScript serving layer is mirrored in scripts/forecast/serving_mirror.py. If expandDay, averageForecastDays or nearest_monitors change, update the mirror and tests/fixtures/serving_mirror/cases.json; both tests/test_serving_mirror.py and tests/api/serving-mirror.test.ts must pass.
+
 ## Work Style
 - Explain technical concepts in plain language, avoiding jargon where possible. However, keep it brief
 - When jargon is unavoidable, include a brief definition

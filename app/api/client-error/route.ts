@@ -55,11 +55,12 @@ export async function POST(request: Request) {
   const rawPath = clip(payload.pathname, MAX_PATHNAME + 200) ?? "";
   const pathname = rawPath ? rawPath.split("?")[0].split("#")[0].slice(0, MAX_PATHNAME) : null;
 
-  const { error } = await createClient().from("client_errors").insert({
-    message,
-    stack: clip(payload.stack, MAX_STACK),
-    pathname,
-    browser: clip(payload.browser, MAX_BROWSER),
+  // Through record_client_error() (migration 23); direct inserts are refused.
+  const { error } = await createClient().rpc("record_client_error", {
+    p_message: message,
+    p_stack: clip(payload.stack, MAX_STACK),
+    p_pathname: pathname,
+    p_browser: clip(payload.browser, MAX_BROWSER),
   });
 
   if (error) {

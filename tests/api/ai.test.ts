@@ -35,7 +35,7 @@ function fakeSupabase(tables: Record<string, unknown[]>) {
   const builder = (rows: unknown[]) => {
     const chain: Record<string, unknown> = {};
     const self = () => chain;
-    for (const m of ["select", "eq", "gt", "gte", "lte", "not", "order", "limit"]) {
+    for (const m of ["select", "eq", "in", "gt", "gte", "lte", "not", "order", "limit"]) {
       chain[m] = vi.fn(self);
     }
     // Awaiting the builder resolves to the rows, as postgrest-js does.
@@ -147,8 +147,8 @@ describe("tool executors", () => {
       monitors: [DELHI_MONITORS[0]],
       readings: [{ id: "r1", recorded_at: old }],
       measurements: [
-        { pollutant: "pm25", value: 55 },
-        { pollutant: "pm10", value: 180 },
+        { reading_id: "r1", pollutant: "pm25", value: 55 },
+        { reading_id: "r1", pollutant: "pm10", value: 180 },
       ],
     });
     const out = await executeTool(supabase, "current_aqi", { location: "Anand Vihar" });
@@ -162,7 +162,11 @@ describe("tool executors", () => {
     const supabase = fakeSupabase({
       monitors: [DELHI_MONITORS[0]],
       readings: [{ id: "r1", recorded_at: new Date().toISOString() }],
-      measurements: [{ pollutant: "pm25", value: 55 }],
+      // Both PMs: a reading needs them to carry an AQI (the AQI rule).
+      measurements: [
+        { reading_id: "r1", pollutant: "pm25", value: 55 },
+        { reading_id: "r1", pollutant: "pm10", value: 60 },
+      ],
     });
     // The model asks for "aqi"; the person's setting is PM2.5 and wins.
     const out = await executeTool(
@@ -380,8 +384,8 @@ describe("current_aqi in the person's measure", () => {
       monitors: [DELHI_MONITORS[0]],
       readings: [{ id: "r1", recorded_at: fresh }],
       measurements: [
-        { pollutant: "pm25", value: 75 },
-        { pollutant: "pm10", value: 180 },
+        { reading_id: "r1", pollutant: "pm25", value: 75 },
+        { reading_id: "r1", pollutant: "pm10", value: 180 },
       ],
     });
 
@@ -443,5 +447,83 @@ describe("reading a provider refusal", () => {
       "Rate limit reached ... on tokens per minute (TPM): Limit 8000, Used 5673, Requested 3602. Please try again in 9.5s.";
     expect(rateLimitSizesOf(text)).toEqual({ limit: 8000, requested: 3602 });
     expect(rateLimitSizesOf("something else")).toBeNull();
+  });
+});
+
+describe("AI charts never draw PM10/NO2/SO2 on an AQI or PM2.5 scale (audit §6.2)", () => {
+  it("returns no chart for a PM10 history", async () => {
+    const { bestChart } = await import("@/lib/ai/chart");
+    const series = Array.from({ length: 7 }, (_, i) => ({ date: `2026-11-0${i + 1}`, value: 150 + i }));
+    const chart = bestChart([{ name: "history", result: { pollutant: "pm10", series, location: "Delhi" } }]);
+    expect(chart).toBeNull();
+  });
+});
+
+describe("the system prompt names the configured AI provider (audit §2.6)", () => {
+  it("derives the name from the base URL", async () => {
+    const { providerName } = await import("@/lib/ai/provider");
+    expect(providerName("https://openrouter.ai/api/v1")).toBe("OpenRouter");
+    expect(providerName("https://api.groq.com/openai/v1")).toBe("Groq");
+  });
+});
+
+describe("the current reading must be able to carry an AQI (AQI rule)", () => {
+  it("skips a newest reading that has only NO2 so far", async () => {
+    const now = Date.now();
+    const supabase = fakeSupabase({
+      monitors: [DELHI_MONITORS[0]],
+      // Newest first, as the query orders them.
+      readings: [
+        { id: "new", recorded_at: new Date(now - 1 * 3_600_000).toISOString() },
+        { id: "old", recorded_at: new Date(now - 3 * 3_600_000).toISOString() },
+      ],
+      measurements: [
+        { reading_id: "new", pollutant: "no2", value: 20 },
+        { reading_id: "old", pollutant: "pm25", value: 75 },
+        { reading_id: "old", pollutant: "pm10", value: 180 },
+      ],
+    });
+    const out = await executeTool(supabase, "current_aqi", { location: "Anand Vihar" }, { measurement: "aqi" });
+    expect(out.dominant_pollutant).toBe("pm10");
+    expect(out.data_age_hours).toBeGreaterThan(2);
+  });
+});
+
+describe("AI city history ignores days too few stations reported", () => {
+  // The 18 Oct 2026 case: one Mumbai station had a complete day and read 297
+  // against ~60 elsewhere; the AI charted it as a city-wide spike.
+  const counting = (n: number) =>
+    ({
+      from: () => {
+        const chain: Record<string, unknown> = {};
+        for (const m of ["select", "eq", "is"]) chain[m] = () => chain;
+        (chain as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
+          resolve({ count: n, error: null });
+        return chain;
+      },
+    }) as never;
+  const day = (date: string, mean: number) =>
+    ({ date, mean, min: mean, max: mean, count: 96, source: "openaq" });
+  const perStation = [
+    [day("2026-10-17", 60), day("2026-10-18", 297)],
+    [day("2026-10-17", 55)],
+    [day("2026-10-17", 65)],
+    [day("2026-10-17", 58)],
+  ];
+  const loc = (kind: "city" | "point") =>
+    ({ kind, city: "Mumbai", label: "Mumbai", monitors: [] }) as never;
+
+  it("drops a city day resting on one station (33 monitors -> needs 4)", async () => {
+    const { wellCoveredHistory } = await import("@/lib/ai/tools");
+    const got = await wellCoveredHistory(counting(33), loc("city"), perStation);
+    expect(new Set(got.rows.map((r) => r.date))).toEqual(new Set(["2026-10-17"]));
+    expect(got.daysDropped).toBe(1);
+  });
+
+  it("keeps every day for a neighbourhood, as Trends does", async () => {
+    const { wellCoveredHistory } = await import("@/lib/ai/tools");
+    const got = await wellCoveredHistory(counting(33), loc("point"), perStation);
+    expect(got.daysDropped).toBe(0);
+    expect(got.rows).toHaveLength(5);
   });
 });

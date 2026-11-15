@@ -6,8 +6,11 @@ name: Monthly forecast refit
 # Monthly, not nightly: these rest on years of data, so one more month barely
 # moves them, and it is the only expensive job in the set.
 #
-# Reads history back out of readings_daily (--source db) rather than the local
-# XKDR parquet export, which is gitignored and absent on a fresh runner. The
+# Reads history from Supabase (--source db) rather than the local XKDR parquet
+# export, which is gitignored and absent on a fresh runner: the XKDR years
+# (2009 - Sep 2025) and the OpenAQ archive year (Sep 2025 - Aug 2026) from two
+# files in the `forecast-history` Storage bucket (kept out of the database to
+# stay under the 500 MB free limit), and our own days from readings_daily. The
 # one thing the daily table cannot give back is the hourly series behind the
 # diurnal shape, so this run leaves the existing diurnal_shape rows untouched.
 # That shape is a month x hour multiplier fitted on a decade of history and
@@ -41,7 +44,9 @@ jobs:
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PYTHONUNBUFFERED:          '1'
+          # Through env, never pasted into the script text (audit §2.6).
+          DRY_RUN_INPUT:             ${{ github.event.inputs.dry_run }}
         run: |
           ARGS=""
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="--dry-run"; fi
+          if [ "$DRY_RUN_INPUT" = "true" ]; then ARGS="--dry-run"; fi
           python -m scripts.forecast.refit_params --source db $ARGS

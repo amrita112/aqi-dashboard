@@ -13,7 +13,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { badRequest, fail, ok, rateLimit, callerKey, tooManyRequests } from "@/lib/api/respond";
-import { CITY_REQUEST_PURPOSE, CITY_REQUEST_THRESHOLD } from "@/lib/api/petition";
+import { CITY_REQUEST_THRESHOLD } from "@/lib/api/petition";
 
 export const dynamic = "force-dynamic";
 
@@ -65,22 +65,14 @@ export async function POST(request: Request) {
   }
 
   const supabase = createClient();
-  // THE TOKEN IS GENERATED HERE, NOT READ BACK. Asking Postgres to RETURN the
-  // inserted row needs SELECT on the table, and this table deliberately has no
-  // SELECT policy at all — so `.insert().select()` failed with "new row
-  // violates row-level security policy", which reads like the insert was
-  // refused when in fact it succeeded and only the read-back was denied.
-  //
-  // Supplying the UUID means we already know it and never have to ask.
-  const withdrawalToken = crypto.randomUUID();
-  const { error } = await supabase.from("petition_signatures").insert({
-    name,
-    email,
-    city,
-    kind: "city_request",
-    wants_updates: false,
-    purpose: CITY_REQUEST_PURPOSE,
-    withdrawal_token: withdrawalToken,
+  // THROUGH sign_petition(), NOT A DIRECT INSERT (migration 23): the
+  // function sets the purpose, expiry and withdrawal token itself.
+  const { data: withdrawalToken, error } = await supabase.rpc("sign_petition", {
+    p_kind: "city_request",
+    p_name: name,
+    p_email: email,
+    p_city: city,
+    p_wants_updates: false,
   });
 
   if (error) {
