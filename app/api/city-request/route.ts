@@ -67,7 +67,7 @@ export async function POST(request: Request) {
   const supabase = createClient();
   // THROUGH sign_petition(), NOT A DIRECT INSERT (migration 23): the
   // function sets the purpose, expiry and withdrawal token itself.
-  const { data: withdrawalToken, error } = await supabase.rpc("sign_petition", {
+  const { error } = await supabase.rpc("sign_petition", {
     p_kind: "city_request",
     p_name: name,
     p_email: email,
@@ -91,7 +91,5 @@ export async function POST(request: Request) {
     count: count ?? 0,
     already: false,
     threshold: CITY_REQUEST_THRESHOLD,
-    // Returned once and never again, exactly as the petition does.
-    withdrawal_token: withdrawalToken,
   });
 }

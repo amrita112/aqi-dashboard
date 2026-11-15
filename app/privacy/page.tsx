@@ -129,13 +129,12 @@ export default function PrivacyPage() {
           count.
         </p>
         <p>
-          Rows are deleted automatically after {RETENTION_YEARS} years. You can
-          delete yours sooner with the withdrawal code shown when you signed, which
-          removes the row rather than marking it hidden. Lost the code? Write to{" "}
+          Rows are deleted automatically after {RETENTION_YEARS} years. To have
+          yours deleted sooner, write to{" "}
           <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-700 underline">
             {CONTACT_EMAIL}
           </a>
-          .
+          . We delete the row itself, rather than marking it hidden.
         </p>
       </Section>
 
@@ -187,8 +186,7 @@ export default function PrivacyPage() {
           Under India&apos;s Digital Personal Data Protection Act you can ask what we
           hold about you, ask for it to be corrected, and withdraw your consent. For
           anything on your device, you do not need us: <strong>Reset everything</strong>{" "}
-          in Settings. For a petition signature or a city request, use your
-          withdrawal code, or write to{" "}
+          in Settings. For a petition signature or a city request, write to{" "}
           <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-700 underline">
             {CONTACT_EMAIL}
           </a>

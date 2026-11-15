@@ -21,6 +21,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { CONTACT_EMAIL } from "@/lib/brand";
 
 type State =
   | { status: "idle" }
@@ -175,7 +176,12 @@ export default function CityRequestForm({ threshold = 50 }: { threshold?: number
 
       <p className="mt-3 text-xs text-gray-500">
         Your email is used only to tell you when your city is added, and is deleted with the
-        request. The count for each city is public; who asked is not.
+        request. The count for each city is public; who asked is not. To withdraw your
+        request, email{" "}
+        <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
+          {CONTACT_EMAIL}
+        </a>
+        .
       </p>
     </form>
   );

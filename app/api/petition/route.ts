@@ -1,7 +1,6 @@
 /**
  * GET    /api/petition   — how many people have signed (a count, nothing else)
  * POST   /api/petition   — sign
- * DELETE /api/petition   — withdraw, using the token returned at signing
  *
  * The only endpoint in this app that writes personal data, so it is the only
  * one that has to be careful about it.
@@ -10,17 +9,17 @@
  * The table has no SELECT policy at all (see migration 16), so even a bug here
  * cannot leak the list through the anon key. GET returns an integer.
  *
- * WHAT THE SIGNATORY GETS BACK ONCE: their withdrawal token. There is no email
- * sender in this project — a deliberate consequence of running on free tiers —
- * so a token handed over at signing time is the only way someone can withdraw
- * without a human being involved. It is shown once and never readable again,
- * which is a real usability cost and is stated plainly in the UI rather than
- * hidden.
+ * WITHDRAWAL IS BY EMAIL (Nov 2026). Signatories used to get a withdrawal code
+ * back, with no page to use it on; it confused people and was removed. A
+ * request to the privacy address (lib/brand.ts, CONTACT_EMAIL) is handled by
+ * deleting the row by hand. The database still gives each row a withdrawal
+ * token (sign_petition, migration 23); it is simply never shown.
  */
 
 import { createClient } from "@/lib/supabase/server";
 import { ok, fail, badRequest, rateLimit, callerKey, tooManyRequests } from "@/lib/api/respond";
 import { PETITION_PURPOSE, RETENTION_YEARS } from "@/lib/api/petition";
+import { CONTACT_EMAIL } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +36,6 @@ const SIGN_PER_IP_PER_HOUR = 3;
 const SIGN_PER_IP_PER_DAY = 5;
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET() {
   const supabase = createClient();
@@ -104,38 +102,12 @@ export async function POST(request: Request) {
   }
 
   return ok(
-    {
-      signed: true,
-      // Shown once. There is no way to retrieve it later.
-      withdrawal_token: withdrawalToken,
-    },
+    { signed: true },
     {
       purpose: PETITION_PURPOSE,
       retention_years: RETENTION_YEARS,
-      withdraw_with: "DELETE /api/petition with { token }",
+      withdraw_by: `email ${CONTACT_EMAIL}`,
     },
     201,
   );
-}
-
-export async function DELETE(request: Request) {
-  let body: { token?: unknown };
-  try {
-    body = await request.json();
-  } catch {
-    return badRequest("Body must be JSON: { token }");
-  }
-  const token = typeof body.token === "string" ? body.token.trim() : "";
-  if (!UUID_RE.test(token)) return badRequest("A valid withdrawal token is required");
-
-  const supabase = createClient();
-  const { data, error } = await supabase.rpc("withdraw_petition_signature", { token });
-  if (error) return fail("Could not withdraw the signature", 502, error.message);
-
-  if (!data) {
-    // Either the token never existed or it was already used. Both are reported
-    // identically: distinguishing them would let someone test tokens.
-    return fail("That token does not match a signature. It may already have been withdrawn.", 404);
-  }
-  return ok({ withdrawn: true }, { deleted: "the row was deleted outright, not flagged" });
 }

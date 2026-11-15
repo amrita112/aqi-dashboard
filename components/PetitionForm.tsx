@@ -4,23 +4,23 @@
  * The signing form.
  *
  * A CLIENT component, unlike the page that holds it, because it has to manage
- * input state, a submit that can fail, and a success state that shows the
- * withdrawal token exactly once. The explanatory half of the page stays a
- * server component so none of that text costs the user any JavaScript.
+ * input state and a submit that can fail. The explanatory half of the page
+ * stays a server component so none of that text costs the user any JavaScript.
  *
- * The token is the awkward part and it is handled honestly rather than
- * quietly: there is no email sender in this project, so the token shown after
- * signing is the ONLY way someone can withdraw without a human being involved.
- * It is therefore displayed prominently, with a copy button, and the user is
- * told plainly that it will not be shown again.
+ * REMOVING A NAME IS BY EMAIL (Nov 2026). Signatories used to be shown a
+ * withdrawal code with no page to use it on, which confused people. Now the
+ * thank-you message gives the privacy address instead; a request there is
+ * handled by deleting the row by hand. India's DPDP Act requires that consent
+ * can be withdrawn, so this line must stay.
  */
 
 import { useState } from "react";
+import { CONTACT_EMAIL } from "@/lib/brand";
 
 type State =
   | { status: "idle" }
   | { status: "sending" }
-  | { status: "signed"; token: string }
+  | { status: "signed" }
   | { status: "error"; message: string };
 
 export default function PetitionForm({ purpose }: { purpose: string }) {
@@ -29,7 +29,6 @@ export default function PetitionForm({ purpose }: { purpose: string }) {
   const [email, setEmail] = useState("");
   const [city, setCity] = useState("");
   const [wantsUpdates, setWantsUpdates] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,7 +44,7 @@ export default function PetitionForm({ purpose }: { purpose: string }) {
         setState({ status: "error", message: body?.error?.message ?? "Something went wrong." });
         return;
       }
-      setState({ status: "signed", token: body.data.withdrawal_token });
+      setState({ status: "signed" });
     } catch {
       setState({ status: "error", message: "Could not reach the server. Please try again." });
     }
@@ -56,34 +55,13 @@ export default function PetitionForm({ purpose }: { purpose: string }) {
       <div className="rounded-lg border border-green-300 bg-green-50 p-6">
         <h2 className="text-xl font-semibold text-green-900">Thank you — your name is added.</h2>
 
-        <div className="mt-5 rounded-md border border-green-300 bg-white p-4">
-          <p className="text-sm font-medium text-gray-900">
-            Save this if you might want to remove your name later
-          </p>
-          <p className="mt-1 text-sm text-gray-600">
-            This code is the only way to withdraw your signature yourself. We have no way to
-            show it to you again, and no way to email it to you.
-          </p>
-          <div className="mt-3 flex items-center gap-2">
-            <code className="flex-1 break-all rounded bg-gray-100 px-3 py-2 font-mono text-sm">
-              {state.token}
-            </code>
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard?.writeText(state.token);
-                setCopied(true);
-              }}
-              className="shrink-0 rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50"
-            >
-              {copied ? "Copied" : "Copy"}
-            </button>
-          </div>
-          <p className="mt-3 text-sm text-gray-600">
-            Lost it? Email us and we will remove your name — it just takes a person rather
-            than a click.
-          </p>
-        </div>
+        <p className="mt-3 text-sm text-green-900">
+          Want your name removed later? Email{" "}
+          <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
+            {CONTACT_EMAIL}
+          </a>{" "}
+          and we will delete it.
+        </p>
       </div>
     );
   }

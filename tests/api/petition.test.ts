@@ -8,7 +8,7 @@
  *   - never echo back the personal data it was just given
  *   - freeze the consent wording onto each row, so changing the text later
  *     cannot retroactively reinterpret what someone agreed to
- *   - treat "already signed" and "bad token" as answers that reveal nothing
+ *   - treat "already signed" as an answer that reveals nothing
  *
  * The database half of the guarantee lives in migration 16 (no SELECT policy
  * at all), which these cannot reach; what they pin is that the route does not
@@ -39,7 +39,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-import { GET, POST, DELETE } from "@/app/api/petition/route";
+import { GET, POST } from "@/app/api/petition/route";
 import { PETITION_PURPOSE, RETENTION_YEARS } from "@/lib/api/petition";
 
 function post(body: unknown, ip = "1.2.3.4") {
@@ -147,9 +147,12 @@ describe("POST — what it stores and what it returns", () => {
     expect(signCall()).toEqual(expect.objectContaining({ p_wants_updates: true }));
   });
 
-  it("returns the withdrawal token and NOT the personal data it just stored", async () => {
+  it("returns no withdrawal code and NOT the personal data it just stored", async () => {
+    // Withdrawal is by email since Nov 2026; the code it used to return had no
+    // page to use it on.
     const body = await (await POST(post(VALID, freshIp()))).json();
-    expect(body.data.withdrawal_token).toBe(TOKEN);
+    expect(body.data).toEqual({ signed: true });
+    expect(body.meta.withdraw_by).toMatch(/privacy@airgyaan\.in/);
     const text = JSON.stringify(body.data);
     expect(text).not.toMatch(/asha/i);
     expect(text).not.toMatch(/example\.com/i);
@@ -175,35 +178,5 @@ describe("POST — rate limiting", () => {
       codes.push((await POST(post({ ...VALID, email: `a${i}@example.com` }, ip))).status);
     }
     expect(codes.filter((c) => c === 429).length).toBeGreaterThan(0);
-  });
-});
-
-describe("DELETE — withdrawal", () => {
-  function del(body: unknown) {
-    return new Request("http://localhost/api/petition", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  }
-
-  it("requires a well-formed token", async () => {
-    expect((await DELETE(del({ token: "nope" }))).status).toBe(400);
-    expect((await DELETE(del({}))).status).toBe(400);
-  });
-
-  it("confirms a real withdrawal", async () => {
-    rpc.mockResolvedValue({ data: true, error: null });
-    const res = await DELETE(del({ token: "11111111-1111-1111-1111-111111111111" }));
-    expect(res.status).toBe(200);
-    expect((await res.json()).data.withdrawn).toBe(true);
-  });
-
-  it("gives an unknown and an already-used token the same answer", async () => {
-    // Distinguishing them would turn this into an oracle for testing tokens.
-    rpc.mockResolvedValue({ data: false, error: null });
-    const res = await DELETE(del({ token: "22222222-2222-2222-2222-222222222222" }));
-    expect(res.status).toBe(404);
-    expect((await res.json()).error.message).toMatch(/does not match/i);
   });
 });
