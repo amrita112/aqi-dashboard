@@ -255,12 +255,18 @@ BIAS_HISTORY_DAYS = 21
 
 
 def load_scored_history(client, pollutants: List[str], since: date
-                        ) -> Tuple[List[Dict[str, Any]], Dict[Tuple[str, str], float]]:
+                        ) -> Tuple[List[Dict[str, Any]], Dict[Tuple[str, str, str], float]]:
     """Past forecasts and what actually happened, for learning the bias.
 
     Returns the forecasts (carrying value_raw where one was stored) and the
-    observed daily value per (monitor_id, date) in the same shape the forecasts
-    are keyed by, so city_day_errors can line them up.
+    observed daily value per (monitor_id, date, pollutant) -- the same key the
+    forecasts carry, so city_day_errors can line them up.
+
+    The pollutant MUST be part of the key. Until Nov 2026 it was keyed by
+    (monitor_id, date) alone, so the AQI written second overwrote the PM2.5
+    value and every PM2.5 forecast was scored against composite AQI. AQI is
+    almost always the larger number, so the correction "learned" that PM2.5
+    was under-forecast and pushed it up towards the +50% cap.
     """
     from scripts.ingest.lib.aqi_utils import compute_subindex
 
@@ -292,7 +298,7 @@ def load_scored_history(client, pollutants: List[str], since: date
     # Same construction as latest_observations: sub-index per pollutant, max
     # across them for AQI. Deriving it differently here would make the measured
     # bias an artefact of the two definitions disagreeing.
-    actuals: Dict[Tuple[str, str], float] = {}
+    actuals: Dict[Tuple[str, str, str], float] = {}
     by_day: Dict[Tuple[str, str], Dict[str, float]] = {}
     for r in rows:
         if r["mean"] is None:
@@ -300,12 +306,14 @@ def load_scored_history(client, pollutants: List[str], since: date
         key = (r["monitor_id"], r["date"])
         by_day.setdefault(key, {})[r["pollutant"]] = float(r["mean"])
     for (mid, d), pol in by_day.items():
-        if "pm25" in pol:
-            actuals[(mid, d)] = pol["pm25"] if "pm25" in pollutants else None
-        subs = [compute_subindex(p, v) for p, v in pol.items()]
-        subs = [x for x in subs if x is not None]
-        if subs:
-            actuals[(mid, d)] = max(subs)
+        # One entry per pollutant, each under its own key.
+        if "pm25" in pollutants and "pm25" in pol:
+            actuals[(mid, d, "pm25")] = pol["pm25"]
+        if "aqi" in pollutants:
+            subs = [compute_subindex(p, v) for p, v in pol.items()]
+            subs = [x for x in subs if x is not None]
+            if subs:
+                actuals[(mid, d, "aqi")] = max(subs)
     return fc, actuals
 
 

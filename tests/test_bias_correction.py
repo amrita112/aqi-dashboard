@@ -129,14 +129,14 @@ def test_learns_from_value_raw_not_the_corrected_value():
     """Otherwise the offset chases its own tail."""
     fc = [{"monitor_id": "m1", "pollutant": "aqi", "target_date": "2026-10-05",
            "value": 150.0, "value_raw": 100.0}]
-    out = city_day_errors(fc, {("m1", "2026-10-05"): 120.0}, {"m1": "Delhi"})
+    out = city_day_errors(fc, {("m1", "2026-10-05", "aqi"): 120.0}, {"m1": "Delhi"})
     assert out[("Delhi", "aqi")][date(2026, 10, 5)] == pytest.approx(-20.0)
 
 
 def test_falls_back_to_value_when_no_correction_was_applied():
     fc = [{"monitor_id": "m1", "pollutant": "aqi", "target_date": "2026-10-05",
            "value": 100.0, "value_raw": None}]
-    out = city_day_errors(fc, {("m1", "2026-10-05"): 120.0}, {"m1": "Delhi"})
+    out = city_day_errors(fc, {("m1", "2026-10-05", "aqi"): 120.0}, {"m1": "Delhi"})
     assert out[("Delhi", "aqi")][date(2026, 10, 5)] == pytest.approx(-20.0)
 
 
@@ -147,7 +147,7 @@ def test_averages_stations_within_a_city():
         {"monitor_id": "m2", "pollutant": "aqi", "target_date": "2026-10-05",
          "value": 140.0, "value_raw": None},
     ]
-    actuals = {("m1", "2026-10-05"): 120.0, ("m2", "2026-10-05"): 120.0}
+    actuals = {("m1", "2026-10-05", "aqi"): 120.0, ("m2", "2026-10-05", "aqi"): 120.0}
     out = city_day_errors(fc, actuals, {"m1": "Delhi", "m2": "Delhi"})
     assert out[("Delhi", "aqi")][date(2026, 10, 5)] == pytest.approx(0.0)
 
@@ -157,3 +157,73 @@ def test_skips_forecasts_with_no_observation():
            "value": 100.0, "value_raw": None}]
     assert city_day_errors(fc, {}, {"m1": "Delhi"}) == {}
 
+
+
+# ── each pollutant is scored against itself (audit Nov 2026, §7.1) ──────────
+
+class _FakeQuery:
+    """Stands in for a Supabase query: every filter returns itself, and
+    execute() hands back the canned rows once (so pagination stops)."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def __getattr__(self, name):
+        return lambda *a, **k: self
+
+    def execute(self):
+        class R:
+            pass
+        r = R()
+        r.data, self.rows = self.rows, []
+        return r
+
+
+class _FakeClient:
+    def __init__(self, tables):
+        self.tables = tables
+
+    def table(self, name):
+        return _FakeQuery(list(self.tables[name]))
+
+
+def test_pm25_forecast_is_not_scored_against_aqi():
+    """The bug: actuals were keyed by (monitor, date) only, so the AQI value
+    overwrote PM2.5 and a perfect PM2.5 forecast looked 107 too low."""
+    fc = [
+        {"monitor_id": "m1", "pollutant": "pm25", "target_date": "2026-10-05",
+         "value": 60.0, "value_raw": None},
+        {"monitor_id": "m1", "pollutant": "aqi", "target_date": "2026-10-05",
+         "value": 150.0, "value_raw": None},
+    ]
+    actuals = {("m1", "2026-10-05", "pm25"): 60.0,
+               ("m1", "2026-10-05", "aqi"): 167.0}
+    out = city_day_errors(fc, actuals, {"m1": "Delhi"})
+    assert out[("Delhi", "pm25")][date(2026, 10, 5)] == pytest.approx(0.0)
+    assert out[("Delhi", "aqi")][date(2026, 10, 5)] == pytest.approx(-17.0)
+
+
+def test_load_scored_history_keeps_pollutants_apart():
+    """End to end through nightly's loader, as in the audit's demo: a perfect
+    PM2.5 forecast must produce zero error and no correction."""
+    from scripts.forecast import nightly_forecast as nf
+
+    today = date(2026, 11, 14)
+    fc, rd = [], []
+    for i in range(1, 11):
+        d = (today - timedelta(days=i)).isoformat()
+        fc.append({"monitor_id": "m1", "pollutant": "pm25", "target_date": d,
+                   "value": 60.0, "value_raw": None})
+        rd.append({"monitor_id": "m1", "pollutant": "pm25", "date": d,
+                   "mean": 60.0, "count": 96})
+        rd.append({"monitor_id": "m1", "pollutant": "pm10", "date": d,
+                   "mean": 200.0, "count": 96})
+    client = _FakeClient({"forecast_daily": fc, "readings_daily": rd})
+    hist_fc, actuals = nf.load_scored_history(
+        client, ["pm25", "aqi"], today - timedelta(days=21))
+
+    yesterday = (today - timedelta(days=1)).isoformat()
+    assert actuals[("m1", yesterday, "pm25")] == pytest.approx(60.0)
+    errors = city_day_errors(hist_fc, actuals, {"m1": "Delhi"})
+    assert all(e == pytest.approx(0.0) for e in errors[("Delhi", "pm25")].values())
+    assert decide(errors[("Delhi", "pm25")], today)["applied"] is False

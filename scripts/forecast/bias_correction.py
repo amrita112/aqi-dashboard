@@ -84,10 +84,13 @@ def _mean(xs: List[float]) -> Optional[float]:
 
 def city_day_errors(
     forecasts: List[Dict[str, Any]],
-    actuals: Dict[Tuple[str, str], float],
+    actuals: Dict[Tuple[str, str, str], float],
     city_of: Dict[str, str],
 ) -> Dict[Tuple[str, str], Dict[date, float]]:
     """(city, pollutant) -> {target_date: mean (forecast - actual)}.
+
+    `actuals` is keyed by (monitor_id, date, pollutant), so a PM2.5 forecast is
+    only ever scored against measured PM2.5, and an AQI forecast against AQI.
 
     Errors are averaged over the stations of a city, because the correction is a
     city-level offset. A per-station offset would be fitted on a handful of days
@@ -103,7 +106,7 @@ def city_day_errors(
             continue
         raw = f.get("value_raw")
         value = float(raw if raw is not None else f["value"])
-        actual = actuals.get((f["monitor_id"], f["target_date"]))
+        actual = actuals.get((f["monitor_id"], f["target_date"], f["pollutant"]))
         if actual is None:
             continue
         target = date.fromisoformat(f["target_date"])
