@@ -487,7 +487,7 @@ def load_history_from_db(client=None, min_stations: int = 3,
     df = df.dropna(subset=["city", "mean"])
 
     # ── Quality filter: the SAME rule nightly applies (daily_quality.py) ──
-    # Complete days only (>= 16 hours of readings), values 0-2000, and for AQI
+    # Complete days only (>= 12 hours of readings), values 0-2000, and for AQI
     # at least 3 pollutants including a PM. Before Nov 2026 this path had no
     # filter at all, unlike the notebook it was validated against (audit D2).
     from scripts.forecast.daily_quality import complete_days, station_day_aqi

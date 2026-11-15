@@ -292,7 +292,7 @@ def add_complete_flags(rows: List[Dict[str, Any]], reference: pd.DataFrame) -> N
 
     THE COMPLETENESS RULE IS DECIDED HERE, ONCE, when the day is written
     (scripts/forecast/daily_quality.py; numbers in lib/daily-quality-config.json):
-    >= 16 hours of readings and a plausible mean. Every reader -- nightly, the
+    >= 12 hours of readings and a plausible mean. Every reader -- nightly, the
     refit, the app's charts and map -- filters on the stored flag.
 
     Partial days are still written, with is_complete = false. Not writing them

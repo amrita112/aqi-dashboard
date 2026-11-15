@@ -1,7 +1,7 @@
 """Tests for the shared daily completeness rule (scripts/forecast/daily_quality.py).
 
 These pin the three rules nightly, the refit and the notebook all rely on:
->= 16 hours of readings, values 0-2000, and >= 3 pollutants incl. a PM for AQI.
+>= 12 hours of readings, values 0-2000, and the AQI pollutant rule.
 """
 from __future__ import annotations
 
@@ -29,15 +29,15 @@ def rows(monitor, pollutant, counts, means=None, source="openaq", start=date(202
              "count": c, "mean": m} for i, (c, m) in enumerate(zip(counts, means))]
 
 
-def test_15_minute_station_needs_64_readings():
-    """A 15-minute station (typical day 96) needs 16 h = 64 readings."""
-    df = pd.DataFrame(rows("m1", "pm25", [96] * 10 + [64, 63]))
+def test_15_minute_station_needs_48_readings():
+    """A 15-minute station (typical day 96) needs 12 h = 48 readings."""
+    df = pd.DataFrame(rows("m1", "pm25", [96] * 10 + [48, 47]))
     assert complete_mask(df).tolist() == [True] * 11 + [False]
 
 
 def test_hourly_station_needs_16_readings():
-    """An hourly station (typical day 24) needs 16 readings, not 64."""
-    df = pd.DataFrame(rows("m1", "pm25", [24] * 10 + [16, 15]))
+    """An hourly station (typical day 24) needs 12 readings, not 48."""
+    df = pd.DataFrame(rows("m1", "pm25", [24] * 10 + [12, 11]))
     assert complete_mask(df).tolist() == [True] * 11 + [False]
 
 

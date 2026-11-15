@@ -22,8 +22,10 @@ import {
   meanAcross,
   DataError,
   MAX_STATIONS_PER_CITY_QUERY,
+  type HistoryPoint,
   type ResolvedLocation,
 } from "@/lib/api/data";
+import { cityMinStations } from "@/lib/api/place";
 import type { ForecastDay } from "@/lib/api/forecast";
 import { bandFor } from "@/lib/api/forecast";
 import { DEFAULT_SCALE } from "@/lib/types";
@@ -298,6 +300,39 @@ const MAX_SERIES_POINTS = 30;
  * Thinned by stride rather than truncated, so a 90-day request still shows the
  * whole 90 days instead of its first month.
  */
+/**
+ * A city's history, keeping only days when enough of its stations reported.
+ *
+ * WHY. Only complete days count (readings_daily.is_complete), so on a day when
+ * OpenAQ lost hours for most stations, a "Mumbai average" could rest on one
+ * station -- and on 18 Oct 2026 that one station read 297 µg/m³ against ~60
+ * elsewhere, which an answer then charted as a city-wide spike. Trends already
+ * drops such days for city views (cityMinStations, CITY_MIN_REPORTING_SHARE);
+ * this applies the same rule here. Points and named stations are not filtered,
+ * as on Trends: they describe a neighbourhood, not a city.
+ */
+export async function wellCoveredHistory(
+  supabase: SupabaseClient,
+  loc: ResolvedLocation,
+  perStation: HistoryPoint[][],
+): Promise<{ rows: HistoryPoint[]; daysDropped: number }> {
+  const rows = perStation.flat();
+  if (loc.kind !== "city") return { rows, daysDropped: 0 };
+  // The city-wide minimum, but never more than the stations actually sampled.
+  const need = Math.min((await cityMinStations(supabase, loc.city)) ?? 1, perStation.length);
+  const stationsOn = new Map<string, number>();
+  for (const series of perStation) {
+    for (const d of Array.from(new Set(series.map((p) => p.date)))) {
+      stationsOn.set(d, (stationsOn.get(d) ?? 0) + 1);
+    }
+  }
+  const keep = new Set(Array.from(stationsOn.entries()).filter(([, n]) => n >= need).map(([d]) => d));
+  return {
+    rows: rows.filter((p) => keep.has(p.date)),
+    daysDropped: stationsOn.size - keep.size,
+  };
+}
+
 function dailySeries(
   rows: { date: string; mean: number | null }[],
   cap: number,
@@ -734,7 +769,7 @@ async function runTool(
       const series = await Promise.all(
         sample(loc).map((m) => getHistory(supabase, m, pollutant, daysAgo(days), istToday())),
       );
-      const flat = series.flat();
+      const { rows: flat, daysDropped } = await wellCoveredHistory(supabase, loc, series);
       if (!flat.length) return { location: loc.label, error: "no_history" };
       const mean = meanAcross(flat.map((d) => d.mean));
       return {
@@ -742,6 +777,9 @@ async function runTool(
         pollutant,
         days_requested: days,
         days_with_data: new Set(flat.map((d) => d.date)).size,
+        // Days left out because too few of the city's stations had a complete
+        // day -- an average of one or two stations does not describe a city.
+        days_left_out_for_low_coverage: daysDropped,
         mean,
         // The category of the average, worked out here. Without it the model
         // named one itself and got it wrong: an AQI average of 133 came back
@@ -768,11 +806,13 @@ async function runTool(
         [args.location_a, args.location_b].map(async (raw) => {
           const loc = await resolveFor(supabase, String(raw ?? ""), ctx);
           if (!loc) return { input: String(raw ?? ""), error: "unknown_location" as const };
-          const series = (
+          const { rows: series } = await wellCoveredHistory(
+            supabase,
+            loc,
             await Promise.all(
               sample(loc).map((m) => getHistory(supabase, m, pollutant, daysAgo(days), istToday())),
-            )
-          ).flat();
+            ),
+          );
           const mean = meanAcross(series.map((d) => d.mean));
           return {
             location: loc.label,

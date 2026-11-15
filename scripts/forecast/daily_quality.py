@@ -16,8 +16,9 @@ be only partly published (audit §7.3).
 THE RULE -- its numbers live in lib/daily-quality-config.json, which the app's
 TypeScript (lib/api/daily-quality.ts) reads too, so both apply one rule.
 
-  1. A pollutant's day is complete when it has at least 16 hours' worth of
-     readings. This is CPCB's own rule for a 24-hour average.
+  1. A pollutant's day is complete when it has at least 12 hours' worth of
+     readings. (CPCB's official rule is 16; 16 dropped almost every station
+     on days OpenAQ lost a few hours network-wide -- see the config file.)
 
      "Hours' worth" depends on how often the station reports. XKDR history is
      hourly (24 readings make a full day); OpenAQ is mostly every 15 minutes

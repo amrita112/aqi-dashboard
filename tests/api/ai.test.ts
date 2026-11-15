@@ -488,3 +488,42 @@ describe("the current reading must be able to carry an AQI (AQI rule)", () => {
     expect(out.data_age_hours).toBeGreaterThan(2);
   });
 });
+
+describe("AI city history ignores days too few stations reported", () => {
+  // The 18 Oct 2026 case: one Mumbai station had a complete day and read 297
+  // against ~60 elsewhere; the AI charted it as a city-wide spike.
+  const counting = (n: number) =>
+    ({
+      from: () => {
+        const chain: Record<string, unknown> = {};
+        for (const m of ["select", "eq", "is"]) chain[m] = () => chain;
+        (chain as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
+          resolve({ count: n, error: null });
+        return chain;
+      },
+    }) as never;
+  const day = (date: string, mean: number) =>
+    ({ date, mean, min: mean, max: mean, count: 96, source: "openaq" });
+  const perStation = [
+    [day("2026-10-17", 60), day("2026-10-18", 297)],
+    [day("2026-10-17", 55)],
+    [day("2026-10-17", 65)],
+    [day("2026-10-17", 58)],
+  ];
+  const loc = (kind: "city" | "point") =>
+    ({ kind, city: "Mumbai", label: "Mumbai", monitors: [] }) as never;
+
+  it("drops a city day resting on one station (33 monitors -> needs 4)", async () => {
+    const { wellCoveredHistory } = await import("@/lib/ai/tools");
+    const got = await wellCoveredHistory(counting(33), loc("city"), perStation);
+    expect(new Set(got.rows.map((r) => r.date))).toEqual(new Set(["2026-10-17"]));
+    expect(got.daysDropped).toBe(1);
+  });
+
+  it("keeps every day for a neighbourhood, as Trends does", async () => {
+    const { wellCoveredHistory } = await import("@/lib/ai/tools");
+    const got = await wellCoveredHistory(counting(33), loc("point"), perStation);
+    expect(got.daysDropped).toBe(0);
+    expect(got.rows).toHaveLength(5);
+  });
+});

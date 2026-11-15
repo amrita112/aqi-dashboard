@@ -4,7 +4,7 @@
  * COMPLETENESS IS DECIDED ONCE, by the nightly rollup, and stored in
  * readings_daily.is_complete (migration 25; the rule is in
  * scripts/forecast/daily_quality.py, its numbers in
- * lib/daily-quality-config.json): >= 16 hours of readings and a plausible
+ * lib/daily-quality-config.json): >= 12 hours of readings and a plausible
  * mean. The app only reads that flag -- it does not re-derive it.
  *
  * What IS computed here is the AQI rule, because it combines a station's

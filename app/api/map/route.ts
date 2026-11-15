@@ -170,6 +170,6 @@ export async function GET(request: Request) {
         ]
       : null,
     lookback_days: LOOKBACK_DAYS,
-    reading_is: "most recent COMPLETE daily average (>= 16 hours of data), not a live reading",
+    reading_is: "most recent COMPLETE daily average (>= 12 hours of data), not a live reading",
   });
 }
