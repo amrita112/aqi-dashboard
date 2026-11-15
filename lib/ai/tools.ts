@@ -24,6 +24,8 @@ import {
   type ResolvedLocation,
 } from "@/lib/api/data";
 import type { ForecastDay } from "@/lib/api/forecast";
+import { bandFor } from "@/lib/api/forecast";
+import { DEFAULT_SCALE } from "@/lib/types";
 import { computeSubIndex, getAqiLabel } from "@/lib/aqi-utils";
 import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
 import { searchNominatim } from "@/lib/api/nominatim";
@@ -470,8 +472,15 @@ async function runTool(
         return { location: loc.label, error: "no_forecast", message: "No forecast stored for this place yet." };
       }
       const byDay = [];
-      for (let i = 0; i < days; i++) {
-        const slice = usable.map((d) => d[i]).filter(Boolean);
+      // Matched by DATE, not position: day i of one station is not day i of
+      // another when a station is missing a row (audit §7.4).
+      const dates = Array.from(new Set(usable.flatMap((d) => d.map((x) => x.target_date))))
+        .sort()
+        .slice(0, days);
+      for (const date of dates) {
+        const slice = usable
+          .map((d) => d.find((x) => x.target_date === date))
+          .filter((x): x is ForecastDay => Boolean(x));
         if (!slice.length) continue;
         // If ANY station is serving the seasonal normal, say so rather than
         // hiding it behind an average that looks like a prediction.
@@ -497,8 +506,16 @@ async function runTool(
             : modes.has("outlook")
               ? "outlook"
               : "seasonal_normal",
-          band_label: slice[0].band.label,
-          data_age_days: slice[0].data_age_days,
+          // The band of the AVERAGED value, not of whichever station came
+          // first (audit §6.3) -- the same rule averageForecastDays follows.
+          band_label: dayValue !== null ? bandFor(pollutant, dayValue, DEFAULT_SCALE).label : null,
+          // The stalest contributor: an average is only as current as its
+          // oldest input.
+          data_age_days: slice.reduce<number | null>(
+            (worst, d) =>
+              d.data_age_days === null ? worst : Math.max(worst ?? 0, d.data_age_days),
+            null,
+          ),
         });
       }
       return { location: loc.label, pollutant, stations_used: usable.length, days: byDay };
@@ -511,7 +528,15 @@ async function runTool(
       const forecasts = await Promise.all(
         sample(loc).map((m) => getForecast(supabase, m, pollutant, 1)),
       );
-      const days = forecasts.map((f) => f[0]).filter(Boolean);
+      // Every station's row for the SAME day -- the earliest any of them has.
+      // Taking each station's first row mixed days when one lacked a row.
+      const firstDate = forecasts
+        .map((f) => f[0]?.target_date)
+        .filter((d): d is string => Boolean(d))
+        .sort()[0];
+      const days = forecasts
+        .map((f) => f.find((d) => d.target_date === firstDate))
+        .filter((d): d is ForecastDay => Boolean(d));
       if (!days.length) return { location: loc.label, error: "no_forecast" };
       if (days.every((d) => d.hourly_is_flat)) {
         return {

@@ -117,29 +117,6 @@ def city_day_errors(
     }
 
 
-def window_errors(errors: Dict[date, float], before: date) -> List[float]:
-    """The errors inside the window ending the day before `before`."""
-    return [errors[d] for d in sorted(errors)
-            if before - timedelta(days=WINDOW_DAYS) <= d < before]
-
-
-def is_persistent(window: List[float]) -> bool:
-    """Do these errors point the same way?
-
-    A LAG and an OSCILLATION both produce a non-zero mean over three days, and
-    only the first is worth correcting. Delhi is the case: its overall bias was
-    +0.6 against a per-station error near 50, yet it was being corrected on 45%
-    of days and came out 5% worse, because its errors swing either side of zero
-    and a three-day mean of a swing is not a bias.
-
-    Requiring one sign throughout is a blunt test, but the window is only three
-    days and anything subtler would be fitted to this one autumn.
-    """
-    if len(window) < MIN_DAYS:
-        return False
-    return all(x > 0 for x in window) or all(x < 0 for x in window)
-
-
 def offset_for(errors: Dict[date, float], before: date) -> Optional[float]:
     """Mean error over the WINDOW_DAYS days ending the day before `before`.
 

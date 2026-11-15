@@ -435,6 +435,34 @@ def main() -> None:
         written += len(chunk)
     print(f"\n  forecast_daily: {written} rows upserted")
 
+    # Monitors that have left the manifest (sensors gone stale) keep the
+    # future rows of their last run, and the app would go on serving them as
+    # if current (audit §7.8). Delete only rows for today onwards: past rows
+    # stay, because the bias correction scores them.
+    live = {s["monitor_id"] for s in manifest["stations"]}
+    orphans = departed_monitors(client, live, today)
+    for i in range(0, len(orphans), 100):
+        (client.table("forecast_daily").delete()
+               .in_("monitor_id", orphans[i:i + 100])
+               .gte("target_date", today.isoformat()).execute())
+    print(f"  forecast_daily: future rows removed for {len(orphans)} monitor(s) "
+          f"no longer in the station list")
+
+
+def departed_monitors(client, live: set, today: date) -> List[str]:
+    """Monitors with forecast rows from today on that are not in the manifest."""
+    seen, offset = set(), 0
+    while True:
+        r = (client.table("forecast_daily").select("monitor_id")
+                   .gte("target_date", today.isoformat())
+                   .order("monitor_id").order("pollutant").order("target_date")
+                   .range(offset, offset + 999).execute())
+        seen |= {row["monitor_id"] for row in (r.data or [])}
+        if not r.data or len(r.data) < 1000:
+            break
+        offset += 1000
+    return sorted(seen - live)
+
 
 if __name__ == "__main__":
     main()

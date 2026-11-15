@@ -280,3 +280,29 @@ describe("band lookup covers the gaps between bands", () => {
     expect(getAqiLabel(5000)).toBe("Severe");
   });
 });
+
+describe("averageForecastDays groups stations by date (audit §7.4)", () => {
+  it("never averages one station's today with another's tomorrow", () => {
+    // The audit's case: A has [14 Nov = 200, 15 Nov = 100]; B has no row for
+    // the 14th, only [15 Nov = 100, 16 Nov = 100]. By position, "14 Nov" came
+    // out as (200 + 100) / 2 = 150.
+    const out = averageForecastDays(
+      [
+        {
+          monitor: monitor("a", 1),
+          days: [day({ target_date: "2026-11-14", value: 200 }),
+                 day({ target_date: "2026-11-15", value: 100 })],
+        },
+        {
+          monitor: monitor("b", 2),
+          days: [day({ target_date: "2026-11-15", value: 100 }),
+                 day({ target_date: "2026-11-16", value: 100 })],
+        },
+      ],
+      3,
+      "aqi",
+    )!;
+    const byDate = Object.fromEntries(out.value.map((d) => [d.target_date, d.value]));
+    expect(byDate).toEqual({ "2026-11-14": 200, "2026-11-15": 100, "2026-11-16": 100 });
+  });
+});

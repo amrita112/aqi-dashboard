@@ -177,7 +177,7 @@ export async function getForecast(
   const { data: rows } = await supabase
     .from("forecast_daily")
     .select(
-      "monitor_id, pollutant, target_date, horizon_days, value, band_p50, band_p80, mode, model, based_on_date, data_age_days",
+      "monitor_id, pollutant, target_date, horizon_days, value, band_p50, band_p80, mode, model, based_on_date, data_age_days, computed_at",
     )
     .eq("monitor_id", monitor.id)
     .eq("pollutant", pollutant)
@@ -194,7 +194,9 @@ export async function getForecast(
     .eq("pollutant", pollutant);
 
   const shape = indexShape((shapeRows ?? []) as ShapeRow[]);
-  return (rows as ForecastDailyRow[]).map((r) => expandDay(r, analysisCity, shape, { hourly: true }));
+  return (rows as ForecastDailyRow[]).map((r) =>
+    expandDay(r, analysisCity, shape, { hourly: true, today }),
+  );
 }
 
 export interface HistoryPoint {
@@ -407,10 +409,22 @@ export function averageForecastDays(
   const out: ForecastDay[] = [];
   const used = new Map<string, NearbyMonitor>();
 
-  for (let i = 0; i < horizonCount; i++) {
+  // GROUP BY DATE, NOT BY POSITION. `p.days[i]` assumed every station had a
+  // row for every day. When one did not -- a new station with no row for
+  // today, a day skipped because its climatology was 0, stale rows from a
+  // monitor that left the station list -- day i of one station was averaged
+  // with day i+1 of another, and the result was labelled with the first
+  // station's date (audit §7.4).
+  const dates = Array.from(
+    new Set(withData.flatMap((p) => p.days.map((d) => d.target_date))),
+  )
+    .sort()
+    .slice(0, horizonCount);
+
+  for (const date of dates) {
     const slice = withData
-      .map((p) => ({ monitor: p.monitor, day: p.days[i] }))
-      .filter((x) => x.day);
+      .map((p) => ({ monitor: p.monitor, day: p.days.find((d) => d.target_date === date) }))
+      .filter((x): x is { monitor: NearbyMonitor; day: ForecastDay } => Boolean(x.day));
     if (!slice.length) continue;
 
     const real = slice.filter((x) => x.day.mode !== "seasonal_normal");

@@ -182,8 +182,12 @@ export default function HomeScreen() {
   const unit = MEASUREMENT_COPY[prefs.measurement].unit;
   const short = MEASUREMENT_COPY[prefs.measurement].short;
 
-  const today = days?.find((d) => d.target_date === todayIso) ?? days?.[0] ?? null;
-  const tomorrow = days?.find((d) => d.target_date !== (today?.target_date ?? "")) ?? null;
+  // Matched by date only. This used to fall back to days[0], so when today's
+  // row was missing (the nightly job had not run) tomorrow's number was shown
+  // under "today" without a word (audit §7.9). Now the card says so instead.
+  const today = days?.find((d) => d.target_date === todayIso) ?? null;
+  const tomorrow = days?.find((d) => d.target_date > todayIso) ?? null;
+  const missingToday = days !== null && days !== undefined && todayIso !== "" && !today;
 
   // THE NEXT 24 HOURS, not the next seven days. A week of diurnal curve on
   // the screen someone opens to decide about this afternoon was, in a
@@ -252,6 +256,12 @@ export default function HomeScreen() {
           the screen against the forecast's 29% and the map's 28% — the number
           is the headline, and the sentence about three nearest stations is
           support that belongs behind the info button. */}
+      {missingToday && (
+        <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900 lg:col-span-2">
+          Today&apos;s forecast hasn&apos;t been updated yet. It is usually ready by 11am.
+        </p>
+      )}
+
       {today && (
         <section className="flex flex-col items-center">
           <div

@@ -25,6 +25,7 @@
  */
 
 import { getAqiCategory, getAqiTextColor, computeSubIndex } from "@/lib/aqi-utils";
+import { daysBetweenIst, istToday, toIstDate } from "@/lib/api/time";
 import type { Scale } from "@/lib/types";
 import { DEFAULT_SCALE } from "@/lib/types";
 
@@ -42,6 +43,8 @@ export interface ForecastDailyRow {
   model: string;
   based_on_date: string | null;
   data_age_days: number | null;
+  /** When the nightly job wrote this row. Absent in older callers/tests. */
+  computed_at?: string | null;
 }
 
 export interface ShapeRow {
@@ -73,7 +76,16 @@ export interface ForecastDay {
   headline: string;
   model: string;
   based_on_date: string | null;
+  /**
+   * Age of the reading behind this forecast, in IST days, counted to TODAY --
+   * not to the night the row was computed. If the nightly job has not run for
+   * a few days, the reading really is that much older, and saying otherwise
+   * would understate how stale the forecast is (audit §7.8).
+   */
   data_age_days: number | null;
+  /** When the nightly job computed this row, and how many IST days ago that was. */
+  computed_at: string | null;
+  run_age_days: number | null;
   band: { label: string; color: string; textColor: string };
   hourly: HourlyPoint[] | null;
   /** True when no fitted shape existed for this city-month; hours are flat. */
@@ -106,17 +118,22 @@ export function bandFor(pollutant: string, value: number, scale: Scale) {
   return { label: cat.label, color: cat.color, textColor: getAqiTextColor(index, scale) };
 }
 
-function headlineFor(mode: ForecastMode, horizon: number): string {
+/**
+ * `daysAhead` is counted from TODAY, not from the night the row was computed.
+ * horizon_days is relative to the run date, so today's row (yesterday's
+ * horizon-1 row) used to be headed "Forecast for tomorrow" (audit §7.9).
+ */
+function headlineFor(mode: ForecastMode, daysAhead: number): string {
   if (mode === "seasonal_normal") {
     // The word "forecast" must not appear here. This card exists precisely
     // because there is no recent reading to predict from, and borrowing the
     // word would undo the distinction the mode column is drawn to make.
     return "Typical for this time of year — no recent reading to predict from";
   }
-  if (mode === "outlook") {
-    return horizon === 1 ? "Outlook for tomorrow" : `Outlook, ${horizon} days ahead`;
-  }
-  return horizon === 1 ? "Forecast for tomorrow" : `Forecast, ${horizon} days ahead`;
+  const word = mode === "outlook" ? "Outlook" : "Forecast";
+  if (daysAhead <= 0) return `${word} for today`;
+  if (daysAhead === 1) return `${word} for tomorrow`;
+  return `${word}, ${daysAhead} days ahead`;
 }
 
 /**
@@ -131,9 +148,16 @@ export function expandDay(
   row: ForecastDailyRow,
   city: string,
   shape: Map<string, number[]>,
-  opts: { hourly: boolean; scale?: Scale } = { hourly: true },
+  opts: { hourly: boolean; scale?: Scale; today?: string } = { hourly: true },
 ): ForecastDay {
   const scale = opts.scale ?? DEFAULT_SCALE;
+  const today = opts.today ?? istToday();
+  const daysAhead = daysBetweenIst(today, row.target_date);
+  const computedAt = row.computed_at ?? null;
+  const runAge = computedAt ? daysBetweenIst(toIstDate(computedAt), today) : null;
+  const dataAge = row.based_on_date
+    ? daysBetweenIst(row.based_on_date, today)
+    : row.data_age_days;
   const month = Number(row.target_date.slice(5, 7));
   const key = `${city}|${row.pollutant}|${month}`;
   const ratios = shape.get(key);
@@ -163,10 +187,12 @@ export function expandDay(
     band_low: bandLow,
     band_high: bandHigh,
     mode: row.mode,
-    headline: headlineFor(row.mode, row.horizon_days),
+    headline: headlineFor(row.mode, daysAhead),
     model: row.model,
     based_on_date: row.based_on_date,
-    data_age_days: row.data_age_days,
+    data_age_days: dataAge,
+    computed_at: computedAt,
+    run_age_days: runAge,
     band: bandFor(row.pollutant, row.value, scale),
     hourly,
     hourly_is_flat: !ratios,
