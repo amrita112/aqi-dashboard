@@ -262,6 +262,55 @@ def compute_rollup(joined: pd.DataFrame, target_date: date) -> List[Dict[str, An
     return rows
 
 
+# Days of readings_daily read BEFORE the window, only so each station's cadence
+# (hourly or 15-minute) is judged on a fair sample -- the same 14 days nightly
+# looks back over.
+CADENCE_REFERENCE_DAYS = 14
+
+
+def fetch_reference_counts(client, since: date) -> pd.DataFrame:
+    """Recent readings_daily rows (count, mean) for the cadence estimate."""
+    rows, offset = [], 0
+    while True:
+        r = _execute(lambda: (client.table(ROLLUP_TABLE)
+                                    .select("monitor_id, pollutant, date, count, mean, source")
+                                    .eq("source", "openaq")
+                                    .gte("date", since.isoformat())
+                                    .order("date").order("monitor_id").order("pollutant")
+                                    .range(offset, offset + PAGE - 1)),
+                     f"reference counts from {since}")
+        batch = r.data or []
+        rows += batch
+        if len(batch) < PAGE:
+            break
+        offset += PAGE
+    return pd.DataFrame(rows, columns=["monitor_id", "pollutant", "date", "count", "mean", "source"])
+
+
+def add_complete_flags(rows: List[Dict[str, Any]], reference: pd.DataFrame) -> None:
+    """Set is_complete on each rollup row, in place.
+
+    THE COMPLETENESS RULE IS DECIDED HERE, ONCE, when the day is written
+    (scripts/forecast/daily_quality.py; numbers in lib/daily-quality-config.json):
+    >= 16 hours of readings and a plausible mean. Every reader -- nightly, the
+    refit, the app's charts and map -- filters on the stored flag.
+
+    Partial days are still written, with is_complete = false. Not writing them
+    would make the prune job's check (every raw reading summarised before it is
+    deleted) fail, and a day a station never finishes would vanish instead of
+    keeping its count. Because this job re-rolls the last 10 days, a day that
+    was partial yesterday is re-assessed as its late readings arrive.
+    """
+    from scripts.forecast.daily_quality import flag_complete
+    if not rows:
+        return
+    new = pd.DataFrame(rows)
+    new["source"] = "openaq"   # the column's default; rollup reads openaq readings only
+    flags = flag_complete(new, reference)
+    for row, flag in zip(rows, flags.tolist()):
+        row["is_complete"] = bool(flag)
+
+
 def upsert_rollup(client, rows: List[Dict[str, Any]]) -> int:
     """Upsert keyed on (monitor_id, pollutant, date). Overwrites on conflict."""
     if not rows:
@@ -285,6 +334,7 @@ def main() -> None:
     grand_measurements = 0
     grand_rollup_rows  = 0
     failed: List[date] = []
+    pending: List[Dict[str, Any]] = []
     for d in dates:
         try:
             joined = fetch_day_measurements(client, d)
@@ -298,9 +348,19 @@ def main() -> None:
         grand_measurements += len(joined)
         grand_rollup_rows += len(rows)
         print(f"  {d}: {len(joined):>6} measurements → {len(rows):>4} rollup rows")
+        pending += rows
 
-        if not dry_run and rows:
-            upsert_rollup(client, rows)
+    # Flags are set across the whole window at once, so every day's cadence
+    # estimate sees the same sample of the station's days.
+    reference = fetch_reference_counts(client, min(dates) - timedelta(days=CADENCE_REFERENCE_DAYS))
+    add_complete_flags(pending, reference)
+    n_complete = sum(1 for r in pending if r["is_complete"])
+    print(f"  complete days: {n_complete} of {len(pending)} rollup rows "
+          f"(partial days are written too, flagged is_complete = false)")
+
+    if not dry_run:
+        for i in range(0, len(pending), 500):
+            upsert_rollup(client, pending[i:i + 500])
 
     print()
     print(f"Total: {grand_measurements} measurements read, "

@@ -35,7 +35,7 @@ function fakeSupabase(tables: Record<string, unknown[]>) {
   const builder = (rows: unknown[]) => {
     const chain: Record<string, unknown> = {};
     const self = () => chain;
-    for (const m of ["select", "eq", "gt", "gte", "lte", "not", "order", "limit"]) {
+    for (const m of ["select", "eq", "in", "gt", "gte", "lte", "not", "order", "limit"]) {
       chain[m] = vi.fn(self);
     }
     // Awaiting the builder resolves to the rows, as postgrest-js does.
@@ -147,8 +147,8 @@ describe("tool executors", () => {
       monitors: [DELHI_MONITORS[0]],
       readings: [{ id: "r1", recorded_at: old }],
       measurements: [
-        { pollutant: "pm25", value: 55 },
-        { pollutant: "pm10", value: 180 },
+        { reading_id: "r1", pollutant: "pm25", value: 55 },
+        { reading_id: "r1", pollutant: "pm10", value: 180 },
       ],
     });
     const out = await executeTool(supabase, "current_aqi", { location: "Anand Vihar" });
@@ -162,7 +162,11 @@ describe("tool executors", () => {
     const supabase = fakeSupabase({
       monitors: [DELHI_MONITORS[0]],
       readings: [{ id: "r1", recorded_at: new Date().toISOString() }],
-      measurements: [{ pollutant: "pm25", value: 55 }],
+      // Both PMs: a reading needs them to carry an AQI (the AQI rule).
+      measurements: [
+        { reading_id: "r1", pollutant: "pm25", value: 55 },
+        { reading_id: "r1", pollutant: "pm10", value: 60 },
+      ],
     });
     // The model asks for "aqi"; the person's setting is PM2.5 and wins.
     const out = await executeTool(
@@ -380,8 +384,8 @@ describe("current_aqi in the person's measure", () => {
       monitors: [DELHI_MONITORS[0]],
       readings: [{ id: "r1", recorded_at: fresh }],
       measurements: [
-        { pollutant: "pm25", value: 75 },
-        { pollutant: "pm10", value: 180 },
+        { reading_id: "r1", pollutant: "pm25", value: 75 },
+        { reading_id: "r1", pollutant: "pm10", value: 180 },
       ],
     });
 
@@ -460,5 +464,27 @@ describe("the system prompt names the configured AI provider (audit §2.6)", () 
     const { providerName } = await import("@/lib/ai/provider");
     expect(providerName("https://openrouter.ai/api/v1")).toBe("OpenRouter");
     expect(providerName("https://api.groq.com/openai/v1")).toBe("Groq");
+  });
+});
+
+describe("the current reading must be able to carry an AQI (AQI rule)", () => {
+  it("skips a newest reading that has only NO2 so far", async () => {
+    const now = Date.now();
+    const supabase = fakeSupabase({
+      monitors: [DELHI_MONITORS[0]],
+      // Newest first, as the query orders them.
+      readings: [
+        { id: "new", recorded_at: new Date(now - 1 * 3_600_000).toISOString() },
+        { id: "old", recorded_at: new Date(now - 3 * 3_600_000).toISOString() },
+      ],
+      measurements: [
+        { reading_id: "new", pollutant: "no2", value: 20 },
+        { reading_id: "old", pollutant: "pm25", value: 75 },
+        { reading_id: "old", pollutant: "pm10", value: 180 },
+      ],
+    });
+    const out = await executeTool(supabase, "current_aqi", { location: "Anand Vihar" }, { measurement: "aqi" });
+    expect(out.dominant_pollutant).toBe("pm10");
+    expect(out.data_age_hours).toBeGreaterThan(2);
   });
 });

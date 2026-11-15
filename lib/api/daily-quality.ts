@@ -1,18 +1,16 @@
 /**
- * Which station-days are complete enough to show, in the app's own charts.
+ * Which station-days the app shows, and when a day has an AQI.
  *
- * The TypeScript twin of scripts/forecast/daily_quality.py. Both read their
- * numbers from lib/daily-quality-config.json, and both are tested against the
- * same cases (tests/fixtures/daily_quality/cases.json), so the forecast and the
- * history, map and Home screens apply one rule:
+ * COMPLETENESS IS DECIDED ONCE, by the nightly rollup, and stored in
+ * readings_daily.is_complete (migration 25; the rule is in
+ * scripts/forecast/daily_quality.py, its numbers in
+ * lib/daily-quality-config.json): >= 16 hours of readings and a plausible
+ * mean. The app only reads that flag -- it does not re-derive it.
  *
- *   1. A pollutant's day counts only with >= 16 hours of readings (CPCB's
- *      rule for a 24-hour average). The station's cadence -- hourly or every
- *      15 minutes -- is inferred from its typical day: the 90th percentile of
- *      its daily counts.
- *   2. Daily means outside 0-2000 µg/m³ are instrument faults.
- *   3. A day's AQI needs the pollutants the configured AQI rule requires
- *      (default: both PM2.5 and PM10).
+ * What IS computed here is the AQI rule, because it combines a station's
+ * pollutants on one day: by default a day's AQI needs complete PM2.5 AND PM10
+ * (see the config's "aqi_rule"). The same cases file
+ * (tests/fixtures/daily_quality/cases.json) tests this and the Python.
  *
  * Before Nov 2026 the app drew a day from a single 15-minute reading as if it
  * were a full day (audit §1.2, §4.2-4.3).
@@ -27,58 +25,28 @@ export interface DailyRow {
   pollutant: string;
   date: string;
   mean: number | null;
-  count: number | null;
+  count?: number | null;
   source?: string | null;
+  /** The rollup's verdict. NULL (not yet assessed) is treated as incomplete. */
+  is_complete?: boolean | null;
 }
 
 type RuleName = keyof typeof config.aqi_rules;
 export const DEFAULT_AQI_RULE = config.aqi_rule as RuleName;
 
-/** Linear-interpolation quantile, the same definition pandas uses. */
-function quantile(values: number[], q: number): number {
-  const s = [...values].sort((a, b) => a - b);
-  if (!s.length) return NaN;
-  const pos = (s.length - 1) * q;
-  const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  return s[lo] + (s[hi] - s[lo]) * (pos - lo);
-}
-
-function cadenceKey(r: DailyRow): string {
-  return `${r.monitor_id ?? ""}|${r.pollutant}|${r.source ?? ""}`;
-}
-
-/** True for each row that is a complete, plausible day (rules 1 and 2). */
-export function completeMask(rows: DailyRow[]): boolean[] {
-  const counts = new Map<string, number[]>();
-  for (const r of rows) {
-    if (typeof r.count !== "number") continue;
-    const k = cadenceKey(r);
-    counts.set(k, [...(counts.get(k) ?? []), r.count]);
-  }
-  const needed = new Map<string, number>();
-  counts.forEach((cs, k) => {
-    const typical = quantile(cs, config.cadence_quantile);
-    const perDay =
-      typical > config.cadence_split ? config.readings_per_day_15min : config.readings_per_day_hourly;
-    needed.set(k, (perDay * config.min_hours_for_complete_day) / 24);
-  });
-  return rows.map((r) => {
-    const need = needed.get(cadenceKey(r));
-    return (
-      typeof r.count === "number" &&
-      need !== undefined &&
-      r.count >= need &&
-      typeof r.mean === "number" &&
-      r.mean >= config.valid_min &&
-      r.mean <= config.valid_max
-    );
-  });
-}
-
+/** Only the days the rollup marked complete. */
 export function completeDays<T extends DailyRow>(rows: T[]): T[] {
-  const mask = completeMask(rows);
-  return rows.filter((_, i) => mask[i]);
+  return rows.filter((r) => r.is_complete === true && typeof r.mean === "number");
+}
+
+/** Does this set of pollutants carry enough for an AQI? Same rule as Python's aqi_rule.meets_aqi_rule. */
+export function meetsAqiRule(pollutants: Iterable<string>, rule: RuleName = DEFAULT_AQI_RULE): boolean {
+  const spec = config.aqi_rules[rule];
+  const have = new Set(pollutants);
+  if (have.size < spec.min_pollutants) return false;
+  if (!spec.required_all.every((p) => have.has(p))) return false;
+  if (spec.required_any.length && !spec.required_any.some((p) => have.has(p))) return false;
+  return true;
 }
 
 export interface AqiDay {
@@ -93,7 +61,6 @@ export interface AqiDay {
  * the max sub-index, only on days that meet the AQI rule (rule 3).
  */
 export function stationDayAqi(complete: DailyRow[], rule: RuleName = DEFAULT_AQI_RULE): AqiDay[] {
-  const spec = config.aqi_rules[rule];
   const byDay = new Map<string, { monitor_id: string; date: string; subs: Map<string, number> }>();
   for (const r of complete) {
     if (typeof r.mean !== "number") continue;
@@ -105,9 +72,7 @@ export function stationDayAqi(complete: DailyRow[], rule: RuleName = DEFAULT_AQI
   const out: AqiDay[] = [];
   byDay.forEach(({ monitor_id, date, subs }) => {
     const have = Array.from(subs.keys());
-    if (have.length < spec.min_pollutants) return;
-    if (!spec.required_all.every((p) => subs.has(p))) return;
-    if (spec.required_any.length && !spec.required_any.some((p) => subs.has(p))) return;
+    if (!meetsAqiRule(have, rule)) return;
     let dominant = have[0];
     subs.forEach((v, p) => {
       if (v > (subs.get(dominant) ?? -Infinity)) dominant = p;

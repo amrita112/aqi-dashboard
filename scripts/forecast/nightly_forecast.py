@@ -122,7 +122,8 @@ def fetch_daily_rows(client, since: date) -> List[Dict[str, Any]]:
     rows, offset = [], 0
     while True:
         r = (client.table("readings_daily")
-                   .select("monitor_id, pollutant, date, mean, count, source")
+                   # is_complete is the rollup's verdict on the day (migration 25).
+                   .select("monitor_id, pollutant, date, mean, count, source, is_complete")
                    .in_("pollutant", list(MEASURED_POLLUTANTS))
                    .gte("date", since.isoformat())
                    .order("date").order("monitor_id").order("pollutant")

@@ -71,7 +71,7 @@ export async function GET(request: Request) {
   const { data, error } = await pageAll<DailyRow & { monitor_id: string }>((lo, hi) =>
     supabase
       .from("readings_daily")
-      .select("monitor_id, pollutant, date, mean, count, source")
+      .select("monitor_id, pollutant, date, mean, is_complete")
       .in("monitor_id", monitors.map((m) => m.id))
       .in("pollutant", [...MEASURED_POLLUTANTS])
       .gte("date", from)
@@ -83,8 +83,8 @@ export async function GET(request: Request) {
 
   if (error) return fail("Could not load readings", 502, error);
 
-  // COMPLETE days only, by the same rule as the forecast
-  // (lib/api/daily-quality.ts). Then each station's most recent day FOR THE
+  // COMPLETE days only: the rollup's stored verdict (readings_daily.is_complete),
+  // the same one the forecast uses. Then each station's most recent day FOR THE
   // SELECTED MEASURE: its newest complete PM2.5 day, or its newest day that
   // qualifies for an AQI. Picking the newest day across all pollutants left a
   // PM2.5 dot empty whenever that day had no PM2.5 row (audit §6.4).

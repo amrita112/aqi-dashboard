@@ -62,8 +62,9 @@ CADENCE_SPLIT = _CFG["cadence_split"]
 CADENCE_QUANTILE = _CFG["cadence_quantile"]
 VALID_MIN, VALID_MAX = float(_CFG["valid_min"]), float(_CFG["valid_max"])
 
-AQI_RULES = {k: v for k, v in _CFG["aqi_rules"].items()}
-DEFAULT_AQI_RULE = _CFG["aqi_rule"]
+# The AQI rule lives in scripts/ingest/lib/aqi_rule.py, which the ingests use
+# for each timestamp's AQI; the daily AQI here applies the same rule.
+from scripts.ingest.lib.aqi_rule import AQI_RULES, DEFAULT_AQI_RULE  # noqa: E402
 PM_POLLUTANTS = ("pm25", "pm10")
 
 
@@ -76,8 +77,15 @@ def _cadence_keys(df: pd.DataFrame) -> list:
     return keys
 
 
-def complete_mask(df: pd.DataFrame) -> pd.Series:
-    """True for each row that is a complete, plausible day (rules 1 and 2)."""
+def computed_complete_mask(df: pd.DataFrame) -> pd.Series:
+    """Rules 1 and 2, computed from count and mean.
+
+    This is the calculation itself. The rollup runs it once per row and stores
+    the answer in readings_daily.is_complete (flag_complete, below); readers of
+    readings_daily use that stored flag, and only data with no flag -- the
+    history files in Storage, the simulation's rebuilt days -- is computed here
+    at read time, with this same function.
+    """
     if df.empty:
         return pd.Series(dtype=bool, index=df.index)
     count = pd.to_numeric(df["count"], errors="coerce")
@@ -91,6 +99,42 @@ def complete_mask(df: pd.DataFrame) -> pd.Series:
     needed = per_day * MIN_HOURS_FOR_COMPLETE_DAY / 24
 
     return count.ge(needed) & mean.between(VALID_MIN, VALID_MAX)
+
+
+def complete_mask(df: pd.DataFrame) -> pd.Series:
+    """True for each row that is a complete, plausible day (rules 1 and 2).
+
+    Uses the stored readings_daily.is_complete flag where a row has one, and
+    computes it (computed_complete_mask) where it does not.
+    """
+    if df.empty:
+        return pd.Series(dtype=bool, index=df.index)
+    computed = computed_complete_mask(df)
+    if "is_complete" not in df.columns:
+        return computed
+    stored = df["is_complete"]
+    return stored.where(stored.notna(), computed).astype(bool)
+
+
+def flag_complete(new_rows: pd.DataFrame, reference: pd.DataFrame) -> pd.Series:
+    """is_complete for rows the rollup is about to write.
+
+    `reference` is the station's recent readings_daily rows (count, mean,
+    source), so the cadence is judged on a fair sample of its days rather than
+    on the handful being rolled up. Returns a mask aligned to `new_rows`.
+    """
+    cols = ["monitor_id", "pollutant", "source", "count", "mean"]
+    ref = reference[cols].copy() if not reference.empty else pd.DataFrame(columns=cols)
+    # Drop reference rows that are being rewritten, so no day counts twice.
+    if not ref.empty and "date" in reference.columns:
+        rewritten = set(zip(new_rows["monitor_id"], new_rows["pollutant"], new_rows["date"]))
+        keep = [k not in rewritten for k in
+                zip(reference["monitor_id"], reference["pollutant"], reference["date"])]
+        ref = ref[keep]
+    both = pd.concat([new_rows[cols].assign(_new=True), ref.assign(_new=False)],
+                     ignore_index=True)
+    mask = computed_complete_mask(both)
+    return pd.Series(mask[both["_new"].values].values, index=new_rows.index)
 
 
 def complete_days(df: pd.DataFrame) -> pd.DataFrame:

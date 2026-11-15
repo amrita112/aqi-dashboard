@@ -37,10 +37,8 @@ from typing import Any, Dict, Iterable, List, Tuple
 import pandas as pd
 import requests
 
-from scripts.ingest.lib.aqi_utils import (
-    compute_aqi_from_measurements,
-    convert_to_canonical,
-)
+from scripts.ingest.lib.aqi_rule import composite_aqi
+from scripts.ingest.lib.aqi_utils import convert_to_canonical
 from scripts.ingest.lib.supabase_client import canonical_ts
 from scripts.ingest.lib.config import (
     OPENAQ_S3_BASE,
@@ -51,6 +49,7 @@ from scripts.ingest.lib.config import (
 from scripts.ingest.lib.supabase_client import (
     get_admin_user_id,
     make_client,
+    refresh_reading_aqi,
     upsert_measurements,
     upsert_readings,
 )
@@ -139,10 +138,12 @@ def rows_to_ingest(
         canonical_by_pollutant: Dict[str, float] = (
             ts_group.groupby("pollutant")["value_canonical"].max().to_dict()
         )
-        measurements_for_ts = [
-            {"pollutant": p, "value": v} for p, v in canonical_by_pollutant.items()
-        ]
-        composite = compute_aqi_from_measurements(measurements_for_ts)
+        # None (stored as NULL) unless PM2.5 and PM10 are both present: the AQI
+        # rule in lib/daily-quality-config.json. A timestamp where only SO2 had
+        # arrived used to be stored as AQI 25 "Good" (audit §4.2). It is
+        # recomputed when the other pollutants arrive -- see
+        # refresh_reading_aqi below.
+        composite = composite_aqi(canonical_by_pollutant)
 
         ts_canonical = canonical_ts(ts.isoformat())
         reading_id = f"{monitor_id}:{ts_canonical}"   # deterministic string used only for FK
@@ -256,6 +257,7 @@ def main() -> None:
     total_readings = 0
     total_measurements = 0
     stations_with_data = 0
+    aqi_refreshed = 0
 
     for i, station in enumerate(stations):
         try:
@@ -284,6 +286,10 @@ def main() -> None:
             )
             linked = link_measurements_to_readings(meas_placeholder, newly_inserted, existing_all)
             m_inserted = upsert_measurements(client, linked)
+            # Readings that gained a measurement get aqi_value recomputed from
+            # ALL their measurements (audit §1.2).
+            aqi_refreshed += refresh_reading_aqi(
+                client, {m["reading_id"] for m in m_inserted if m.get("reading_id")})
             total_readings += len(newly_inserted)
             total_measurements += len(m_inserted)
 
@@ -295,7 +301,8 @@ def main() -> None:
     print(
         f"\nDone. {stations_with_data}/{len(stations)} stations had data. "
         f"{total_readings} reading rows, {total_measurements} measurement rows "
-        f"{'would be' if dry_run else 'were'} written."
+        f"{'would be' if dry_run else 'were'} written; aqi_value changed on "
+        f"{aqi_refreshed} readings."
     )
 
 

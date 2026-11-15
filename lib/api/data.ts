@@ -21,7 +21,7 @@ import {
   type ShapeRow,
 } from "@/lib/api/forecast";
 import { istToday } from "@/lib/api/time";
-import { completeDays, stationDayAqi } from "@/lib/api/daily-quality";
+import { completeDays, meetsAqiRule, stationDayAqi } from "@/lib/api/daily-quality";
 import { DEFAULT_SCALE, type Scale } from "@/lib/types";
 
 /** monitors.city uses the app's spelling; the analysis tables use XKDR's. */
@@ -120,28 +120,39 @@ export async function getCurrent(
   const { computeSubIndex } = await import("@/lib/aqi-utils");
   const { DEFAULT_SCALE } = await import("@/lib/types");
 
+  // THE NEWEST READING THAT CAN CARRY AN AQI, not simply the newest. OpenAQ
+  // publishes pollutants in separate bursts, so the latest timestamp often has
+  // only NO2 or SO2 so far, and its "AQI" would understate the air. Look back
+  // over the last few readings for one that meets the AQI rule (both PMs by
+  // default; lib/daily-quality-config.json) -- the same rule as everywhere else.
+  const LOOKBACK_READINGS = 12;
   const { data: readings } = await supabase
     .from("readings")
     .select("id, recorded_at")
     .eq("monitor_id", monitor.id)
     // Official readings only. A user-submitted row (source='user') pointing
     // at an official station would otherwise become its "current" reading
-    // (audit §2.3). Migration 23 also stops anyone inserting those rows.
+    // (audit §2.3). Migration 24 also stops anyone inserting those rows.
     .eq("source", "openaq")
     .order("recorded_at", { ascending: false })
-    .limit(1);
+    .limit(LOOKBACK_READINGS);
   if (!readings?.length) return null;
 
-  const reading = readings[0];
-  const { data: measurements } = await supabase
+  const { data: allMeasurements } = await supabase
     .from("measurements")
-    .select("pollutant, value")
-    .eq("reading_id", reading.id);
+    .select("reading_id, pollutant, value")
+    .in("reading_id", readings.map((r) => r.id));
 
-  const rows = (measurements ?? []).filter(
-    (m) => (MEASURED_POLLUTANTS as readonly string[]).includes(m.pollutant) && m.value >= 0,
-  );
-  if (!rows.length) return null;
+  const usableFor = (readingId: string) =>
+    (allMeasurements ?? []).filter(
+      (m) =>
+        m.reading_id === readingId &&
+        (MEASURED_POLLUTANTS as readonly string[]).includes(m.pollutant) &&
+        m.value >= 0,
+    );
+  const reading = readings.find((r) => meetsAqiRule(usableFor(r.id).map((m) => m.pollutant)));
+  if (!reading) return null;
+  const rows = usableFor(reading.id);
 
   const withSub = rows.map((m) => ({
     pollutant: m.pollutant,
@@ -217,17 +228,6 @@ export interface HistoryPoint {
 }
 
 /**
- * Days of readings_daily read BEFORE `from`, only so the completeness rule can
- * learn each station's cadence (hourly or 15-minute) from a fair sample, as
- * nightly does with its 14-day lookback. Those extra days are not returned.
- */
-const CADENCE_LOOKBACK_DAYS = 14;
-
-function shiftIsoDate(iso: string, days: number): string {
-  return new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
-}
-
-/**
  * Every row of a query, 1,000 at a time. PostgREST silently stops at 1,000
  * rows, so an unpaged query over a long range (the AI's 365-day history, the
  * 80-station map) quietly lost rows -- for history, the MOST RECENT days,
@@ -251,7 +251,7 @@ export async function pageAll<T>(
 type DailyDbRow = {
   date: string; pollutant: string; mean: number | null; min: number | null;
   max: number | null; min_ts: string | null; max_ts: string | null;
-  count: number | null; source: string;
+  count: number | null; source: string; is_complete: boolean | null;
 };
 
 async function dailyRows(
@@ -264,10 +264,10 @@ async function dailyRows(
   const { data } = await pageAll<DailyDbRow>((lo, hi) =>
     supabase
       .from("readings_daily")
-      .select("date, pollutant, mean, min, max, min_ts, max_ts, count, source")
+      .select("date, pollutant, mean, min, max, min_ts, max_ts, count, source, is_complete")
       .eq("monitor_id", monitorId)
       .in("pollutant", [...pollutants])
-      .gte("date", shiftIsoDate(from, -CADENCE_LOOKBACK_DAYS))
+      .gte("date", from)
       .lte("date", to)
       .order("date", { ascending: true })
       .order("pollutant", { ascending: true })
@@ -277,9 +277,9 @@ async function dailyRows(
 }
 
 /**
- * Daily history for one station: COMPLETE days only (lib/api/daily-quality.ts,
- * the same rule the forecast uses). A partial day is a gap in the chart, not
- * a low point.
+ * Daily history for one station: the days the rollup marked COMPLETE
+ * (readings_daily.is_complete, the same verdict the forecast uses). A partial
+ * day is a gap in the chart, not a low point.
  */
 export async function getHistory(
   supabase: SupabaseClient,
@@ -292,7 +292,7 @@ export async function getHistory(
 
   const rows = await dailyRows(supabase, monitor.id, [pollutant], from, to);
   return completeDays(rows.map((r) => ({ ...r, monitor_id: monitor.id })))
-    .filter((r) => r.date >= from && r.mean !== null)
+    .filter((r) => r.mean !== null)
     .map((r) => ({
       date: r.date,
       mean: r.mean as number,
@@ -331,7 +331,7 @@ async function getHistoryAqi(
 
   const byDate = new Map<string, { count: number; source: string; minSub: number[]; maxSub: number[] }>();
   for (const row of complete) {
-    if (row.date < from || !qualifying.has(row.date)) continue;
+    if (!qualifying.has(row.date)) continue;
     const slot = byDate.get(row.date) ?? { count: 0, source: row.source, minSub: [], maxSub: [] };
     // The day's extremes are sub-indexed too, so min/max stay on the AQI scale
     // rather than being concentrations mixed into an index series.

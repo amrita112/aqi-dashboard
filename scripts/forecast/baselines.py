@@ -397,7 +397,10 @@ def _fetch_readings_daily(client, since: str, until: str,
         rows, offset = [], 0
         while True:
             q = (client.table("readings_daily")
-                       .select("monitor_id, date, pollutant, mean, count, source")
+                       # is_complete: the rollup's stored verdict (migration 25).
+                       # The history files carry no flag, so theirs is computed
+                       # at load time with the same function.
+                       .select("monitor_id, date, pollutant, mean, count, source, is_complete")
                        .in_("pollutant", list(MEASURED_POLLUTANTS))
                        .gte("date", lo).lte("date", hi))
             if exclude_xkdr:
