@@ -353,7 +353,10 @@ def _load_history_file(client, obj: str, env_var: str,
     else:
         print(f"  downloading {XKDR_HISTORY_BUCKET}/{obj} from Storage ...")
         source = io.BytesIO(client.storage.from_(XKDR_HISTORY_BUCKET).download(obj))
-    df = pd.read_parquet(source, columns=["monitor_id", "date", "pollutant", "mean"])
+    # count and source feed the completeness rule (daily_quality.py): the
+    # count only means something once you know the station's cadence.
+    df = pd.read_parquet(source, columns=["monitor_id", "date", "pollutant",
+                                          "mean", "count", "source"])
     df["date"] = df["date"].astype(str)
     keep = (df.pollutant.isin(MEASURED_POLLUTANTS)
             & (df["date"] >= since) & (df["date"] <= until))
@@ -389,7 +392,7 @@ def _fetch_readings_daily(client, since: str, until: str,
         rows, offset = [], 0
         while True:
             q = (client.table("readings_daily")
-                       .select("monitor_id, date, pollutant, mean")
+                       .select("monitor_id, date, pollutant, mean, count, source")
                        .in_("pollutant", list(MEASURED_POLLUTANTS))
                        .gte("date", lo).lte("date", hi))
             if exclude_xkdr:
@@ -407,7 +410,8 @@ def _fetch_readings_daily(client, since: str, until: str,
             frames.append(pd.DataFrame(rows))
         print(f"    {year}: {len(rows):,} rows")
     if not frames:
-        return pd.DataFrame(columns=["monitor_id", "date", "pollutant", "mean"])
+        return pd.DataFrame(columns=["monitor_id", "date", "pollutant", "mean",
+                                     "count", "source"])
     return pd.concat(frames, ignore_index=True)
 
 
@@ -439,11 +443,13 @@ def load_history_from_db(client=None, min_stations: int = 3,
         from scripts.ingest.lib.supabase_client import make_client
         client = make_client()
     if until is None:
-        until = str(pd.Timestamp.utcnow().date())
+        # IST, like every date in readings_daily (audit §5.3).
+        from scripts.ingest.lib.config import ist_today
+        until = str(ist_today())
 
     monitors, offset = [], 0
     while True:
-        r = (client.table("monitors").select("id, city")
+        r = (client.table("monitors").select("id, city").order("id")
                    .range(offset, offset + 999).execute())
         batch = r.data or []
         monitors += batch
@@ -461,7 +467,8 @@ def load_history_from_db(client=None, min_stations: int = 3,
     history = load_history_files(client, since, until)
     print(f"  reading our own days from readings_daily {since} -> {until} ...")
     ours = _fetch_readings_daily(client, since, until, exclude_xkdr=True)
-    df = pd.concat([history, ours], ignore_index=True)
+    df = pd.concat([f for f in (history, ours) if not f.empty] or [history],
+                   ignore_index=True)
     if history.empty:
         raise RuntimeError(
             f"The history files returned no rows -- have they been uploaded to "
@@ -469,48 +476,60 @@ def load_history_from_db(client=None, min_stations: int = 3,
 
     df["city"] = df.monitor_id.map(city_of)
     df = df.dropna(subset=["city", "mean"])
+
+    # ── Quality filter: the SAME rule nightly applies (daily_quality.py) ──
+    # Complete days only (>= 16 hours of readings), values 0-2000, and for AQI
+    # at least 3 pollutants including a PM. Before Nov 2026 this path had no
+    # filter at all, unlike the notebook it was validated against (audit D2).
+    from scripts.forecast.daily_quality import complete_days, station_day_aqi
+    n_before = len(df)
+    df = complete_days(df).copy()
+    print(f"  complete station-pollutant-days: {len(df):,} of {n_before:,}")
     df["d"] = pd.to_datetime(df["date"])
 
-    # Per-station daily PM2.5, the input both the city series and the
-    # per-station climatologies are built from.
-    pm = df[df.pollutant == "pm25"]
-    station_daily = (pm.rename(columns={"monitor_id": "station", "mean": "v"})
-                       [["city", "station", "d", "v"]]
-                       .groupby(["city", "station", "d"], as_index=False)["v"].mean())
+    def _station_frames(frame: pd.DataFrame):
+        """Per-station daily PM2.5 and AQI, as (city, station, d, v) frames."""
+        pm = frame[frame.pollutant == "pm25"]
+        pm25 = (pm.rename(columns={"monitor_id": "station", "mean": "v"})
+                  [["city", "station", "d", "v"]]
+                  .groupby(["city", "station", "d"], as_index=False)["v"].mean())
+        # Composite NAQI per station-day, CPCB's way: each pollutant's daily
+        # mean -> its sub-index -> the max across pollutants (station_day_aqi).
+        aqi = station_day_aqi(frame)
+        aqi["d"] = pd.to_datetime(aqi["date"])
+        aqi = (aqi.rename(columns={"monitor_id": "station", "aqi": "v"})
+                  [["city", "station", "d", "v", "dominant"]])
+        return pm25, aqi
+
+    # Per-STATION frames keep every monitor: each one serves its own forecast,
+    # so each needs its own history even when two share a physical station.
+    station_daily, station_aqi_full = _station_frames(df)
+    station_aqi = station_aqi_full[["city", "station", "d", "v"]]
+
+    # The CITY series must not count a physical station twice. load_history.py
+    # copied one XKDR station's rows onto every monitor that maps to it (OpenAQ
+    # sometimes lists the same CPCB station twice), which double-weighted those
+    # stations in the city mean and inflated n_stations (audit D3). The copies
+    # are identical raw rows -- the same unrounded mean and count on the same
+    # day -- which two genuinely different stations never are.
+    unique = df.drop_duplicates(subset=["city", "date", "pollutant", "mean", "count"])
+    print(f"  duplicate copies of a shared station dropped for city means: "
+          f"{len(df) - len(unique):,} rows")
+    city_pm25, city_aqi = _station_frames(unique)
 
     # Two-step average, as everywhere else: the stored per-station daily mean,
     # then the mean across stations. Averaging raw readings instead would let
     # the busiest station set the city's number.
-    daily = (station_daily.groupby(["city", "d"], as_index=False)
-                          .agg(pm25=("v", "mean"), n_stations=("station", "nunique")))
+    daily = (city_pm25.groupby(["city", "d"], as_index=False)
+                      .agg(pm25=("v", "mean"), n_stations=("station", "nunique")))
     daily = daily[daily.n_stations >= min_stations].rename(columns={"city": "city_name"})
 
-    # Composite NAQI, built the way CPCB defines it: each pollutant's daily
-    # mean at a station -> its sub-index -> the max across pollutants. Station
-    # sub-indices are then averaged across the city, consistent with PM2.5.
-    from scripts.ingest.lib.aqi_utils import compute_subindex
-    sub = df[df["mean"] >= 0].copy()   # compute_subindex raises on negatives
-    sub["si"] = [compute_subindex(p, v)
-                 for p, v in zip(sub.pollutant, sub["mean"])]
-    idx = sub.groupby(["city", "monitor_id", "d"])["si"].idxmax()
-    station_aqi_rows = sub.loc[idx, ["city", "monitor_id", "d", "si", "pollutant"]]
-    daily_aqi = (station_aqi_rows.groupby(["city", "d"], as_index=False)
-                                 .agg(aqi=("si", "mean"),
-                                      n_stations=("monitor_id", "nunique"),
-                                      dominant=("pollutant",
-                                                lambda s: s.value_counts().idxmax())))
+    daily_aqi = (city_aqi.groupby(["city", "d"], as_index=False)
+                         .agg(aqi=("v", "mean"),
+                              n_stations=("station", "nunique"),
+                              dominant=("dominant",
+                                        lambda s: s.value_counts().idxmax())))
     daily_aqi = daily_aqi[daily_aqi.n_stations >= min_stations]
-
-    # Per-STATION daily AQI. This is the input the per-station AQI climatology
-    # must be fitted on. Without it, fit_stations() reuses station_daily --
-    # which is PM2.5 -- and every station with its own history ends up with a
-    # PM2.5 curve stored as its AQI climatology, roughly halving the forecast.
-    # Same columns as station_daily so the caller can hand either to
-    # fit_stations() unchanged.
-    station_aqi = (station_aqi_rows
-                   .rename(columns={"monitor_id": "station", "si": "v"})
-                   [["city", "station", "d", "v"]]
-                   .groupby(["city", "station", "d"], as_index=False)["v"].mean())
 
     print(f"  city-days: pm25={len(daily):,}  aqi={len(daily_aqi):,}  "
           f"station-days: pm25={len(station_daily):,} aqi={len(station_aqi):,}")

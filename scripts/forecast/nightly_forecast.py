@@ -74,6 +74,7 @@ def load_params(client) -> Dict[Tuple[str, str], Dict[str, Any]]:
     rows, offset = [], 0
     while True:
         r = (client.table("forecast_params").select("*")
+                   .order("monitor_id").order("pollutant")
                    .range(offset, offset + 999).execute())
         rows += r.data or []
         if not r.data or len(r.data) < 1000:
@@ -87,6 +88,8 @@ def load_modes(client) -> Dict[Tuple[str, str, int, int], Dict[str, Any]]:
     rows, offset = [], 0
     while True:
         r = (client.table("forecast_modes").select("*")
+                   .order("city").order("pollutant")
+                   .order("data_age_days").order("horizon_days")
                    .range(offset, offset + 999).execute())
         rows += r.data or []
         if not r.data or len(r.data) < 1000:
@@ -102,52 +105,65 @@ def load_modes(client) -> Dict[Tuple[str, str, int, int], Dict[str, Any]]:
 MEASURED_POLLUTANTS = ("pm25", "pm10", "no2", "so2")
 
 
-def latest_observations(client, pollutants: List[str],
-                        since: date) -> Dict[Tuple[str, str], Tuple[date, float]]:
-    """(monitor_id, pollutant) -> (date, value) of the most recent day seen.
+def fetch_daily_rows(client, since: date) -> List[Dict[str, Any]]:
+    """Every readings_daily row since `since`, with what the quality rule needs.
 
-    For measured pollutants this is the stored daily mean. For 'aqi' it is
-    derived the way CPCB defines NAQI: convert each pollutant's daily mean to
-    its sub-index and take the max over the pollutants that station reported
-    that day.
+    Ordered, so the 1000-row pages cannot skip or repeat rows: Postgres does
+    not promise a stable order between OFFSET queries unless asked for one.
     """
-    from scripts.ingest.lib.aqi_utils import compute_subindex
-
     rows, offset = [], 0
     while True:
         r = (client.table("readings_daily")
-                   .select("monitor_id, pollutant, date, mean")
+                   .select("monitor_id, pollutant, date, mean, count, source")
                    .in_("pollutant", list(MEASURED_POLLUTANTS))
                    .gte("date", since.isoformat())
+                   .order("date").order("monitor_id").order("pollutant")
                    .range(offset, offset + 999).execute())
         rows += r.data or []
         if not r.data or len(r.data) < 1000:
             break
         offset += 1000
+    return rows
 
+
+def observed_values(rows: List[Dict[str, Any]], pollutants: List[str]
+                    ) -> Dict[str, Dict[Tuple[str, str], float]]:
+    """pollutant -> {(monitor_id, date): value}, complete days only.
+
+    The single place nightly turns readings_daily rows into daily values, so
+    the day a forecast starts from and the day it is scored against are built
+    the same way. Completeness rules: scripts/forecast/daily_quality.py.
+    """
+    from scripts.forecast.daily_quality import rows_to_frame, station_day_values
+
+    df = rows_to_frame(rows)
+    out: Dict[str, Dict[Tuple[str, str], float]] = {}
+    for pollutant in pollutants:
+        vals = station_day_values(df, pollutant) if not df.empty else df
+        out[pollutant] = {(m, str(d)): float(v) for m, d, v in
+                          zip(vals.get("monitor_id", []), vals.get("date", []),
+                              vals.get("value", []))}
+    return out
+
+
+def latest_observations(client, pollutants: List[str],
+                        since: date) -> Dict[Tuple[str, str], Tuple[date, float]]:
+    """(monitor_id, pollutant) -> (date, value) of the most recent COMPLETE day.
+
+    For measured pollutants this is the stored daily mean. For 'aqi' it is
+    derived the way CPCB defines NAQI: each pollutant's daily mean becomes its
+    sub-index, and the max is taken over the pollutants of that same day.
+
+    Partial days are skipped, so a station whose newest day is only half
+    published starts from the day before instead (audit §7.3).
+    """
+    values = observed_values(fetch_daily_rows(client, since), pollutants)
     latest: Dict[Tuple[str, str], Tuple[date, float]] = {}
-    for row in rows:
-        key = (row["monitor_id"], row["pollutant"])
-        d = date.fromisoformat(row["date"])
-        if key not in latest or d > latest[key][0]:
-            latest[key] = (d, float(row["mean"]))
-
-    if "aqi" in pollutants:
-        # Group by (monitor, day) so the max is taken across pollutants
-        # measured on the SAME day -- mixing days would invent an AQI that
-        # never occurred.
-        by_day: Dict[Tuple[str, date], List[float]] = {}
-        for row in rows:
-            sub = compute_subindex(row["pollutant"], float(row["mean"]))
-            if sub is None:
-                continue
-            by_day.setdefault((row["monitor_id"], date.fromisoformat(row["date"])),
-                              []).append(float(sub))
-        for (monitor_id, d), subs in by_day.items():
-            key = (monitor_id, "aqi")
-            if key not in latest or d > latest[key][0]:
-                latest[key] = (d, max(subs))
-
+    for pollutant, by_day in values.items():
+        for (monitor_id, d), v in by_day.items():
+            key, day = (monitor_id, pollutant), date.fromisoformat(d)
+            if key not in latest or day > latest[key][0]:
+                latest[key] = (day, v)
     return latest
 
 
@@ -268,8 +284,6 @@ def load_scored_history(client, pollutants: List[str], since: date
     almost always the larger number, so the correction "learned" that PM2.5
     was under-forecast and pushed it up towards the +50% cap.
     """
-    from scripts.ingest.lib.aqi_utils import compute_subindex
-
     fc, offset = [], 0
     while True:
         r = (client.table("forecast_daily")
@@ -277,43 +291,23 @@ def load_scored_history(client, pollutants: List[str], since: date
                    .eq("horizon_days", 1)
                    .in_("pollutant", pollutants)
                    .gte("target_date", since.isoformat())
+                   .order("target_date").order("monitor_id").order("pollutant")
                    .range(offset, offset + 999).execute())
         fc += r.data or []
         if not r.data or len(r.data) < 1000:
             break
         offset += 1000
 
-    rows, offset = [], 0
-    while True:
-        r = (client.table("readings_daily")
-                   .select("monitor_id, pollutant, date, mean")
-                   .in_("pollutant", list(MEASURED_POLLUTANTS))
-                   .gte("date", since.isoformat())
-                   .range(offset, offset + 999).execute())
-        rows += r.data or []
-        if not r.data or len(r.data) < 1000:
-            break
-        offset += 1000
-
-    # Same construction as latest_observations: sub-index per pollutant, max
-    # across them for AQI. Deriving it differently here would make the measured
-    # bias an artefact of the two definitions disagreeing.
-    actuals: Dict[Tuple[str, str, str], float] = {}
-    by_day: Dict[Tuple[str, str], Dict[str, float]] = {}
-    for r in rows:
-        if r["mean"] is None:
-            continue
-        key = (r["monitor_id"], r["date"])
-        by_day.setdefault(key, {})[r["pollutant"]] = float(r["mean"])
-    for (mid, d), pol in by_day.items():
-        # One entry per pollutant, each under its own key.
-        if "pm25" in pollutants and "pm25" in pol:
-            actuals[(mid, d, "pm25")] = pol["pm25"]
-        if "aqi" in pollutants:
-            subs = [compute_subindex(p, v) for p, v in pol.items()]
-            subs = [x for x in subs if x is not None]
-            if subs:
-                actuals[(mid, d, "aqi")] = max(subs)
+    # Same construction as latest_observations, complete days only. Deriving
+    # it differently here would make the measured bias an artefact of the two
+    # definitions disagreeing -- and scoring against a half-published day
+    # would teach the correction a bias that is not there.
+    values = observed_values(fetch_daily_rows(client, since), pollutants)
+    actuals: Dict[Tuple[str, str, str], float] = {
+        (mid, d, pollutant): v
+        for pollutant, by_day in values.items()
+        for (mid, d), v in by_day.items()
+    }
     return fc, actuals
 
 
