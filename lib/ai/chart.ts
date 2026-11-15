@@ -53,8 +53,23 @@ function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
+/**
+ * Every measured pollutant is a concentration in µg/m³; only composite AQI is
+ * an index. This used to return "AQI" for anything but PM2.5, so a PM10
+ * history was drawn on an AQI axis with AQI bands (audit §6.2).
+ */
 function unitFor(pollutant: unknown): string {
-  return pollutant === "pm25" ? "µg/m³" : "AQI";
+  return pollutant === "aqi" || pollutant === undefined || pollutant === null ? "AQI" : "µg/m³";
+}
+
+/**
+ * The chart component draws bands and axis labels for AQI and PM2.5 only. A
+ * PM10, NO2 or SO2 series has no band scale there, and drawing it with PM2.5's
+ * would label it wrongly, so those answers come without a chart; the text
+ * answer still carries the numbers.
+ */
+function chartable(pollutant: unknown): boolean {
+  return pollutant === undefined || pollutant === null || pollutant === "aqi" || pollutant === "pm25";
 }
 
 /**
@@ -244,6 +259,7 @@ export function chartFor(tool: string, result: unknown): AnswerChart | null {
  */
 export function bestChart(results: { name: string; result: unknown }[]): AnswerChart | null {
   const charts = results
+    .filter((r) => chartable((r.result as { pollutant?: unknown } | null)?.pollutant))
     .map((r) => chartFor(r.name, r.result))
     .filter((c): c is AnswerChart => c !== null);
   if (!charts.length) return null;

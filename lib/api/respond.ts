@@ -38,6 +38,14 @@ export function ok<T>(data: T, meta: Record<string, unknown> = {}, status = 200)
 }
 
 export function fail(message: string, status = 400, detail?: unknown) {
+  // Server-side failures keep their detail in the server log only. Database
+  // and provider error text names tables, columns and constraints, which is
+  // nothing a visitor needs and a map for anyone probing (audit §2.6).
+  // Client errors (4xx) keep theirs: it says what was wrong with the request.
+  if (status >= 500) {
+    if (detail !== undefined) console.error(`[${status}] ${message}:`, detail);
+    return NextResponse.json({ error: { message } }, { status });
+  }
   return NextResponse.json({ error: { message, detail } }, { status });
 }
 

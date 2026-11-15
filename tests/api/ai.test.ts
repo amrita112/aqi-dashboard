@@ -445,3 +445,20 @@ describe("reading a provider refusal", () => {
     expect(rateLimitSizesOf("something else")).toBeNull();
   });
 });
+
+describe("AI charts never draw PM10/NO2/SO2 on an AQI or PM2.5 scale (audit §6.2)", () => {
+  it("returns no chart for a PM10 history", async () => {
+    const { bestChart } = await import("@/lib/ai/chart");
+    const series = Array.from({ length: 7 }, (_, i) => ({ date: `2026-11-0${i + 1}`, value: 150 + i }));
+    const chart = bestChart([{ name: "history", result: { pollutant: "pm10", series, location: "Delhi" } }]);
+    expect(chart).toBeNull();
+  });
+});
+
+describe("the system prompt names the configured AI provider (audit §2.6)", () => {
+  it("derives the name from the base URL", async () => {
+    const { providerName } = await import("@/lib/ai/provider");
+    expect(providerName("https://openrouter.ai/api/v1")).toBe("OpenRouter");
+    expect(providerName("https://api.groq.com/openai/v1")).toBe("Groq");
+  });
+});

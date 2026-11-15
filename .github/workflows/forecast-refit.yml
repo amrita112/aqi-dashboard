@@ -44,7 +44,9 @@ jobs:
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PYTHONUNBUFFERED:          '1'
+          # Through env, never pasted into the script text (audit §2.6).
+          DRY_RUN_INPUT:             ${{ github.event.inputs.dry_run }}
         run: |
           ARGS=""
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="--dry-run"; fi
+          if [ "$DRY_RUN_INPUT" = "true" ]; then ARGS="--dry-run"; fi
           python -m scripts.forecast.refit_params --source db $ARGS
