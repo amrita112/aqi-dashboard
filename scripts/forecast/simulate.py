@@ -53,12 +53,12 @@ from scripts.ingest.lib.config import IST as IST_TZ  # noqa: E402
 RUN_HOUR_UTC = 5
 RUN_MINUTE_UTC = 30
 
-# Mirrors nightly_forecast.py. Repeated rather than imported because that
-# module reaches for a live Supabase client at import time.
-FORECAST_HORIZONS = (1, 2, 3)
-MAX_OBSERVATION_AGE_DAYS = 14
-MIN_HISTORY_DAYS = 365
-MEASURED_POLLUTANTS = ("pm25", "pm10", "no2", "so2")
+# The forecast itself is nightly_forecast's own code, imported rather than
+# copied: a replay that re-implements the serving logic drifts away from it
+# (it did -- the copy here missed the Nov 2026 changes until it was replaced).
+from scripts.forecast import nightly_forecast as nf  # noqa: E402
+
+MEASURED_POLLUTANTS = nf.MEASURED_POLLUTANTS
 
 BRANCHES = ("honest", "fixed48")
 FIXED_LAG_HOURS = 48
@@ -136,77 +136,55 @@ def available_at(obs: pd.DataFrame, cutoff: pd.Timestamp, branch: str) -> pd.Dat
 
 
 def daily_means(rows: pd.DataFrame) -> pd.DataFrame:
-    """Per (monitor, pollutant, UTC day) mean — what readings_daily would hold.
+    """Per (monitor, pollutant, IST day) mean and count -- what readings_daily
+    would hold.
 
     readings_daily itself carries no ingest timestamp (there is no created_at on
     that table), so the simulation cannot ask it what it looked like on a past
     night. Rebuilding the rollup from raw readings is the only way to get an
-    as-of view, and is why this simulation depends on raw retention.
+    as-of view, and is why this simulation depends on raw retention. The count
+    is kept because nightly's completeness rule needs it.
     """
+    cols = ["monitor_id", "pollutant", "date", "mean", "count", "source"]
     if rows.empty:
-        return pd.DataFrame(columns=["monitor_id", "pollutant", "date", "mean"])
-    return (rows.groupby(["monitor_id", "pollutant", "date"], observed=True)["value"]
-                .mean().reset_index().rename(columns={"value": "mean"}))
+        return pd.DataFrame(columns=cols)
+    out = (rows.groupby(["monitor_id", "pollutant", "date"], observed=True)["value"]
+               .agg(["mean", "count"]).reset_index())
+    out["source"] = "openaq"
+    return out[cols]
 
 
-def daily_aqi(daily: pd.DataFrame) -> pd.DataFrame:
-    """Composite AQI per (monitor, day): max sub-index across that day's pollutants.
-
-    Grouped by day so the max is taken over pollutants measured on the SAME
-    day. Mixing days would invent an AQI that never occurred — the same care
-    nightly_forecast.latest_observations takes.
-    """
-    if daily.empty:
-        return pd.DataFrame(columns=["monitor_id", "pollutant", "date", "mean"])
-    d = daily.copy()
-    d["sub"] = [compute_subindex(p, v) for p, v in zip(d["pollutant"], d["mean"])]
-    out = (d.groupby(["monitor_id", "date"], observed=True)["sub"]
-             .max().reset_index().rename(columns={"sub": "mean"}))
-    out["pollutant"] = "aqi"
-    return out[["monitor_id", "pollutant", "date", "mean"]]
-
-
-def latest_observation(daily: pd.DataFrame, run_date: date
+def latest_observation(daily: pd.DataFrame, run_date: date,
+                       pollutants: Tuple[str, ...] = ("pm25", "aqi"),
                        ) -> Dict[Tuple[str, str], Tuple[date, float]]:
-    """(monitor, pollutant) -> most recent usable (day, value) as of run_date."""
+    """(monitor, pollutant) -> newest COMPLETE (day, value) as of run_date.
+
+    Built with nightly_forecast.observed_values, so the completeness rule and
+    the AQI construction are exactly the ones production uses.
+    """
     if daily.empty:
         return {}
     # Strictly BEFORE run_date: the 05:30 UTC job runs half an hour after the
     # rollup, which compresses completed days. Today's partial day has no
     # readings_daily row yet, so treating it as observable would give the
     # simulation a freshness production never had.
-    floor = pd.Timestamp(run_date) - pd.Timedelta(days=MAX_OBSERVATION_AGE_DAYS)
+    floor = pd.Timestamp(run_date) - pd.Timedelta(days=nf.LOOKBACK_DAYS)
     recent = daily[(daily["date"] >= floor) & (daily["date"] < pd.Timestamp(run_date))]
     if recent.empty:
         return {}
-    idx = recent.groupby(["monitor_id", "pollutant"], observed=True)["date"].idxmax()
-    picked = recent.loc[idx]
-    return {(r.monitor_id, r.pollutant): (r.date.date(), float(r.mean))
-            for r in picked.itertuples()}
+    rows = recent.assign(date=recent["date"].dt.strftime("%Y-%m-%d")).to_dict("records")
+    latest: Dict[Tuple[str, str], Tuple[date, float]] = {}
+    for pollutant, by_day in nf.observed_values(rows, list(pollutants)).items():
+        for (monitor_id, d), v in by_day.items():
+            key, day = (monitor_id, pollutant), date.fromisoformat(d)
+            if key not in latest or day > latest[key][0]:
+                latest[key] = (day, v)
+    return latest
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # The forecast itself
 # ─────────────────────────────────────────────────────────────────────────────
-
-def _nearest_mode(modes_idx: Dict, city: str, pollutant: str,
-                  age: int, horizon: int) -> Optional[dict]:
-    """Mode row for this data age, rounding UP to the next fitted age.
-
-    Claiming the skill of a fresher reading than we have would be the wrong
-    way to be wrong. Same rule as nightly_forecast.nearest_mode.
-    """
-    exact = modes_idx.get((city, pollutant, age, horizon))
-    if exact:
-        return exact
-    older = sorted(a for (c, p, a, h) in modes_idx
-                   if c == city and p == pollutant and h == horizon and a >= age)
-    if older:
-        return modes_idx[(city, pollutant, older[0], horizon)]
-    worst = sorted((a for (c, p, a, h) in modes_idx
-                    if c == city and p == pollutant and h == horizon), reverse=True)
-    return modes_idx[(city, pollutant, worst[0], horizon)] if worst else None
-
 
 def forecast_one(params_row: dict, city: str, pollutant: str,
                  observation: Optional[Tuple[date, float]],
@@ -214,54 +192,23 @@ def forecast_one(params_row: dict, city: str, pollutant: str,
                  ) -> Optional[dict]:
     """Day+`horizon` daily forecast for one station-pollutant.
 
-    Faithful to nightly_forecast.build_station_rows: anomaly against
-    climatology, carried forward by the alpha for the EFFECTIVE horizon
-    (data age + horizon), and downgraded to the seasonal normal whenever the
-    mode table says the measured skill at that age is no better than average.
+    This is nightly_forecast.build_station_rows -- the serving code itself --
+    with the one row for `horizon` picked out. No bias correction: that needs
+    the app's own past forecasts, which a replay does not have.
     """
-    clim = params_row["climatology"]
-    target = run_date + timedelta(days=horizon)
-
-    def clim_for(d: date) -> Optional[float]:
-        doy = d.timetuple().tm_yday
-        v = clim[doy] if doy < len(clim) else 0.0
-        return float(v) if v else None
-
-    anomaly, based_on, age = 0.0, None, None
-    if observation is not None:
-        obs_date, obs_value = observation
-        age = (run_date - obs_date).days
-        base_obs = clim_for(obs_date)
-        if base_obs is not None and age <= MAX_OBSERVATION_AGE_DAYS:
-            anomaly, based_on = obs_value - base_obs, obs_date
-        else:
-            age = None
-
-    degraded = (age is None) or (int(params_row["history_days"]) < MIN_HISTORY_DAYS)
-
-    base = clim_for(target)
-    if base is None:
+    rows = nf.build_station_rows(str(params_row.get("monitor_id", "")), city,
+                                 pollutant, params_row, observation, modes_idx,
+                                 run_date, horizon)
+    row = next((r for r in rows if r["horizon_days"] == horizon), None)
+    if row is None:
         return None
-
-    if degraded or horizon not in FORECAST_HORIZONS:
-        value, mode, model = base, "seasonal_normal", "climatology"
-    else:
-        effective = min(age + horizon, 3)
-        alpha = float(params_row[f"alpha_h{effective}"])
-        m = _nearest_mode(modes_idx, city, pollutant, age, horizon)
-        mode = m["mode"] if m else "outlook"
-        if mode == "seasonal_normal":
-            # Serve the seasonal average when that is what the label says.
-            # Carrying the anomaly forward under a "seasonal_normal" label
-            # would put a number on screen contradicting its own label.
-            value, model = base, "climatology"
-        else:
-            value = max(base + alpha * anomaly, 0.0)
-            model = params_row["model"]
-
-    return {"target_date": target, "value": float(value), "mode": mode,
-            "model": model, "data_age_days": age,
-            "based_on_date": based_on, "climatology": base}
+    target = date.fromisoformat(row["target_date"])
+    doy = target.timetuple().tm_yday
+    return {"target_date": target, "value": float(row["value"]),
+            "mode": row["mode"], "model": row["model"],
+            "data_age_days": row["data_age_days"],
+            "based_on_date": row["based_on_date"],
+            "climatology": float(params_row["climatology"][doy])}
 
 
 def hourly_from_daily(daily_value: float, shape_idx: Dict,
@@ -353,9 +300,7 @@ def run_simulation(obs: pd.DataFrame, data: Dict[str, pd.DataFrame],
             cutoff = cutoff_for(run_date)
             got = available_at(obs, cutoff, branch)
             daily = daily_means(got)
-            daily = pd.concat([daily, daily_aqi(daily)], ignore_index=True) \
-                if not daily.empty else daily
-            latest = latest_observation(daily, run_date)
+            latest = latest_observation(daily, run_date, pollutants)
 
             for (monitor_id, pollutant), params_row in params_idx.items():
                 if pollutant not in pollutants:

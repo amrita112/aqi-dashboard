@@ -118,3 +118,87 @@ def test_history_from_db_filters_and_dedupes(tmp_path, monkeypatch):
     assert city.loc["2026-01-01", "pm25"] == pytest.approx((100.25 + 40.75) / 2)
     # The 3-reading day never made it in.
     assert pd.Timestamp("2026-01-06") not in set(got["station_daily"].d)
+
+
+# ── serving: the model, alpha and label all come from what was measured ─────
+
+TODAY = date(2026, 11, 15)
+
+
+def params(**kw):
+    """A forecast_params row with a flat climatology of 100."""
+    row = {"climatology": [0.0] + [100.0] * 366, "history_days": 2000,
+           "alpha_h1": 0.9, "alpha_h2": 0.8, "alpha_h3": 0.7, "model": "blend",
+           # alphas[e] = 1 - e/10, so each effective horizon is distinguishable
+           "alphas": [0.0] + [round(1 - e / 10, 2) for e in range(1, 11)]}
+    row.update(kw)
+    return row
+
+
+def modes_for(model="blend", mode="forecast", ages=range(0, 8)):
+    return {("Delhi", "pm25", a, h): {"mode": mode, "model": model,
+                                      "band_p50": 0.1, "band_p80": 0.2}
+            for a in ages for h in (1, 2, 3)}
+
+
+def rows_for(p, obs_age, obs_value, modes):
+    obs = (TODAY - timedelta(days=obs_age), obs_value) if obs_age is not None else None
+    return {r["horizon_days"]: r for r in
+            nf.build_station_rows("m1", "Delhi", "pm25", p, obs, modes, TODAY, 7)}
+
+
+def test_blend_uses_alpha_for_the_effective_horizon():
+    """Audit §7.2: a 3-day-old reading forecasting day 2 must use alpha_5,
+    not alpha_h3 (the old min(age + h, 3) rule)."""
+    got = rows_for(params(), obs_age=3, obs_value=150.0, modes=modes_for())
+    # clim 100 + alpha_5 (0.5) * anomaly 50
+    assert got[2]["value"] == pytest.approx(125.0)
+    assert got[2]["model"] == "blend"
+
+
+def test_persistence_is_served_when_it_measured_better():
+    """Audit D5: the model choice used to be copied into the label only."""
+    got = rows_for(params(), obs_age=2, obs_value=150.0,
+                   modes=modes_for(model="persistence"))
+    for h in (1, 2, 3):
+        assert got[h]["value"] == pytest.approx(150.0)
+        assert got[h]["model"] == "persistence"
+        assert got[h]["band_p80"] == pytest.approx(0.2)
+
+
+def test_old_params_without_alphas_never_borrow_alpha_h3():
+    """Rows fitted before the migration only have alpha_h1..3. Past effective
+    horizon 3 there is no measured alpha, so the seasonal normal is served."""
+    p = params(alphas=None)
+    got = rows_for(p, obs_age=1, obs_value=150.0, modes=modes_for())
+    assert got[1]["value"] == pytest.approx(100 + 0.8 * 50)   # alpha_h2
+    assert got[2]["value"] == pytest.approx(100 + 0.7 * 50)   # alpha_h3
+    assert got[3]["mode"] == "seasonal_normal"                # effective 4
+    assert got[3]["value"] == pytest.approx(100.0)
+
+
+def test_readings_older_than_measured_ages_get_the_seasonal_normal():
+    got = rows_for(params(), obs_age=8, obs_value=150.0, modes=modes_for())
+    assert all(r["mode"] == "seasonal_normal" for r in got.values())
+    assert all(r["value"] == pytest.approx(100.0) for r in got.values())
+
+
+def test_no_measured_mode_means_seasonal_normal_not_outlook():
+    """It used to fall back to 'outlook' -- a claim of skill nobody measured."""
+    got = rows_for(params(), obs_age=1, obs_value=150.0, modes={})
+    assert got[1]["mode"] == "seasonal_normal"
+    assert got[1]["value"] == pytest.approx(100.0)
+
+
+def test_seasonal_normal_mode_serves_the_seasonal_normal():
+    got = rows_for(params(), obs_age=1, obs_value=150.0,
+                   modes=modes_for(mode="seasonal_normal"))
+    assert got[1]["value"] == pytest.approx(100.0)
+    assert got[1]["model"] == "climatology"
+
+
+def test_days_4_to_7_are_the_seasonal_normal():
+    got = rows_for(params(), obs_age=0, obs_value=150.0, modes=modes_for())
+    for h in (4, 5, 6, 7):
+        assert got[h]["mode"] == "seasonal_normal"
+        assert got[h]["band_p80"] is None

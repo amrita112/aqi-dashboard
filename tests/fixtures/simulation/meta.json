@@ -59,7 +59,7 @@
     "aqi"
   ],
   "run_cutoff_utc": "05:30",
-  "note": "Regenerate with notebooks/forecast_simulation.ipynb. Golden values encode CURRENT forecast behaviour, bugs included; a deliberate improvement is expected to change them.",
+  "note": "Regenerate with scripts/forecast/regenerate_simulation_golden.py. Golden values encode CURRENT forecast behaviour, bugs included; a deliberate improvement is expected to change them.",
   "params_provenance": "forecast_params and forecast_modes were computed locally from readings_daily history; diurnal_shape from the local XKDR parquet. Supabase must be refitted (refit_params --source db, then a parquet run for the shape) for production to match.",
   "fixes_applied_2026_09_22": [
     "per-station aqi climatology fitted on aqi history, not pm25",
@@ -68,5 +68,12 @@
     "diurnal_shape fitted for aqi, and rotated IST->UTC at lookup"
   ],
   "known_defects_frozen_into_this_golden": [],
-  "out_of_season": "23 Aug - 21 Sep falls outside SEASON_MONTHS (10,11,12,1), which is what forecast_modes is fitted on and what the product exists for. Skill here is out-of-season skill; re-freeze once a November window is available."
+  "out_of_season": "23 Aug - 21 Sep falls outside SEASON_MONTHS (10,11,12,1), which is what forecast_modes is fitted on and what the product exists for. Skill here is out-of-season skill; re-freeze once a November window is available.",
+  "regenerated_at": "2026-11-15T18:15:23.536101+00:00",
+  "regeneration_log": [
+    {
+      "at": "2026-11-15T18:15:23.536101+00:00",
+      "reason": "Nov 2026 audit fixes: nightly's own build_station_rows; complete days only; alpha per effective horizon (no alpha_h3 beyond 3); no mode row or age > 7 -> seasonal normal; values rounded to 2 dp like production"
+    }
+  ]
 }

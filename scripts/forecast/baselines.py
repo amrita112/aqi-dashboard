@@ -38,7 +38,12 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.forecast.model import (  # noqa: E402
+    FORECAST_HORIZONS, MODE_DATA_AGES, SERVED_MODELS, predict,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 XKDR_GLOB = str(PROJECT_ROOT / "data" / "XKDR_data" / "data" / "v1"
@@ -1227,22 +1232,42 @@ def residual_bands(series: pd.Series, test_year: int,
 MIN_USEFUL_SKILL_PCT = 5.0
 
 
-def forecast_mode_table(series: pd.Series, test_year: int,
-                        data_ages: Iterable[int] = (0, 1, 2, 3, 4, 5, 7),
-                        horizons: Iterable[int] = (1, 2, 3),
-                        quantiles: Iterable[int] = (50, 80)) -> pd.DataFrame:
-    """Expected error and serving mode for each (data age, horizon) pair.
+def _mode_for(skill):
+    """forecast / outlook / seasonal_normal from a skill percentage."""
+    return np.where(skill >= 20, "forecast",
+           np.where(skill >= MIN_USEFUL_SKILL_PCT, "outlook", "seasonal_normal"))
 
-    Returns one row per combination with the mode the app should use:
 
-      forecast         - beats climatology comfortably; show it as a forecast
-      outlook          - still beats climatology, but show a wide band and
-                         softer language
-      seasonal_normal  - no better than the long-run average, so say that
-                         instead of dressing an average up as a prediction
+def _pick_served_model(table: pd.DataFrame) -> pd.DataFrame:
+    """Per (data age, horizon), keep the row of the model with the best skill.
 
-    The band columns are RATIOS of the forecast, so one number works at Delhi's
-    200 ug/m3 and Bengaluru's 30.
+    Ties go to the blend (listed first in SERVED_MODELS): it degrades towards
+    the seasonal normal as data ages, persistence does not.
+    """
+    order = {m: i for i, m in enumerate(SERVED_MODELS)}
+    t = table.assign(_rank=table["model"].map(order))
+    t = t.sort_values(["data_age_days", "horizon_days", "skill_pct", "_rank"],
+                      ascending=[True, True, False, True])
+    best = t.drop_duplicates(["data_age_days", "horizon_days"]).drop(columns="_rank")
+    best = best.assign(mode=_mode_for(best["skill_pct"]))
+    return best.reset_index(drop=True)
+
+
+def model_skill_table(series: pd.Series, test_year: int,
+                      data_ages: Iterable[int] = MODE_DATA_AGES,
+                      horizons: Iterable[int] = FORECAST_HORIZONS,
+                      models: Iterable[str] = SERVED_MODELS,
+                      quantiles: Iterable[int] = (50, 80)) -> pd.DataFrame:
+    """Every served model's skill at every (data age, horizon), one series.
+
+    One row per (data age, horizon, model). Trained on years before
+    `test_year`, scored on the pollution season of `test_year`, against
+    climatology. The prediction is model.predict -- the same function nightly
+    serves with -- and blend's alpha is fitted at the EFFECTIVE horizon
+    (age + h), which is also the alpha nightly serves (model.alpha_for).
+
+    The band columns are RATIOS of the forecast, so one number works at
+    Delhi's 200 ug/m3 and Bengaluru's 30.
     """
     train = series[series.index.year < test_year].dropna()
     test = series[series.index.year == test_year].dropna()
@@ -1260,60 +1285,65 @@ def forecast_mode_table(series: pd.Series, test_year: int,
     for age in data_ages:
         for h in horizons:
             # The model's information is `age + h` days old by the time the
-            # forecast lands, because the anomaly it carries forward was
-            # measured `age` days ago.
+            # forecast lands, because the reading it starts from was taken
+            # `age` days ago.
             effective = age + h
             alpha = fit_alpha(train, clim, effective)
             prev = _lagged(series, idx, effective)
             cl_prev = pd.Series(
                 clim.reindex((idx - pd.Timedelta(days=effective)).dayofyear).values, index=idx)
-            pred = cl_now + alpha * (prev - cl_prev)
-            m = pred.notna() & test.notna()
-            if m.sum() < 20:
-                continue
-            err = np.abs(pred[m] - test[m])
-            mae = float(err.mean())
-            skill = 100 * (clim_mae - mae) / clim_mae
-
-            if skill >= 20:
-                mode = "forecast"
-            elif skill >= MIN_USEFUL_SKILL_PCT:
-                mode = "outlook"
-            else:
-                mode = "seasonal_normal"
-
-            row = {"city": series.name, "data_age_days": age, "horizon_days": h,
-                   "effective_horizon": effective, "alpha": alpha,
-                   "mae": mae, "clim_mae": clim_mae, "skill_pct": skill,
-                   "mode": mode, "n": int(m.sum())}
-            # Band as a fraction of the prediction, guarding against the
-            # near-zero predictions that would otherwise produce absurd ratios.
-            safe = pred[m] > 1
-            if safe.sum() > 20:
-                rel = (err[safe] / pred[m][safe]).values
-                for q in quantiles:
-                    row[f"band_p{q}"] = float(np.percentile(rel, q))
-            rows.append(row)
+            for model in models:
+                pred = predict(model, cl_now, prev, cl_prev, alpha)
+                m = pred.notna() & test.notna()
+                if m.sum() < 20:
+                    continue
+                err = np.abs(pred[m] - test[m])
+                mae = float(err.mean())
+                row = {"city": series.name, "data_age_days": age, "horizon_days": h,
+                       "effective_horizon": effective, "model": model,
+                       "alpha": alpha if model == "blend" else np.nan,
+                       "mae": mae, "clim_mae": clim_mae,
+                       "skill_pct": 100 * (clim_mae - mae) / clim_mae,
+                       "n": int(m.sum())}
+                # Band as a fraction of the prediction, guarding against the
+                # near-zero predictions that would otherwise give absurd ratios.
+                safe = pred[m] > 1
+                if safe.sum() > 20:
+                    rel = (err[safe] / pred[m][safe]).values
+                    for q in quantiles:
+                        row[f"band_p{q}"] = float(np.percentile(rel, q))
+                rows.append(row)
     return pd.DataFrame(rows)
 
 
-def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
-                       min_history: int = 365,
-                       data_ages: Iterable[int] = (0, 1, 2, 3, 4, 5, 7),
-                       horizons: Iterable[int] = (1, 2, 3)) -> pd.DataFrame:
-    """forecast_mode_table, but measured on STATIONS rather than the city mean.
+def forecast_mode_table(series: pd.Series, test_year: int,
+                        data_ages: Iterable[int] = MODE_DATA_AGES,
+                        horizons: Iterable[int] = FORECAST_HORIZONS,
+                        quantiles: Iterable[int] = (50, 80)) -> pd.DataFrame:
+    """The model to serve, its expected error and its mode, per (age, horizon).
 
-    The mode decides whether the app calls a number a forecast or admits it is
-    the seasonal average. It is served per station, so it has to be measured
-    per station. A city mean is far more predictable than any monitor in it --
-    averaging ~70 Delhi stations cancels local noise, and for AQI it also
-    cancels the max-over-pollutants operator jumping between pollutants -- so a
-    city-fitted table says "forecast" at data ages where no individual station
-    has any skill left.
+    One row per combination: the better of blend and persistence (see
+    model_skill_table), and the mode that follows from ITS skill:
 
-    Each station gets its own table; the city's row is the MEDIAN skill across
-    stations, with the mode re-derived from that median. Median rather than
-    mean so one erratic monitor cannot drag a whole city's labelling.
+      forecast         - beats climatology comfortably; show it as a forecast
+      outlook          - still beats climatology, but show a wide band and
+                         softer language
+      seasonal_normal  - no better than the long-run average, so say that
+                         instead of dressing an average up as a prediction
+    """
+    t = model_skill_table(series, test_year, data_ages, horizons,
+                          quantiles=quantiles)
+    return _pick_served_model(t) if not t.empty else t
+
+
+def station_model_skill(station_daily: pd.DataFrame, city: str, test_year: int,
+                        min_history: int = 365,
+                        data_ages: Iterable[int] = MODE_DATA_AGES,
+                        horizons: Iterable[int] = FORECAST_HORIZONS) -> pd.DataFrame:
+    """model_skill_table per STATION, summarised as the median across stations.
+
+    One row per (data age, horizon, model). The median rather than the mean so
+    one erratic monitor cannot drag a whole city's labelling.
     """
     per_station = []
     for st, sub in station_daily[station_daily.city == city].groupby("station"):
@@ -1321,7 +1351,7 @@ def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
         if s.dropna().shape[0] < min_history:
             continue
         s.name = city
-        t = forecast_mode_table(s, test_year, data_ages=data_ages, horizons=horizons)
+        t = model_skill_table(s, test_year, data_ages=data_ages, horizons=horizons)
         if not t.empty:
             per_station.append(t)
 
@@ -1329,7 +1359,10 @@ def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
         return pd.DataFrame()
 
     allt = pd.concat(per_station, ignore_index=True)
-    agg = (allt.groupby(["data_age_days", "horizon_days"], as_index=False)
+    for col in ("band_p50", "band_p80"):
+        if col not in allt.columns:
+            allt[col] = np.nan
+    agg = (allt.groupby(["data_age_days", "horizon_days", "model"], as_index=False)
                .agg(effective_horizon=("effective_horizon", "first"),
                     alpha=("alpha", "median"),
                     mae=("mae", "median"),
@@ -1340,10 +1373,28 @@ def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
                     n=("n", "sum"),
                     n_stations=("mae", "size")))
     agg["city"] = city
-    agg["mode"] = np.where(agg.skill_pct >= 20, "forecast",
-                  np.where(agg.skill_pct >= MIN_USEFUL_SKILL_PCT, "outlook",
-                           "seasonal_normal"))
     return agg
+
+
+def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
+                       min_history: int = 365,
+                       data_ages: Iterable[int] = MODE_DATA_AGES,
+                       horizons: Iterable[int] = FORECAST_HORIZONS) -> pd.DataFrame:
+    """forecast_mode_table, but measured on STATIONS rather than the city mean.
+
+    The mode decides whether the app calls a number a forecast or admits it is
+    the seasonal average. It is served per station, so it has to be measured
+    per station. A city mean is far more predictable than any monitor in it --
+    averaging ~70 Delhi stations cancels local noise, and for AQI it also
+    cancels the max-over-pollutants operator jumping between pollutants -- so a
+    city-fitted table says "forecast" at data ages where no individual station
+    has any skill left.
+
+    The served model is chosen on the median station skill, per (age, horizon).
+    """
+    agg = station_model_skill(station_daily, city, test_year, min_history,
+                              data_ages, horizons)
+    return _pick_served_model(agg) if not agg.empty else agg
 
 
 def max_useful_age(mode_table: pd.DataFrame, horizon: int = 1) -> Optional[int]:

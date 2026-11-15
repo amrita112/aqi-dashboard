@@ -7,19 +7,22 @@ lookups and arithmetic and finishes in seconds.
 
 Per station and pollutant:
 
-  1. Find the most recent day in readings_daily. Its AGE is the pivot of the
-     whole job: OpenAQ's publication lag swings between roughly 17 and 80 hours
-     and individual stations go quiet for a week, so freshness is a per-station
-     fact, not a global one.
-  2. Anomaly = that day's value minus that day's climatology.
-  3. Days 1-3: climatology for the target day + alpha x anomaly, where alpha is
-     chosen for the EFFECTIVE horizon (age + horizon), because information that
-     is already three days old forecasts tomorrow about as well as it forecasts
-     four days out.
-  4. Days 4-7: bare climatology, labelled seasonal_normal. No band -- these are
-     an average, and drawing uncertainty around an average implies a prediction
-     we are not making.
-  5. Mode and band come from forecast_modes, keyed on the measured data age.
+  1. Find the most recent COMPLETE day in readings_daily (daily_quality.py).
+     Its AGE is the pivot of the whole job: OpenAQ's publication lag swings
+     between roughly 17 hours and a week, so freshness is a per-station fact,
+     not a global one.
+  2. Days 1-3: look up forecast_modes for (city, pollutant, age, horizon). That
+     row says which model to serve (blend or persistence), how to label it,
+     and the band -- all measured together on held-out data by the refit.
+     The arithmetic is model.predict; blend's alpha is the one fitted for the
+     EFFECTIVE horizon (age + horizon), the same one the skill was measured
+     with.
+  3. Days 4-7, readings older than 7 days, and any (age, horizon) whose
+     measured skill is no better than average: bare climatology, labelled
+     seasonal_normal. No band -- these are an average, and drawing uncertainty
+     around an average implies a prediction we are not making.
+  4. A city-level bias correction, applied only where it has been helping
+     (bias_correction.py).
 
 Stations with too little history, or with no recent observation at all, produce
 climatology-only rows rather than being dropped: a station that says "here is
@@ -52,17 +55,22 @@ from scripts.forecast.bias_correction import (  # noqa: E402
     city_day_errors,
     decide,
 )
+from scripts.forecast.model import (  # noqa: E402
+    FORECAST_HORIZONS,
+    MAX_SERVED_DATA_AGE,
+    alpha_for,
+    predict,
+)
 from scripts.forecast.refit_params import APP_TO_ANALYSIS, MIN_HISTORY_DAYS  # noqa: E402
 from scripts.ingest.lib.config import TARGET_STATIONS_PATH, ist_today  # noqa: E402
 from scripts.ingest.lib.supabase_client import make_client  # noqa: E402
 
 DEFAULT_HORIZON_DAYS = 7
-FORECAST_HORIZONS = (1, 2, 3)      # beyond this it is climatology, not a forecast
 
-# How far back to look for a usable observation. Past this the anomaly is so
-# stale that every horizon scores at or below the seasonal average anyway, so
-# there is nothing to gain by looking further.
-MAX_OBSERVATION_AGE_DAYS = 14
+# How far back to read readings_daily. Longer than MAX_SERVED_DATA_AGE (7):
+# the extra week is what tells the completeness rule each station's normal
+# day, i.e. whether it reports hourly or every 15 minutes.
+LOOKBACK_DAYS = 14
 
 
 def day_of_year(d: date) -> int:
@@ -169,24 +177,21 @@ def latest_observations(client, pollutants: List[str],
 
 def nearest_mode(modes: Dict, city: str, pollutant: str,
                  age: int, horizon: int) -> Optional[Dict[str, Any]]:
-    """Mode row for this age, falling back to the closest age that was fitted.
+    """The mode row measured at this data age, or None if there is none.
 
-    forecast_modes is fitted at a handful of ages (0,1,2,3,4,5,7) rather than
-    every integer, so an observation 6 days old has no exact row. Round UP to
-    the next fitted age: claiming the skill of a fresher reading than we have
-    would be the wrong way to be wrong.
+    forecast_modes is measured at every age from 0 to MAX_SERVED_DATA_AGE
+    (model.MODE_DATA_AGES), so an exact match is expected. Tables fitted before
+    Nov 2026 skipped age 6; for those, round UP to the next measured age --
+    claiming the skill of a fresher reading than we have would be the wrong way
+    to be wrong. Nothing is ever borrowed from a FRESHER age, and an age older
+    than anything measured gets None: there is no measured skill to claim.
     """
     exact = modes.get((city, pollutant, age, horizon))
     if exact:
         return exact
     candidates = sorted(a for (c, p, a, h) in modes
                         if c == city and p == pollutant and h == horizon and a >= age)
-    if candidates:
-        return modes.get((city, pollutant, candidates[0], horizon))
-    # Older than anything fitted: treat as the stalest case we measured.
-    worst = sorted((a for (c, p, a, h) in modes
-                    if c == city and p == pollutant and h == horizon), reverse=True)
-    return modes.get((city, pollutant, worst[0], horizon)) if worst else None
+    return modes.get((city, pollutant, candidates[0], horizon)) if candidates else None
 
 
 def build_station_rows(monitor_id: str, city: str, pollutant: str,
@@ -194,7 +199,13 @@ def build_station_rows(monitor_id: str, city: str, pollutant: str,
                        observation: Optional[Tuple[date, float]],
                        modes: Dict, today: date,
                        horizon_days: int) -> List[Dict[str, Any]]:
-    """Seven rows for one station-pollutant."""
+    """Seven rows for one station-pollutant.
+
+    For days 1-3 the mode row for this (city, pollutant, data age, horizon)
+    decides everything shown: which model makes the number, how it is
+    labelled, and the band around it -- all measured together by the refit, so
+    the label always describes the number it is attached to.
+    """
     clim = params["climatology"]
 
     def clim_for(d: date) -> Optional[float]:
@@ -202,13 +213,15 @@ def build_station_rows(monitor_id: str, city: str, pollutant: str,
         v = clim[doy] if doy < len(clim) else 0.0
         return float(v) if v else None
 
-    anomaly, based_on, age = 0.0, None, None
+    obs_value, obs_base, based_on, age = None, None, None, None
     if observation is not None:
         obs_date, obs_value = observation
         age = (today - obs_date).days
-        base = clim_for(obs_date)
-        if base is not None and age <= MAX_OBSERVATION_AGE_DAYS:
-            anomaly, based_on = obs_value - base, obs_date
+        obs_base = clim_for(obs_date)
+        # Older than the stalest age the mode table measured: no skill to
+        # claim, so this station gets the seasonal normal.
+        if obs_base is not None and 0 <= age <= MAX_SERVED_DATA_AGE:
+            based_on = obs_date
         else:
             age = None
 
@@ -223,30 +236,27 @@ def build_station_rows(monitor_id: str, city: str, pollutant: str,
         if base is None:
             continue
 
-        if degraded or h not in FORECAST_HORIZONS:
-            value, mode, band50, band80 = base, "seasonal_normal", None, None
-            model = "climatology"
-        else:
-            # Alpha for the EFFECTIVE horizon: an observation `age` days old
-            # forecasting `h` days out is really an (age + h)-step problem.
-            effective = min(age + h, 3)
-            alpha = float(params[f"alpha_h{effective}"])
+        value, mode, band50, band80 = base, "seasonal_normal", None, None
+        model = "climatology"
+        if not degraded and h in FORECAST_HORIZONS:
             m = nearest_mode(modes, city, pollutant, age, h)
-            mode = m["mode"] if m else "outlook"
-
-            if mode == "seasonal_normal":
-                # The measured skill at this data age is no better than the
-                # seasonal average, so SERVE the seasonal average. Carrying the
-                # anomaly forward while labelling the row "seasonal_normal"
-                # would put a number on screen that contradicts its own label
-                # -- the exact dishonesty this mode exists to prevent.
-                value, band50, band80 = base, None, None
-                model = "climatology"
-            else:
-                value = max(base + alpha * anomaly, 0.0)  # a negative forecast is not one
-                band50 = m.get("band_p50") if m else None
-                band80 = m.get("band_p80") if m else None
-                model = params["model"]
+            # Rows fitted before Nov 2026 carry no model: they measured the blend.
+            served = (m.get("model") or "blend") if m else None
+            # An observation `age` days old forecasting `h` days out is really
+            # an (age + h)-step problem, and alpha was fitted for exactly that.
+            alpha = alpha_for(params, age + h)
+            usable = (m is not None and m["mode"] != "seasonal_normal"
+                      and (served == "persistence" or alpha is not None))
+            # Otherwise (mode says seasonal_normal, no measured mode at all, or
+            # no alpha fitted for this effective horizon) the seasonal average
+            # is served, and labelled as exactly that. Carrying the anomaly
+            # forward under a "seasonal_normal" label would put a number on
+            # screen that contradicts its own label.
+            if usable:
+                value = max(float(predict(served, base, obs_value, obs_base, alpha)),
+                            0.0)  # a negative forecast is not one
+                mode, model = m["mode"], served
+                band50, band80 = m.get("band_p50"), m.get("band_p80")
 
         rows.append({
             "monitor_id": monitor_id,
@@ -339,7 +349,7 @@ def main() -> None:
         raise SystemExit("forecast_params is empty — run refit_params first.")
 
     observations = latest_observations(
-        client, args.pollutants, today - timedelta(days=MAX_OBSERVATION_AGE_DAYS))
+        client, args.pollutants, today - timedelta(days=LOOKBACK_DAYS))
     print(f"  {len(observations)} station-pollutants have a recent observation")
 
     out_rows: List[Dict[str, Any]] = []
