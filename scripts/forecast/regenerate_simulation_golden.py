@@ -15,7 +15,8 @@ are rewritten:
     climatology_baseline.csv   skill against climatology, per city
     meta.json                  "regenerated_at" and "regeneration_log" appended
 
-Formerly a cell in notebooks/forecast_simulation.ipynb (retired Nov 2026).
+Formerly a cell in notebooks/forecast_simulation.ipynb (retired Nov 2026; now
+notebooks/archive/forecast_simulation.ipynb).
 
 Usage (from repo root):
     /usr/bin/python3 -m scripts.forecast.regenerate_simulation_golden "why the numbers changed"

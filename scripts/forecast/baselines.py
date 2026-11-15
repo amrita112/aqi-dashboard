@@ -24,8 +24,9 @@ nothing about next week. That decay is the whole result: where alpha reaches
 zero, the model has collapsed into climatology and the forecast is honest
 only if you stop calling it one.
 
-Used by notebooks/forecast_feasibility.ipynb and, once a live source exists,
-by the nightly job that precomputes the app's forecast table.
+Used by the monthly refit (refit_params.py) and checked by
+notebooks/forecast_verification.ipynb. (The notebook it was first written for,
+forecast_feasibility.ipynb, is archived in notebooks/archive/.)
 """
 
 from __future__ import annotations

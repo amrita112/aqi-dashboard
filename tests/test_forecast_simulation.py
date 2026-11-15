@@ -11,8 +11,10 @@ WHAT THIS CATCHES
 WHAT THIS DOES NOT CATCH
     Whether the forecast is any GOOD. The golden file encodes current
     behaviour, bugs included. When you deliberately improve the forecast this
-    test is SUPPOSED to fail; regenerate the fixture from
-    notebooks/forecast_simulation.ipynb and read the diff.
+    test is SUPPOSED to fail; regenerate the fixture with
+    `python3 -m scripts.forecast.regenerate_simulation_golden "why"` and read the
+    diff. (The notebook that used to do this is archived at
+    notebooks/archive/forecast_simulation.ipynb.)
 
 WHAT THE WINDOW DOES NOT COVER
     23 Aug - 21 Sep is outside SEASON_MONTHS = (10, 11, 12, 1), the months
@@ -56,7 +58,7 @@ FIX = REPO / "tests" / "fixtures" / "simulation"
 
 pytestmark = pytest.mark.skipif(
     not (FIX / "golden_city_hourly.csv").exists(),
-    reason="simulation fixture missing — regenerate with notebooks/forecast_simulation.ipynb",
+    reason="simulation fixture missing — see scripts/forecast/regenerate_simulation_golden.py",
 )
 
 # Forecast values are rounded to 4dp in the golden file. Anything above float

@@ -44,8 +44,12 @@ __pycache__/
 .pytest_cache/
 
 # research notebooks — kept local (may embed API keys / sample data in outputs)
-/notebooks/
+# `/notebooks/*` (not `/notebooks/`): git cannot re-include a file inside an
+# excluded directory, so the directory itself must stay visible.
+/notebooks/*
 !/notebooks/.gitkeep
+# The forecast verification notebook IS tracked: it must change with the code.
+!/notebooks/forecast_verification.ipynb
 /contrib
 
 # testing
