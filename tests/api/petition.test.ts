@@ -55,8 +55,11 @@ let ipCounter = 0;
 /** A fresh IP per test, since the rate limiter is module-level state. */
 const freshIp = () => `10.0.0.${++ipCounter}`;
 
+const TOKEN = "33333333-3333-3333-3333-333333333333";
+
 beforeEach(() => {
   rpc.mockReset();
+  rpc.mockResolvedValue({ data: TOKEN, error: null });
   insert.mockReset();
   insert.mockReturnValue({ data: null, error: null });
 });
@@ -110,28 +113,43 @@ describe("POST — validation", () => {
 });
 
 describe("POST — what it stores and what it returns", () => {
+  // Writes go through the sign_petition() database function (migration 23),
+  // which sets purpose, expiry and withdrawal token itself.
+  const signCall = () => rpc.mock.calls.find((c) => c[0] === "sign_petition")?.[1];
+
   it("lowercases the email so one person cannot sign twice by capitalising", async () => {
     await POST(post(VALID, freshIp()));
-    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ email: "asha@example.com" }));
+    expect(signCall()).toEqual(expect.objectContaining({ p_email: "asha@example.com", p_kind: "petition" }));
   });
 
-  it("stamps the consent wording onto the row", async () => {
-    // Frozen per row: changing the text later must not rewrite what past
-    // signatories agreed to.
+  it("never sends the purpose, expiry or token: the database sets them", async () => {
     await POST(post(VALID, freshIp()));
-    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ purpose: PETITION_PURPOSE }));
+    expect(Object.keys(signCall()).sort()).toEqual(
+      ["p_city", "p_email", "p_kind", "p_name", "p_wants_updates"],
+    );
+  });
+
+  it("stamps the SAME consent wording the screen shows (migration 23 vs lib/api/petition.ts)", async () => {
+    // The text is frozen onto each row by sign_petition(); it must be the text
+    // people were shown, or the stored consent is not what they agreed to.
+    const { readFileSync } = await import("node:fs");
+    const sql = readFileSync("database-setup/23-write-functions-live-monitors.sql", "utf8");
+    const { CITY_REQUEST_PURPOSE } = await import("@/lib/api/petition");
+    expect(sql).toContain(`WHEN 'petition' THEN '${PETITION_PURPOSE}'`);
+    expect(sql).toContain(`ELSE '${CITY_REQUEST_PURPOSE}'`);
   });
 
   it("defaults the updates opt-in to false — signing is not subscribing", async () => {
     await POST(post(VALID, freshIp()));
-    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ wants_updates: false }));
+    expect(signCall()).toEqual(expect.objectContaining({ p_wants_updates: false }));
+    rpc.mockClear();
     await POST(post({ ...VALID, wants_updates: true }, freshIp()));
-    expect(insert).toHaveBeenLastCalledWith(expect.objectContaining({ wants_updates: true }));
+    expect(signCall()).toEqual(expect.objectContaining({ p_wants_updates: true }));
   });
 
   it("returns the withdrawal token and NOT the personal data it just stored", async () => {
     const body = await (await POST(post(VALID, freshIp()))).json();
-    expect(body.data.withdrawal_token).toBeTruthy();
+    expect(body.data.withdrawal_token).toBe(TOKEN);
     const text = JSON.stringify(body.data);
     expect(text).not.toMatch(/asha/i);
     expect(text).not.toMatch(/example\.com/i);
@@ -139,7 +157,7 @@ describe("POST — what it stores and what it returns", () => {
   });
 
   it("reports an already-signed email plainly, without leaking anything", async () => {
-    insert.mockReturnValue({ data: null, error: { code: "23505", message: "duplicate key" } });
+    rpc.mockResolvedValue({ data: null, error: { code: "23505", message: "duplicate key" } });
     const res = await POST(post(VALID, freshIp()));
     expect(res.status).toBe(409);
     const body = await res.json();
