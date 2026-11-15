@@ -21,6 +21,7 @@ import {
   type ShapeRow,
 } from "@/lib/api/forecast";
 import { istToday } from "@/lib/api/time";
+import { completeDays, stationDayAqi } from "@/lib/api/daily-quality";
 import { DEFAULT_SCALE, type Scale } from "@/lib/types";
 
 /** monitors.city uses the app's spelling; the analysis tables use XKDR's. */
@@ -123,6 +124,10 @@ export async function getCurrent(
     .from("readings")
     .select("id, recorded_at")
     .eq("monitor_id", monitor.id)
+    // Official readings only. A user-submitted row (source='user') pointing
+    // at an official station would otherwise become its "current" reading
+    // (audit §2.3). Migration 23 also stops anyone inserting those rows.
+    .eq("source", "openaq")
     .order("recorded_at", { ascending: false })
     .limit(1);
   if (!readings?.length) return null;
@@ -206,8 +211,76 @@ export interface HistoryPoint {
   max: number;
   count: number;
   source: string;
+  /** When the day's min and max occurred (single pollutants only). */
+  min_ts?: string | null;
+  max_ts?: string | null;
 }
 
+/**
+ * Days of readings_daily read BEFORE `from`, only so the completeness rule can
+ * learn each station's cadence (hourly or 15-minute) from a fair sample, as
+ * nightly does with its 14-day lookback. Those extra days are not returned.
+ */
+const CADENCE_LOOKBACK_DAYS = 14;
+
+function shiftIsoDate(iso: string, days: number): string {
+  return new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Every row of a query, 1,000 at a time. PostgREST silently stops at 1,000
+ * rows, so an unpaged query over a long range (the AI's 365-day history, the
+ * 80-station map) quietly lost rows -- for history, the MOST RECENT days,
+ * because the order is ascending (audit §7.5). The query must be ordered, or
+ * pages can overlap or skip.
+ */
+export async function pageAll<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+  pageSize = 1000,
+): Promise<{ data: T[]; error: unknown }> {
+  const out: T[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await page(offset, offset + pageSize - 1);
+    if (error) return { data: out, error };
+    const batch = (data ?? []) as T[];
+    out.push(...batch);
+    if (batch.length < pageSize) return { data: out, error: null };
+  }
+}
+
+type DailyDbRow = {
+  date: string; pollutant: string; mean: number | null; min: number | null;
+  max: number | null; min_ts: string | null; max_ts: string | null;
+  count: number | null; source: string;
+};
+
+async function dailyRows(
+  supabase: SupabaseClient,
+  monitorId: string,
+  pollutants: readonly string[],
+  from: string,
+  to: string,
+): Promise<DailyDbRow[]> {
+  const { data } = await pageAll<DailyDbRow>((lo, hi) =>
+    supabase
+      .from("readings_daily")
+      .select("date, pollutant, mean, min, max, min_ts, max_ts, count, source")
+      .eq("monitor_id", monitorId)
+      .in("pollutant", [...pollutants])
+      .gte("date", shiftIsoDate(from, -CADENCE_LOOKBACK_DAYS))
+      .lte("date", to)
+      .order("date", { ascending: true })
+      .order("pollutant", { ascending: true })
+      .range(lo, hi),
+  );
+  return data;
+}
+
+/**
+ * Daily history for one station: COMPLETE days only (lib/api/daily-quality.ts,
+ * the same rule the forecast uses). A partial day is a gap in the chart, not
+ * a low point.
+ */
 export async function getHistory(
   supabase: SupabaseClient,
   monitor: MonitorRow,
@@ -217,30 +290,30 @@ export async function getHistory(
 ): Promise<HistoryPoint[]> {
   if (pollutant === "aqi") return getHistoryAqi(supabase, monitor, from, to);
 
-  const { data } = await supabase
-    .from("readings_daily")
-    .select("date, mean, min, max, count, source")
-    .eq("monitor_id", monitor.id)
-    .eq("pollutant", pollutant)
-    .gte("date", from)
-    .lte("date", to)
-    .order("date", { ascending: true });
-  return (data ?? []) as HistoryPoint[];
+  const rows = await dailyRows(supabase, monitor.id, [pollutant], from, to);
+  return completeDays(rows.map((r) => ({ ...r, monitor_id: monitor.id })))
+    .filter((r) => r.date >= from && r.mean !== null)
+    .map((r) => ({
+      date: r.date,
+      mean: r.mean as number,
+      min: r.min ?? (r.mean as number),
+      max: r.max ?? (r.mean as number),
+      count: r.count ?? 0,
+      source: r.source,
+      min_ts: r.min_ts,
+      max_ts: r.max_ts,
+    }));
 }
 
 /**
  * Composite AQI history, derived rather than stored.
  *
  * `readings_daily` holds only the four MEASURED pollutants. Composite AQI is
- * not a measurement — it is the max of their sub-indices — so there is nothing
- * to look up and it has to be computed from the day's four rows.
- *
- * Done the way CPCB defines NAQI, and the way every other AQI figure in this
- * project is built: convert each pollutant's daily mean to its sub-index, take
- * the max across the pollutants that station reported THAT DAY. Taking a max
- * across different days would invent an AQI that never happened.
- *
- * Without this, the app's default measurement has no history screen at all.
+ * not a measurement -- it is the max of their sub-indices -- so it is computed
+ * from the day's rows: each COMPLETE pollutant's daily mean -> its sub-index ->
+ * the max, on days that meet the AQI rule (both PMs by default; see
+ * lib/daily-quality-config.json). Taking a max across different days would
+ * invent an AQI that never happened.
  */
 async function getHistoryAqi(
   supabase: SupabaseClient,
@@ -252,29 +325,14 @@ async function getHistoryAqi(
   const { DEFAULT_SCALE } = await import("@/lib/types");
   type P = Parameters<typeof computeSubIndex>[0];
 
-  // Typed explicitly: postgrest-js infers never[] once .in() is given a
-  // widened array, which silently makes every field below `never`.
-  const { data } = await supabase
-    .from("readings_daily")
-    .select("date, pollutant, mean, min, max, count, source")
-    .eq("monitor_id", monitor.id)
-    .in("pollutant", [...MEASURED_POLLUTANTS])
-    .gte("date", from)
-    .lte("date", to)
-    .order("date", { ascending: true });
+  const rows = await dailyRows(supabase, monitor.id, MEASURED_POLLUTANTS, from, to);
+  const complete = completeDays(rows.map((r) => ({ ...r, monitor_id: monitor.id })));
+  const qualifying = new Map(stationDayAqi(complete).map((d) => [d.date, d]));
 
-  const rows = (data ?? []) as unknown as {
-    date: string; pollutant: string; mean: number | null;
-    min: number | null; max: number | null; count: number | null; source: string;
-  }[];
-
-  const byDate = new Map<string, { sub: number[]; count: number; source: string;
-                                   minSub: number[]; maxSub: number[] }>();
-  for (const row of rows) {
-    if (row.mean === null || row.mean < 0) continue;
-    const slot = byDate.get(row.date) ?? { sub: [], count: 0, source: row.source,
-                                           minSub: [], maxSub: [] };
-    slot.sub.push(computeSubIndex(row.pollutant as P, row.mean, DEFAULT_SCALE));
+  const byDate = new Map<string, { count: number; source: string; minSub: number[]; maxSub: number[] }>();
+  for (const row of complete) {
+    if (row.date < from || !qualifying.has(row.date)) continue;
+    const slot = byDate.get(row.date) ?? { count: 0, source: row.source, minSub: [], maxSub: [] };
     // The day's extremes are sub-indexed too, so min/max stay on the AQI scale
     // rather than being concentrations mixed into an index series.
     if (row.min !== null && row.min >= 0) slot.minSub.push(computeSubIndex(row.pollutant as P, row.min, DEFAULT_SCALE));
@@ -285,16 +343,20 @@ async function getHistoryAqi(
 
   return Array.from(byDate.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, s]) => ({
-      date,
-      mean: Math.max(...s.sub),
-      min: s.minSub.length ? Math.max(...s.minSub) : Math.max(...s.sub),
-      max: s.maxSub.length ? Math.max(...s.maxSub) : Math.max(...s.sub),
-      // Summed across the four pollutants, so the completeness denominator in
-      // the route has to account for that — see HISTORY_POLLUTANT_MULTIPLIER.
-      count: s.count,
-      source: s.source,
-    }));
+    .map(([date, s]) => {
+      const aqi = qualifying.get(date)!.aqi;
+      return {
+        date,
+        mean: aqi,
+        min: s.minSub.length ? Math.max(...s.minSub) : aqi,
+        max: s.maxSub.length ? Math.max(...s.maxSub) : aqi,
+        // Summed across the pollutants behind the day, so the completeness
+        // denominator in the route accounts for that -- see
+        // HISTORY_POLLUTANT_MULTIPLIER.
+        count: s.count,
+        source: s.source,
+      };
+    });
 }
 
 /**

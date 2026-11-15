@@ -13,7 +13,8 @@ reading counted as a full day, and because OpenAQ publishes in bursts, the
 newest day -- the one every forecast starts from -- was the day most likely to
 be only partly published (audit §7.3).
 
-THE RULE
+THE RULE -- its numbers live in lib/daily-quality-config.json, which the app's
+TypeScript (lib/api/daily-quality.ts) reads too, so both apply one rule.
 
   1. A pollutant's day is complete when it has at least 16 hours' worth of
      readings. This is CPCB's own rule for a 24-hour average.
@@ -27,10 +28,15 @@ THE RULE
   2. Values outside 0-2000 are dropped as instrument faults. Same bounds the
      XKDR loaders have always used.
 
-  3. A day's composite AQI needs at least 3 complete pollutants, one of which
-     is PM2.5 or PM10. This is CPCB's minimum for NAQI. Without it, a day where
-     only NO2 had been published became an AQI of 44 on a day that was really
-     347 (audit §4.2).
+  3. A day's composite AQI needs a minimum set of complete pollutants. Two
+     rules are available (DEFAULT_AQI_RULE picks one):
+
+       both_pm  (default) PM2.5 AND PM10. NO2/SO2 join the max when present.
+       cpcb     CPCB's NAQI minimum: 3 pollutants, one of them a PM.
+
+     Without any rule, a day where only NO2 had been published became an AQI
+     of 44 on a day that was really 347 (audit §4.2). Why both_pm is the
+     default for our 4 pollutants: see the config file.
 
 Everything here takes and returns pandas DataFrames with the columns
 readings_daily uses: monitor_id, pollutant, date, mean, count (and source,
@@ -43,24 +49,21 @@ from typing import Iterable
 
 import pandas as pd
 
-# CPCB: a 24-hour average needs at least 16 hours of data.
-MIN_HOURS_FOR_COMPLETE_DAY = 16
+import json
+from pathlib import Path
 
-# Readings per full day at each cadence.
-READINGS_PER_DAY_HOURLY = 24
-READINGS_PER_DAY_15MIN = 96
+CONFIG_PATH = Path(__file__).resolve().parents[2] / "lib" / "daily-quality-config.json"
+_CFG = json.loads(CONFIG_PATH.read_text())
 
-# A station whose typical (90th percentile) day has more readings than this
-# reports every 15 minutes. Hourly stations top out at 24; 15-minute stations
-# sit around 85-96. 30 leaves room for an hourly station that occasionally
-# double-reports.
-CADENCE_SPLIT = 30
+MIN_HOURS_FOR_COMPLETE_DAY = _CFG["min_hours_for_complete_day"]
+READINGS_PER_DAY_HOURLY = _CFG["readings_per_day_hourly"]
+READINGS_PER_DAY_15MIN = _CFG["readings_per_day_15min"]
+CADENCE_SPLIT = _CFG["cadence_split"]
+CADENCE_QUANTILE = _CFG["cadence_quantile"]
+VALID_MIN, VALID_MAX = float(_CFG["valid_min"]), float(_CFG["valid_max"])
 
-# Plausible daily means, in the units readings_daily stores (µg/m³).
-VALID_MIN, VALID_MAX = 0.0, 2000.0
-
-# CPCB's NAQI minimum: this many pollutants, including at least one PM.
-MIN_POLLUTANTS_FOR_AQI = 3
+AQI_RULES = {k: v for k, v in _CFG["aqi_rules"].items()}
+DEFAULT_AQI_RULE = _CFG["aqi_rule"]
 PM_POLLUTANTS = ("pm25", "pm10")
 
 
@@ -82,7 +85,7 @@ def complete_mask(df: pd.DataFrame) -> pd.Series:
 
     # The station's typical day, which tells us its cadence.
     typical = count.groupby([df[k] for k in _cadence_keys(df)]).transform(
-        lambda s: s.quantile(0.9))
+        lambda s: s.quantile(CADENCE_QUANTILE))
     per_day = typical.gt(CADENCE_SPLIT).map(
         {True: READINGS_PER_DAY_15MIN, False: READINGS_PER_DAY_HOURLY})
     needed = per_day * MIN_HOURS_FOR_COMPLETE_DAY / 24
@@ -95,17 +98,19 @@ def complete_days(df: pd.DataFrame) -> pd.DataFrame:
     return df[complete_mask(df)]
 
 
-def station_day_aqi(complete: pd.DataFrame) -> pd.DataFrame:
+def station_day_aqi(complete: pd.DataFrame,
+                    rule: str = DEFAULT_AQI_RULE) -> pd.DataFrame:
     """Composite AQI per (monitor_id, date), from rows that are ALREADY complete.
 
     Each pollutant's daily mean becomes its sub-index; the AQI is the largest.
-    A day without 3 pollutants including a PM gets no AQI at all (rule 3).
+    A day that does not meet the AQI rule (rule 3) gets no AQI at all.
 
     Returns monitor_id, date, aqi, dominant (the pollutant that set the max),
     plus any extra key columns (e.g. city) that are constant per monitor.
     """
     from scripts.ingest.lib.aqi_utils import compute_subindex
 
+    spec = AQI_RULES[rule]
     cols = ["monitor_id", "date", "aqi", "dominant"]
     if complete.empty:
         return pd.DataFrame(columns=cols)
@@ -115,12 +120,15 @@ def station_day_aqi(complete: pd.DataFrame) -> pd.DataFrame:
                  for p, v in zip(sub["pollutant"], sub["mean"])]
     sub = sub.dropna(subset=["si"])
 
-    keys = [sub["monitor_id"], sub["date"]]
-    n_pollutants = sub["pollutant"].groupby(keys).transform("nunique")
-    # Vectorised "any PM on this day" -- a Python lambda per station-day is
+    # Vectorised per station-day checks -- a Python lambda per station-day is
     # far too slow over 15 years of history.
-    has_pm = sub["pollutant"].isin(PM_POLLUTANTS).groupby(keys).transform("any")
-    sub = sub[(n_pollutants >= MIN_POLLUTANTS_FOR_AQI) & has_pm]
+    keys = [sub["monitor_id"], sub["date"]]
+    ok = sub["pollutant"].groupby(keys).transform("nunique") >= spec["min_pollutants"]
+    for p in spec["required_all"]:
+        ok &= sub["pollutant"].eq(p).groupby(keys).transform("any")
+    if spec["required_any"]:
+        ok &= sub["pollutant"].isin(spec["required_any"]).groupby(keys).transform("any")
+    sub = sub[ok]
     if sub.empty:
         return pd.DataFrame(columns=cols)
 
@@ -130,7 +138,8 @@ def station_day_aqi(complete: pd.DataFrame) -> pd.DataFrame:
     return out[cols + extra].reset_index(drop=True)
 
 
-def station_day_values(df: pd.DataFrame, pollutant: str) -> pd.DataFrame:
+def station_day_values(df: pd.DataFrame, pollutant: str,
+                       rule: str = DEFAULT_AQI_RULE) -> pd.DataFrame:
     """The daily value the forecast uses, per (monitor_id, date).
 
     `df` is raw readings_daily-shaped rows (any completeness). Returns columns
@@ -139,7 +148,7 @@ def station_day_values(df: pd.DataFrame, pollutant: str) -> pd.DataFrame:
     """
     complete = complete_days(df)
     if pollutant == "aqi":
-        aqi = station_day_aqi(complete)
+        aqi = station_day_aqi(complete, rule)
         return aqi.rename(columns={"aqi": "value"})[["monitor_id", "date", "value"]]
     rows = complete[complete["pollutant"] == pollutant]
     return (rows.rename(columns={"mean": "value"})[["monitor_id", "date", "value"]]

@@ -306,3 +306,17 @@ describe("averageForecastDays groups stations by date (audit §7.4)", () => {
     expect(byDate).toEqual({ "2026-11-14": 200, "2026-11-15": 100, "2026-11-16": 100 });
   });
 });
+
+describe("pageAll reads past PostgREST's 1,000-row cap (audit §7.5)", () => {
+  it("returns every row across pages", async () => {
+    const { pageAll } = await import("@/lib/api/data");
+    const all = Array.from({ length: 2500 }, (_, i) => ({ i }));
+    const calls: [number, number][] = [];
+    const { data } = await pageAll<{ i: number }>(async (lo, hi) => {
+      calls.push([lo, hi]);
+      return { data: all.slice(lo, hi + 1), error: null };
+    });
+    expect(data).toHaveLength(2500);
+    expect(calls).toEqual([[0, 999], [1000, 1999], [2000, 2999]]);
+  });
+});

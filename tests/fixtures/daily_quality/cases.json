@@ -1,0 +1,991 @@
+{
+ "_comment": "Shared by tests/test_daily_quality.py and tests/api/daily-quality.test.ts. Both implementations must agree with `expected` exactly.",
+ "rows": [
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm25",
+   "date": "2026-11-01",
+   "count": 96,
+   "mean": 120.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm10",
+   "date": "2026-11-01",
+   "count": 96,
+   "mean": 210.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "no2",
+   "date": "2026-11-01",
+   "count": 96,
+   "mean": 45.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "so2",
+   "date": "2026-11-01",
+   "count": 96,
+   "mean": 12.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm25",
+   "date": "2026-11-02",
+   "count": 96,
+   "mean": 120.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm10",
+   "date": "2026-11-02",
+   "count": 96,
+   "mean": 210.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "no2",
+   "date": "2026-11-02",
+   "count": 96,
+   "mean": 45.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "so2",
+   "date": "2026-11-02",
+   "count": 96,
+   "mean": 12.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm25",
+   "date": "2026-11-03",
+   "count": 96,
+   "mean": 120.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm10",
+   "date": "2026-11-03",
+   "count": 96,
+   "mean": 210.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "no2",
+   "date": "2026-11-03",
+   "count": 96,
+   "mean": 45.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "so2",
+   "date": "2026-11-03",
+   "count": 96,
+   "mean": 12.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm25",
+   "date": "2026-11-04",
+   "count": 96,
+   "mean": 120.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm10",
+   "date": "2026-11-04",
+   "count": 96,
+   "mean": 210.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "no2",
+   "date": "2026-11-04",
+   "count": 96,
+   "mean": 45.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "so2",
+   "date": "2026-11-04",
+   "count": 96,
+   "mean": 12.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm25",
+   "date": "2026-11-05",
+   "count": 96,
+   "mean": 120.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm10",
+   "date": "2026-11-05",
+   "count": 96,
+   "mean": 210.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "no2",
+   "date": "2026-11-05",
+   "count": 96,
+   "mean": 45.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "so2",
+   "date": "2026-11-05",
+   "count": 96,
+   "mean": 12.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm25",
+   "date": "2026-11-06",
+   "count": 96,
+   "mean": 120.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm10",
+   "date": "2026-11-06",
+   "count": 96,
+   "mean": 210.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "no2",
+   "date": "2026-11-06",
+   "count": 96,
+   "mean": 45.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "so2",
+   "date": "2026-11-06",
+   "count": 96,
+   "mean": 12.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm25",
+   "date": "2026-11-07",
+   "count": 96,
+   "mean": 120.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm10",
+   "date": "2026-11-07",
+   "count": 96,
+   "mean": 210.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "no2",
+   "date": "2026-11-07",
+   "count": 96,
+   "mean": 45.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "so2",
+   "date": "2026-11-07",
+   "count": 96,
+   "mean": 12.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm25",
+   "date": "2026-11-08",
+   "count": 96,
+   "mean": 120.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm10",
+   "date": "2026-11-08",
+   "count": 96,
+   "mean": 210.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "no2",
+   "date": "2026-11-08",
+   "count": 96,
+   "mean": 45.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "so2",
+   "date": "2026-11-08",
+   "count": 96,
+   "mean": 12.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm25",
+   "date": "2026-11-09",
+   "count": 96,
+   "mean": 120.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm10",
+   "date": "2026-11-09",
+   "count": 96,
+   "mean": 210.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "no2",
+   "date": "2026-11-09",
+   "count": 96,
+   "mean": 45.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "so2",
+   "date": "2026-11-09",
+   "count": 96,
+   "mean": 12.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm25",
+   "date": "2026-11-10",
+   "count": 96,
+   "mean": 120.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm10",
+   "date": "2026-11-10",
+   "count": 96,
+   "mean": 210.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "no2",
+   "date": "2026-11-10",
+   "count": 96,
+   "mean": 45.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "so2",
+   "date": "2026-11-10",
+   "count": 96,
+   "mean": 12.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm25",
+   "date": "2026-11-11",
+   "count": 64,
+   "mean": 130.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "pm10",
+   "date": "2026-11-11",
+   "count": 63,
+   "mean": 220.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "no2",
+   "date": "2026-11-11",
+   "count": 96,
+   "mean": 40.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "so2",
+   "date": "2026-11-11",
+   "count": 96,
+   "mean": 15.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m1",
+   "pollutant": "no2",
+   "date": "2026-11-12",
+   "count": 1,
+   "mean": 35.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "pm25",
+   "date": "2026-11-01",
+   "count": 24,
+   "mean": 60.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "no2",
+   "date": "2026-11-01",
+   "count": 24,
+   "mean": 30.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "so2",
+   "date": "2026-11-01",
+   "count": 24,
+   "mean": 10.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "pm25",
+   "date": "2026-11-02",
+   "count": 24,
+   "mean": 60.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "no2",
+   "date": "2026-11-02",
+   "count": 24,
+   "mean": 30.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "so2",
+   "date": "2026-11-02",
+   "count": 24,
+   "mean": 10.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "pm25",
+   "date": "2026-11-03",
+   "count": 24,
+   "mean": 60.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "no2",
+   "date": "2026-11-03",
+   "count": 24,
+   "mean": 30.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "so2",
+   "date": "2026-11-03",
+   "count": 24,
+   "mean": 10.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "pm25",
+   "date": "2026-11-04",
+   "count": 24,
+   "mean": 60.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "no2",
+   "date": "2026-11-04",
+   "count": 24,
+   "mean": 30.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "so2",
+   "date": "2026-11-04",
+   "count": 24,
+   "mean": 10.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "pm25",
+   "date": "2026-11-05",
+   "count": 24,
+   "mean": 60.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "no2",
+   "date": "2026-11-05",
+   "count": 24,
+   "mean": 30.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "so2",
+   "date": "2026-11-05",
+   "count": 24,
+   "mean": 10.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "pm25",
+   "date": "2026-11-06",
+   "count": 24,
+   "mean": 60.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "no2",
+   "date": "2026-11-06",
+   "count": 24,
+   "mean": 30.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "so2",
+   "date": "2026-11-06",
+   "count": 24,
+   "mean": 10.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "pm25",
+   "date": "2026-11-07",
+   "count": 24,
+   "mean": 60.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "no2",
+   "date": "2026-11-07",
+   "count": 24,
+   "mean": 30.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "so2",
+   "date": "2026-11-07",
+   "count": 24,
+   "mean": 10.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "pm25",
+   "date": "2026-11-08",
+   "count": 24,
+   "mean": 60.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "no2",
+   "date": "2026-11-08",
+   "count": 24,
+   "mean": 30.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "so2",
+   "date": "2026-11-08",
+   "count": 24,
+   "mean": 10.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "pm25",
+   "date": "2026-11-09",
+   "count": 24,
+   "mean": 60.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "no2",
+   "date": "2026-11-09",
+   "count": 24,
+   "mean": 30.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "so2",
+   "date": "2026-11-09",
+   "count": 24,
+   "mean": 10.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "pm25",
+   "date": "2026-11-10",
+   "count": 24,
+   "mean": 60.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "no2",
+   "date": "2026-11-10",
+   "count": 24,
+   "mean": 30.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "so2",
+   "date": "2026-11-10",
+   "count": 24,
+   "mean": 10.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m2",
+   "pollutant": "pm25",
+   "date": "2026-11-11",
+   "count": 15,
+   "mean": 61.0,
+   "source": "xkdr"
+  },
+  {
+   "monitor_id": "m3",
+   "pollutant": "pm25",
+   "date": "2026-11-01",
+   "count": 96,
+   "mean": 50.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m3",
+   "pollutant": "pm10",
+   "date": "2026-11-01",
+   "count": 96,
+   "mean": 90.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m3",
+   "pollutant": "pm25",
+   "date": "2026-11-02",
+   "count": 96,
+   "mean": -1.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m3",
+   "pollutant": "pm10",
+   "date": "2026-11-02",
+   "count": 96,
+   "mean": 90.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m3",
+   "pollutant": "pm25",
+   "date": "2026-11-03",
+   "count": 96,
+   "mean": 2500.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m3",
+   "pollutant": "pm10",
+   "date": "2026-11-03",
+   "count": 96,
+   "mean": 90.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m3",
+   "pollutant": "pm25",
+   "date": "2026-11-04",
+   "count": 96,
+   "mean": 80.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m3",
+   "pollutant": "pm10",
+   "date": "2026-11-04",
+   "count": 96,
+   "mean": 90.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m3",
+   "pollutant": "pm25",
+   "date": "2026-11-05",
+   "count": 96,
+   "mean": 2000.0,
+   "source": "openaq"
+  },
+  {
+   "monitor_id": "m3",
+   "pollutant": "pm10",
+   "date": "2026-11-05",
+   "count": 96,
+   "mean": 90.0,
+   "source": "openaq"
+  }
+ ],
+ "expected": {
+  "complete": [
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   false,
+   true,
+   true,
+   false,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   false,
+   true,
+   true,
+   false,
+   true,
+   false,
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  "aqi_both_pm": [
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-01",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-02",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-03",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-04",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-05",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-06",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-07",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-08",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-09",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-10",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m3",
+    "date": "2026-11-01",
+    "aqi": 90.0,
+    "dominant": "pm10"
+   },
+   {
+    "monitor_id": "m3",
+    "date": "2026-11-04",
+    "aqi": 167.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m3",
+    "date": "2026-11-05",
+    "aqi": 1000.0,
+    "dominant": "pm25"
+   }
+  ],
+  "aqi_cpcb": [
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-01",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-02",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-03",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-04",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-05",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-06",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-07",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-08",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-09",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-10",
+    "aqi": 300.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m1",
+    "date": "2026-11-11",
+    "aqi": 309.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m2",
+    "date": "2026-11-01",
+    "aqi": 100.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m2",
+    "date": "2026-11-02",
+    "aqi": 100.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m2",
+    "date": "2026-11-03",
+    "aqi": 100.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m2",
+    "date": "2026-11-04",
+    "aqi": 100.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m2",
+    "date": "2026-11-05",
+    "aqi": 100.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m2",
+    "date": "2026-11-06",
+    "aqi": 100.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m2",
+    "date": "2026-11-07",
+    "aqi": 100.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m2",
+    "date": "2026-11-08",
+    "aqi": 100.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m2",
+    "date": "2026-11-09",
+    "aqi": 100.0,
+    "dominant": "pm25"
+   },
+   {
+    "monitor_id": "m2",
+    "date": "2026-11-10",
+    "aqi": 100.0,
+    "dominant": "pm25"
+   }
+  ]
+ }
+}

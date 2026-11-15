@@ -22,7 +22,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { ok, fail, badRequest, parseNumber } from "@/lib/api/respond";
-import { nearestMonitors, MEASURED_POLLUTANTS } from "@/lib/api/data";
+import { nearestMonitors, pageAll, MEASURED_POLLUTANTS } from "@/lib/api/data";
+import { completeDays, stationDayAqi, type DailyRow } from "@/lib/api/daily-quality";
 import { getAqiCategory, getAqiTextColor, computeSubIndex } from "@/lib/aqi-utils";
 import { DEFAULT_SCALE } from "@/lib/types";
 import { istToday, daysBetweenIst } from "@/lib/api/time";
@@ -62,49 +63,56 @@ export async function GET(request: Request) {
     .toISOString()
     .slice(0, 10);
 
-  // One query for every nearby station, rather than one query per station.
-  const { data, error } = await supabase
-    .from("readings_daily")
-    .select("monitor_id, pollutant, date, mean")
-    .in("monitor_id", monitors.map((m) => m.id))
-    .in("pollutant", [...MEASURED_POLLUTANTS])
-    .gte("date", from)
-    .order("date", { ascending: false });
+  // One query for every nearby station, rather than one query per station --
+  // PAGED, because 80 stations x 14 days x 4 pollutants is ~4,500 rows and
+  // PostgREST stops at 1,000. Unpaged, only the newest ~3 days survived, so
+  // stations a few days behind showed as "no data", and a station could keep
+  // only some of its pollutants on the cut-off day (audit §7.5).
+  const { data, error } = await pageAll<DailyRow & { monitor_id: string }>((lo, hi) =>
+    supabase
+      .from("readings_daily")
+      .select("monitor_id, pollutant, date, mean, count, source")
+      .in("monitor_id", monitors.map((m) => m.id))
+      .in("pollutant", [...MEASURED_POLLUTANTS])
+      .gte("date", from)
+      .order("date", { ascending: false })
+      .order("monitor_id", { ascending: true })
+      .order("pollutant", { ascending: true })
+      .range(lo, hi),
+  );
 
-  if (error) return fail("Could not load readings", 502, error.message);
+  if (error) return fail("Could not load readings", 502, error);
 
-  const rows = (data ?? []) as unknown as {
-    monitor_id: string; pollutant: string; date: string; mean: number | null;
-  }[];
-
-  // Keep only each station's most recent day, then take the max sub-index
-  // across the pollutants it reported THAT day — composite AQI as CPCB defines
-  // it. Mixing days would invent an AQI that never occurred.
-  const latestDay = new Map<string, string>();
-  for (const r of rows) {
-    if (!latestDay.has(r.monitor_id)) latestDay.set(r.monitor_id, r.date);
-  }
-  const subIndices = new Map<string, { sub: number; pollutant: string }[]>();
-  // For PM2.5 the map shows the CONCENTRATION, so only that pollutant's row
-  // counts and the max-across-pollutants step does not apply. The colour still
-  // comes from its sub-index, so a dot means the same severity on both maps.
-  const raw = new Map<string, number>();
-  for (const r of rows) {
-    if (r.date !== latestDay.get(r.monitor_id) || r.mean === null || r.mean < 0) continue;
-    if (pollutant === "pm25" && r.pollutant !== "pm25") continue;
-    if (pollutant === "pm25") raw.set(r.monitor_id, r.mean);
-    const list = subIndices.get(r.monitor_id) ?? [];
-    list.push({
-      sub: computeSubIndex(r.pollutant as Parameters<typeof computeSubIndex>[0], r.mean, DEFAULT_SCALE),
-      pollutant: r.pollutant,
-    });
-    subIndices.set(r.monitor_id, list);
+  // COMPLETE days only, by the same rule as the forecast
+  // (lib/api/daily-quality.ts). Then each station's most recent day FOR THE
+  // SELECTED MEASURE: its newest complete PM2.5 day, or its newest day that
+  // qualifies for an AQI. Picking the newest day across all pollutants left a
+  // PM2.5 dot empty whenever that day had no PM2.5 row (audit §6.4).
+  const complete = completeDays(data);
+  const latest = new Map<string, { date: string; sub: number; pollutant: string; raw: number | null }>();
+  if (pollutant === "pm25") {
+    // For PM2.5 the map shows the CONCENTRATION; the colour still comes from
+    // its sub-index, so a dot means the same severity on both maps.
+    for (const r of complete) {
+      if (r.pollutant !== "pm25" || r.mean === null) continue;
+      const have = latest.get(r.monitor_id);
+      if (have && have.date >= r.date) continue;
+      latest.set(r.monitor_id, {
+        date: r.date, raw: r.mean, pollutant: "pm25",
+        sub: computeSubIndex("pm25", r.mean, DEFAULT_SCALE),
+      });
+    }
+  } else {
+    for (const d of stationDayAqi(complete)) {
+      const have = latest.get(d.monitor_id);
+      if (have && have.date >= d.date) continue;
+      latest.set(d.monitor_id, { date: d.date, sub: d.aqi, pollutant: d.dominant, raw: null });
+    }
   }
 
   const stations = monitors.map((m) => {
-    const subs = subIndices.get(m.id);
-    const date = latestDay.get(m.id) ?? null;
-    if (!subs?.length || !date) {
+    const day = latest.get(m.id);
+    if (!day) {
       // Returned anyway, with aqi null. Dropping it would make the map look
       // better covered than the network actually is.
       return {
@@ -115,26 +123,25 @@ export async function GET(request: Request) {
         date: null, age_days: null,
       };
     }
-    const dominant = subs.reduce((a, b) => (b.sub > a.sub ? b : a));
-    const category = getAqiCategory(dominant.sub, DEFAULT_SCALE);
+    const category = getAqiCategory(day.sub, DEFAULT_SCALE);
     // `value` is what the dot shows; `aqi` stays the sub-index so the colour
     // and the band are on one scale whichever pollutant is selected.
-    const shown = pollutant === "pm25" ? (raw.get(m.id) ?? null) : dominant.sub;
+    const shown = pollutant === "pm25" ? day.raw : day.sub;
     return {
       monitor_id: m.id, name: m.name, city: m.city,
       latitude: m.latitude, longitude: m.longitude,
       distance_km: m.distance_km,
       value: shown === null ? null : Math.round(shown),
       pollutant,
-      aqi: dominant.sub,
+      aqi: day.sub,
       band: {
         label: category.label,
         color: category.color,
-        textColor: getAqiTextColor(dominant.sub, DEFAULT_SCALE),
+        textColor: getAqiTextColor(day.sub, DEFAULT_SCALE),
       },
-      dominant_pollutant: dominant.pollutant,
-      date,
-      age_days: daysBetweenIst(date, today),
+      dominant_pollutant: day.pollutant,
+      date: day.date,
+      age_days: daysBetweenIst(day.date, today),
     };
   });
 
@@ -151,6 +158,6 @@ export async function GET(request: Request) {
         ]
       : null,
     lookback_days: LOOKBACK_DAYS,
-    reading_is: "most recent daily average, not a live reading",
+    reading_is: "most recent COMPLETE daily average (>= 16 hours of data), not a live reading",
   });
 }

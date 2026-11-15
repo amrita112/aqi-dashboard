@@ -36,6 +36,8 @@ import BandLegend from "@/components/BandLegend";
 import ShareButton from "@/components/ShareButton";
 import FeedbackLink from "@/components/FeedbackLink";
 import { APP_SHARE_TEXT } from "@/lib/share";
+import { bandFor } from "@/lib/api/forecast";
+import { DEFAULT_SCALE } from "@/lib/types";
 
 interface Band {
   label: string;
@@ -143,6 +145,13 @@ export default function HomeScreen() {
   const [stations, setStations] = useState<StationRef[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showStations, setShowStations] = useState(false);
+  /** The latest measured reading, fetched only when today's forecast row is missing. */
+  const [latest, setLatest] = useState<{
+    value: number;
+    band: { label: string; color: string; textColor: string };
+    clock: string;
+    ageHours: number | null;
+  } | null>(null);
   /** The point under the cursor, shown in the Forecast card's header. */
   const [hovered, setHovered] = useState<string | null>(null);
 
@@ -170,9 +179,32 @@ export default function HomeScreen() {
           setError(b.error.message);
           return;
         }
-        setDays(b.data.days ?? []);
+        const got: Day[] = b.data.days ?? [];
+        setDays(got);
         setTodayIso(b.data.today ?? "");
         setStations(b.meta?.stations ?? []);
+        // NO ROW FOR TODAY (the nightly job has not run yet): show the most
+        // recent measured reading instead, clearly labelled as a single
+        // reading, so the screen still says something true about the air.
+        if (!got.some((d) => d.target_date === b.data.today)) {
+          fetch(`/api/current?${placeQuery(p, {})}`)
+            .then((r) => r.json())
+            .then((c) => {
+              if (c?.error || !c?.data) return;
+              const value =
+                p.measurement === "aqi"
+                  ? c.data.aqi
+                  : c.data.pollutants?.find((x: { pollutant: string }) => x.pollutant === "pm25")?.value;
+              if (typeof value !== "number") return;
+              setLatest({
+                value,
+                band: bandFor(p.measurement, value, DEFAULT_SCALE),
+                clock: c.data.recorded_clock ?? "",
+                ageHours: c.data.age_hours ?? null,
+              });
+            })
+            .catch(() => undefined);
+        }
       })
       .catch(() => setError("Could not reach the server."));
   }, [router]);
@@ -257,9 +289,33 @@ export default function HomeScreen() {
           is the headline, and the sentence about three nearest stations is
           support that belongs behind the info button. */}
       {missingToday && (
-        <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900 lg:col-span-2">
-          Today&apos;s forecast hasn&apos;t been updated yet. It is usually ready by 11am.
-        </p>
+        <section className="flex flex-col items-center gap-2 lg:col-span-2">
+          {latest && (
+            <>
+              <div
+                className="flex min-w-[8.5rem] flex-col items-center justify-center rounded-2xl px-7 py-3"
+                style={{ backgroundColor: latest.band.color, color: latest.band.textColor }}
+              >
+                <span className="text-4xl font-bold leading-none">{Math.round(latest.value)}</span>
+                <span className="mt-1 text-[10px] font-semibold uppercase tracking-wide">
+                  {latest.band.label}
+                </span>
+              </div>
+              <p className="text-center text-sm text-gray-700">
+                Latest measured {short}
+                {unit ? ` (${unit})` : ""}
+                {latest.clock ? `, ${latest.clock}` : ""}
+                {latest.ageHours !== null && latest.ageHours >= 24
+                  ? ` — ${Math.round(latest.ageHours / 24)} day${Math.round(latest.ageHours / 24) === 1 ? "" : "s"} ago`
+                  : ""}
+                . A single reading, not a daily forecast.
+              </p>
+            </>
+          )}
+          <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Today&apos;s forecast hasn&apos;t been updated yet. It is usually ready by 11am.
+          </p>
+        </section>
       )}
 
       {today && (

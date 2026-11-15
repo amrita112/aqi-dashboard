@@ -69,11 +69,15 @@
   ],
   "known_defects_frozen_into_this_golden": [],
   "out_of_season": "23 Aug - 21 Sep falls outside SEASON_MONTHS (10,11,12,1), which is what forecast_modes is fitted on and what the product exists for. Skill here is out-of-season skill; re-freeze once a November window is available.",
-  "regenerated_at": "2026-11-15T18:15:23.536101+00:00",
+  "regenerated_at": "2026-11-15T19:09:03.490841+00:00",
   "regeneration_log": [
     {
       "at": "2026-11-15T18:15:23.536101+00:00",
       "reason": "Nov 2026 audit fixes: nightly's own build_station_rows; complete days only; alpha per effective horizon (no alpha_h3 beyond 3); no mode row or age > 7 -> seasonal normal; values rounded to 2 dp like production"
+    },
+    {
+      "at": "2026-11-15T19:09:03.490841+00:00",
+      "reason": "AQI rule: default both_pm (PM2.5 and PM10 required) instead of CPCB's 3-pollutant minimum"
     }
   ]
 }

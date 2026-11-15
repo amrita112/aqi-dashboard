@@ -68,15 +68,39 @@ def _day(monitor, d, **means):
              "count": 96, "mean": v} for p, v in means.items()]
 
 
-def test_aqi_needs_three_pollutants_including_pm():
+def test_default_rule_needs_both_pms():
+    df = pd.DataFrame(
+        _day("m1", "2026-11-10", pm25=180.0, pm10=320.0)               # OK: both PMs
+        + _day("m1", "2026-11-11", pm25=180.0, no2=60.0, so2=20.0)     # no PM10
+        + _day("m2", "2026-11-12", pm10=150.0, no2=60.0, so2=20.0))    # no PM2.5
+    got = station_day_aqi(df)
+    assert set(zip(got.monitor_id, got.date)) == {("m1", "2026-11-10")}
+
+
+def test_cpcb_rule_needs_three_pollutants_including_a_pm():
     df = pd.DataFrame(
         _day("m1", "2026-11-10", pm25=180.0, pm10=320.0, no2=60.0)   # OK
         + _day("m1", "2026-11-11", pm25=180.0, pm10=320.0)           # only 2
         + _day("m1", "2026-11-12", no2=60.0, so2=20.0, pm10=50.0)    # OK, PM10 is the PM
-        + _day("m2", "2026-11-12", no2=60.0, so2=20.0)               # no PM, only 2
-    )
-    got = station_day_aqi(df)
+        + _day("m2", "2026-11-12", no2=60.0, so2=20.0))              # no PM, only 2
+    got = station_day_aqi(df, rule="cpcb")
     assert set(zip(got.monitor_id, got.date)) == {("m1", "2026-11-10"), ("m1", "2026-11-12")}
+
+
+def test_shared_cases_match_the_fixture():
+    """The same cases tests/api/daily-quality.test.ts checks the TypeScript
+    against, so the two implementations cannot drift apart."""
+    import json
+    from scripts.forecast.daily_quality import complete_days
+    cases = json.loads((Path(__file__).parent / "fixtures" / "daily_quality"
+                        / "cases.json").read_text())
+    df = pd.DataFrame(cases["rows"])
+    assert complete_mask(df).tolist() == cases["expected"]["complete"]
+    for rule in ("both_pm", "cpcb"):
+        got = station_day_aqi(complete_days(df), rule).sort_values(["monitor_id", "date"])
+        want = cases["expected"][f"aqi_{rule}"]
+        assert [(r.monitor_id, r.date, r.aqi, r.dominant) for r in got.itertuples()] == \
+               [(w["monitor_id"], w["date"], w["aqi"], w["dominant"]) for w in want]
 
 
 def test_aqi_is_max_subindex_and_names_the_driver():
