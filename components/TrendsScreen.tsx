@@ -169,6 +169,13 @@ export default function TrendsScreen() {
   const [forecasts, setForecasts] = useState<Record<string, Day[] | null>>({});
   const [histories, setHistories] = useState<Record<string, HistoryRow[] | null>>({});
   const [hourlies, setHourlies] = useState<Record<string, HourlyRow[] | null>>({});
+  /**
+   * Per place: the message when its daily history could NOT be loaded, else
+   * null. Kept apart from `histories` because a failed load and an empty
+   * window are different answers: the first is our problem, the second is
+   * the monitoring network's. Both used to be drawn as "Nothing was measured".
+   */
+  const [historyErrors, setHistoryErrors] = useState<Record<string, string | null>>({});
   const [error, setError] = useState<string | null>(null);
   /** Which pill is open for editing, or null. */
   const [editing, setEditing] = useState<number | null>(null);
@@ -245,6 +252,12 @@ export default function TrendsScreen() {
         ...prev,
         [place.key]: hr?.error ? [] : (Array.isArray(hr?.data) ? hr.data : []),
       }));
+      // `hr` is null when the request itself failed (offline, or a response
+      // that was not JSON); `hr.error` when the server said it could not load.
+      setHistoryErrors((prev) => ({
+        ...prev,
+        [place.key]: hr === null ? "Could not load history." : (hr.error?.message ?? null),
+      }));
       if (fr?.error && hr?.error) setError(fr.error.message);
     },
     [measurement, fRange, hRange],
@@ -255,6 +268,7 @@ export default function TrendsScreen() {
     setForecasts({});
     setHistories({});
     setHourlies({});
+    setHistoryErrors({});
     // THE READING BELONGS TO THE CHART THAT WAS THERE. Switching pollutant,
     // range or place left the last one standing: an AQI figure of 203 sitting
     // above a PM2.5 axis that tops out at 150, which reads as a wrong number
@@ -404,6 +418,13 @@ export default function TrendsScreen() {
       Object.keys(pl.query).length > 0 &&
       histories[pl.key] === undefined &&
       hourlies[pl.key] === undefined,
+  );
+
+  // Places whose chart line depends on a history load that FAILED. At 7 days
+  // a place with hourly data is drawn from that instead, so a failed daily
+  // load does not affect what is on screen for it.
+  const historyFailed = places.filter(
+    (pl) => historyErrors[pl.key] && !(hRange === 7 && hourlies[pl.key]?.length),
   );
 
   const forecastDates = useMemo(() => {
@@ -642,9 +663,26 @@ export default function TrendsScreen() {
           {places.some((pl) => pl.key.startsWith("city:")) &&
             " A city average is left blank when fewer than 1 in 10 of the city's monitors reported."}
         </p>
+        {/* Comparing places and only SOME failed: the chart still draws the
+            others, so name the ones missing rather than leave a line absent
+            without a word. */}
+        {!historyLoading &&
+          historyFailed.length > 0 &&
+          !historySeries.every((s) => s.points.every((p) => p.value === null)) && (
+            <p className="mt-2 text-xs text-red-700">
+              Could not load history for {historyFailed.map((pl) => pl.label).join(", ")}.
+            </p>
+          )}
         <div className="mt-3" ref={historyChartRef}>
           {historyLoading ? (
             <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
+          ) : historyFailed.length > 0 &&
+            historySeries.every((s) => s.points.every((p) => p.value === null)) ? (
+            /* A FAILED LOAD IS NOT AN EMPTY WINDOW. Saying "nothing was
+               measured" here would blame the monitors for our own error. */
+            <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
+              {historyErrors[historyFailed[0].key]} Please try again in a few minutes.
+            </p>
           ) : historySeries.every((s) => s.points.every((p) => p.value === null)) ? (
             /* Only said once the fetch has actually come back. It used to show
                while loading, so every place looked like it had no history for a

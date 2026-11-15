@@ -21,6 +21,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   nearestMonitors,
+  DataError,
   DEFAULT_NEAREST_K,
   DEFAULT_MAX_KM,
   type NearbyMonitor,
@@ -98,7 +99,18 @@ export async function resolvePlace(
   const maxKm = parseNumber(params, "max_km", DEFAULT_MAX_KM, 1, 200);
   const city = params.get("city");
 
-  const monitors = await nearestMonitors(supabase, lat, lng, k, maxKm, city);
+  // A failed lookup must not read as "no stations within N km" (see
+  // DataError): that is a 404 about the place, and this is a 502 about us.
+  let monitors: Awaited<ReturnType<typeof nearestMonitors>>;
+  try {
+    monitors = await nearestMonitors(supabase, lat, lng, k, maxKm, city);
+  } catch (err) {
+    if (err instanceof DataError) {
+      console.error("[502] Could not look up nearby stations:", err.detail);
+      return { error: { message: "Could not look up nearby stations", status: 502 } };
+    }
+    throw err;
+  }
   if (!monitors.length) {
     return {
       error: {

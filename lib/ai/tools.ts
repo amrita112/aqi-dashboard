@@ -20,6 +20,7 @@ import {
   getForecast,
   getHistory,
   meanAcross,
+  DataError,
   MAX_STATIONS_PER_CITY_QUERY,
   type ResolvedLocation,
 } from "@/lib/api/data";
@@ -395,7 +396,23 @@ export async function executeTool(
   args: Record<string, unknown>,
   ctx: AskContext = {},
 ): Promise<ToolResult> {
-  const result = await runTool(supabase, name, args, ctx);
+  let result: ToolResult;
+  try {
+    result = await runTool(supabase, name, args, ctx);
+  } catch (err) {
+    // THE DATABASE COULD NOT BE READ, which is not the same as "no data".
+    // Caught here, once, for every tool: before, a failed history read came
+    // back as an empty series and the tool reported `no_history`, so the model
+    // told the person nothing had been measured. The model gets a distinct
+    // error to relay; the raw database error goes to the server log only.
+    if (!(err instanceof DataError)) throw err;
+    console.error(`[tool ${name}] ${err.message}:`, err.detail);
+    return {
+      error: "data_unavailable",
+      message:
+        "The air-quality database could not be read just now. Say so plainly and suggest trying again in a few minutes. Do not say that nothing was measured.",
+    };
+  }
   const valuesAre = typeof result.pollutant === "string" ? VALUES_ARE[result.pollutant] : undefined;
   // First in the object, so it is read before any number.
   return valuesAre ? { values_are: valuesAre, ...result } : result;

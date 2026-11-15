@@ -22,7 +22,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { ok, fail, badRequest, parseNumber } from "@/lib/api/respond";
-import { nearestMonitors, pageAll, MEASURED_POLLUTANTS } from "@/lib/api/data";
+import { nearestMonitors, pageAll, MEASURED_POLLUTANTS, DataError } from "@/lib/api/data";
 import { completeDays, stationDayAqi, type DailyRow } from "@/lib/api/daily-quality";
 import { getAqiCategory, getAqiTextColor, computeSubIndex } from "@/lib/aqi-utils";
 import { DEFAULT_SCALE } from "@/lib/types";
@@ -53,7 +53,16 @@ export async function GET(request: Request) {
   const limit = parseNumber(params, "limit", 60, 1, 200);
 
   const supabase = createClient();
-  const monitors = await nearestMonitors(supabase, lat, lng, limit, radiusKm, params.get("city"));
+  // A failed station lookup is a 502 ("could not load"), not the 404 "no
+  // stations here" it used to become -- those send the person to different
+  // conclusions.
+  let monitors: Awaited<ReturnType<typeof nearestMonitors>>;
+  try {
+    monitors = await nearestMonitors(supabase, lat, lng, limit, radiusKm, params.get("city"));
+  } catch (err) {
+    if (err instanceof DataError) return fail("Could not load stations", 502, err.detail);
+    throw err;
+  }
   if (!monitors.length) {
     return fail(`No stations within ${radiusKm} km of that point.`, 404);
   }
@@ -81,6 +90,9 @@ export async function GET(request: Request) {
       .range(lo, hi),
   );
 
+  // The message is what the map screen shows; the database's own error text
+  // (which names tables and columns) goes to the server log only -- fail()
+  // does that for every 5xx.
   if (error) return fail("Could not load readings", 502, error);
 
   // COMPLETE days only: the rollup's stored verdict (readings_daily.is_complete),

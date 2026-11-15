@@ -29,7 +29,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { ok, fail, badRequest, parseNumber } from "@/lib/api/respond";
 import { resolvePlace, placeMeta, cityMinStations } from "@/lib/api/place";
-import { getHistory, averageHistory } from "@/lib/api/data";
+import { getHistory, averageHistory, DataError } from "@/lib/api/data";
 import { istToday, toIstClock, toIstLocalString } from "@/lib/api/time";
 
 export const revalidate = 600;
@@ -84,12 +84,23 @@ export async function GET(request: Request) {
   if ("error" in resolved) return fail(resolved.error.message, resolved.error.status);
   const { place } = resolved;
 
-  const perStation = await Promise.all(
-    place.monitors.map(async (monitor) => ({
-      monitor,
-      series: await getHistory(supabase, monitor, pollutant, from!, to),
-    })),
-  );
+  // If ANY station's history cannot be read, the whole request fails with a
+  // 502 rather than averaging the stations that did load: an average quietly
+  // missing one of its three stations is a different number presented as the
+  // same one. The screen shows "Could not load history", not "Nothing was
+  // measured" -- which is what a failed read used to look like.
+  let perStation: { monitor: (typeof place.monitors)[number]; series: Awaited<ReturnType<typeof getHistory>> }[];
+  try {
+    perStation = await Promise.all(
+      place.monitors.map(async (monitor) => ({
+        monitor,
+        series: await getHistory(supabase, monitor, pollutant, from!, to),
+      })),
+    );
+  } catch (err) {
+    if (err instanceof DataError) return fail("Could not load history", 502, err.detail);
+    throw err;
+  }
 
   // For a city average, drop days when too few of the city's monitors
   // reported; the chart draws them as gaps. See CITY_MIN_REPORTING_SHARE.

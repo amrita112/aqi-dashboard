@@ -215,6 +215,27 @@ export async function getForecast(
   );
 }
 
+/**
+ * The database could not be read -- as opposed to "it was read and held
+ * nothing". The two used to look identical: a failed query came back as an
+ * empty list, so the Trends screen said "Nothing was measured near this place"
+ * when the real answer was "the query broke" (Nov 2026: a column the code
+ * asked for had not been added to the database yet). Throwing this instead
+ * lets each caller say what actually happened.
+ *
+ * `detail` carries the raw database error for the SERVER LOG only; routes
+ * pass it to fail(), which keeps it out of the response.
+ */
+export class DataError extends Error {
+  constructor(
+    message: string,
+    public readonly detail: unknown,
+  ) {
+    super(message);
+    this.name = "DataError";
+  }
+}
+
 export interface HistoryPoint {
   date: string;
   mean: number;
@@ -261,7 +282,7 @@ async function dailyRows(
   from: string,
   to: string,
 ): Promise<DailyDbRow[]> {
-  const { data } = await pageAll<DailyDbRow>((lo, hi) =>
+  const { data, error } = await pageAll<DailyDbRow>((lo, hi) =>
     supabase
       .from("readings_daily")
       .select("date, pollutant, mean, min, max, min_ts, max_ts, count, source, is_complete")
@@ -273,6 +294,11 @@ async function dailyRows(
       .order("pollutant", { ascending: true })
       .range(lo, hi),
   );
+  // A failed read is an error, not an empty history. Returning `data` here
+  // (an empty or partial list) is how a database error reached the screen as
+  // "nothing was measured". Partial pages are not returned either: half a
+  // window drawn as if it were the whole one is the same mistake, smaller.
+  if (error) throw new DataError("Could not load daily readings", error);
   return data;
 }
 
@@ -280,6 +306,9 @@ async function dailyRows(
  * Daily history for one station: the days the rollup marked COMPLETE
  * (readings_daily.is_complete, the same verdict the forecast uses). A partial
  * day is a gap in the chart, not a low point.
+ *
+ * Throws DataError when the database cannot be read, so an empty result
+ * always means "nothing complete was measured", never "the query failed".
  */
 export async function getHistory(
   supabase: SupabaseClient,
@@ -421,7 +450,11 @@ export async function nearestMonitors(
     max_km: maxKm,
     want_city: city,
   });
-  if (error || !data) return [];
+  // A failed lookup is not "no stations nearby". Treating it as one made a
+  // database problem look like a place with no monitors (a 404 saying "No
+  // stations within 30 km"), which sends the person looking in the wrong place.
+  if (error) throw new DataError("Could not look up nearby stations", error);
+  if (!data) return [];
   return (data as { monitor_id: string; name: string; city: string; latitude: number; longitude: number; distance_km: number }[])
     .map((r) => ({
       id: r.monitor_id,
