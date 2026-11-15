@@ -140,9 +140,10 @@ export default function PrivacyPage() {
 
       <Section title="Counting how the app is used">
         <p>
-          We record three things: that the app was installed, which of the AI&apos;s
-          tools answered a question, and that a question could not be answered along
-          with the reason. Each is stored as one short word.
+          We record four things: that the app was installed, which of the AI&apos;s
+          tools answered a question, that a question could not be answered along
+          with the reason, and that the installed app was opened from your home
+          screen. Each is stored as one short word.
         </p>
         <p>
           No identifier of any kind is attached — no account, no session, no device
@@ -150,6 +151,13 @@ export default function PrivacyPage() {
           deliberate: we can see that forty questions were answered this week and we
           can never tell whether that was forty people or one. These counts are
           deleted after 90 days.
+        </p>
+        <p>
+          For the home-screen count, your phone keeps the date it installed the app,
+          in its own storage. At most once a day it tells us only roughly how long
+          ago that was — the same day, within a week, within a month, or longer. The
+          date itself never leaves your phone, and <strong>Reset everything</strong>{" "}
+          in Settings clears it.
         </p>
         <p>
           Page views are counted by Vercel Analytics, which is cookieless and stores
