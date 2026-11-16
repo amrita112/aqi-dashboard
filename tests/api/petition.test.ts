@@ -113,8 +113,8 @@ describe("POST — validation", () => {
 });
 
 describe("POST — what it stores and what it returns", () => {
-  // Writes go through the sign_petition() database function (migration 23),
-  // which sets purpose, expiry and withdrawal token itself.
+  // Writes go through the sign_petition() database function (migrations 23
+  // and 28), which sets purpose, expiry and withdrawal token itself.
   const signCall = () => rpc.mock.calls.find((c) => c[0] === "sign_petition")?.[1];
 
   it("lowercases the email so one person cannot sign twice by capitalising", async () => {
@@ -129,14 +129,15 @@ describe("POST — what it stores and what it returns", () => {
     );
   });
 
-  it("stamps the SAME consent wording the screen shows (migration 23 vs lib/api/petition.ts)", async () => {
-    // The text is frozen onto each row by sign_petition(); it must be the text
-    // people were shown, or the stored consent is not what they agreed to.
+  it("stamps the SAME consent wording the screen shows (migration 28 vs lib/api/petition.ts)", async () => {
+    // The text is frozen onto each row by sign_petition() / request_city();
+    // it must be the text people were shown, or the stored consent is not
+    // what they agreed to. Migration 28 holds the current definitions.
     const { readFileSync } = await import("node:fs");
-    const sql = readFileSync("database-setup/23-write-functions-live-monitors.sql", "utf8");
+    const sql = readFileSync("database-setup/28-separate-city-requests.sql", "utf8");
     const { CITY_REQUEST_PURPOSE } = await import("@/lib/api/petition");
-    expect(sql).toContain(`WHEN 'petition' THEN '${PETITION_PURPOSE}'`);
-    expect(sql).toContain(`ELSE '${CITY_REQUEST_PURPOSE}'`);
+    expect(sql).toContain(`'${PETITION_PURPOSE}'`);
+    expect(sql).toContain(`'${CITY_REQUEST_PURPOSE}'`);
   });
 
   it("defaults the updates opt-in to false — signing is not subscribing", async () => {

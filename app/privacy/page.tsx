@@ -4,10 +4,11 @@
  * WRITTEN FROM THE CODE, not from a template. Every claim below corresponds to
  * something checkable: the localStorage keys are the ones in lib/prefs.ts and
  * lib/ask-count.ts, the two-year retention is the DEFAULT on
- * petition_signatures.expires_at, the ninety days is in
- * purge_old_usage_events(), and "no SELECT policy" is literally true of that
- * table. A privacy page that cannot be checked against the source is a
- * statement of intent; this one is a description.
+ * petition_signatures.expires_at and city_requests.expires_at, the ninety days
+ * is in purge_old_usage_events(), and "no read permission" is literally true
+ * of both tables (no SELECT policy; migration 28 for city_requests). A privacy
+ * page that cannot be checked against the source is a statement of intent;
+ * this one is a description.
  *
  * The thing it exists to say, which nothing in the app said before: a question
  * typed into the Ask box leaves this app. It goes to a third party, with the
@@ -123,9 +124,10 @@ export default function PrivacyPage() {
           along with what you were told you were agreeing to at the time.
         </p>
         <p>
-          <strong>Nobody can read that list through this app.</strong> The table has
-          no read permission of any kind — the public count comes from a function
-          that returns a number and nothing else. Your name is never shown beside a
+          <strong>Nobody can read that list through this app.</strong> Petition
+          signatures and city requests are kept in two separate tables, and
+          neither has read permission of any kind — the public counts come from
+          functions that return a number and nothing else. Your name is never shown beside a
           count.
         </p>
         <p>

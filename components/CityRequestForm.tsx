@@ -14,10 +14,10 @@
  * in India and we add it. A vague "we'll consider it" would cost nothing and
  * mean nothing.
  *
- * The count is public; the people are not. petition_signatures has no SELECT
- * policy, and the count comes from a SECURITY DEFINER function that returns an
- * integer, so "47 people have asked" is sayable without anyone being able to
- * ask who.
+ * The count is public; the people are not. Requests are stored in their own
+ * table, city_requests (migration 28), which the public key cannot read, and
+ * the count comes from a SECURITY DEFINER function that returns an integer, so
+ * "47 people have asked" is sayable without anyone being able to ask who.
  */
 
 import { useEffect, useState } from "react";

@@ -2,13 +2,14 @@
  * POST /api/city-request  { name, email, city }   ask for a city to be covered
  * GET  /api/city-request?city=Indore              how many have asked
  *
- * Shares petition_signatures, distinguished by `kind` — see migration 18 for
- * why a second table would have been the wrong call.
+ * Requests live in their own table, city_requests (migration 28). Until then
+ * they shared petition_signatures, which made the public petition total count
+ * every city request as a signature.
  *
- * The count is public and the rows are not. petition_signatures has no SELECT
- * policy at all; city_request_count() is SECURITY DEFINER and returns an
- * integer, so "47 people have asked for Indore" is sayable without anyone
- * being able to ask who they were.
+ * The count is public and the rows are not. city_requests has no policies at
+ * all; city_request_count() is SECURITY DEFINER and returns an integer, so
+ * "47 people have asked for Indore" is sayable without anyone being able to
+ * ask who they were.
  */
 
 import { createClient } from "@/lib/supabase/server";
@@ -65,19 +66,18 @@ export async function POST(request: Request) {
   }
 
   const supabase = createClient();
-  // THROUGH sign_petition(), NOT A DIRECT INSERT (migration 23): the
-  // function sets the purpose, expiry and withdrawal token itself.
-  const { error } = await supabase.rpc("sign_petition", {
-    p_kind: "city_request",
+  // THROUGH request_city(), NOT A DIRECT INSERT (migration 28): the function
+  // writes to city_requests and sets the purpose, expiry and withdrawal token
+  // itself, so a caller cannot choose them.
+  const { error } = await supabase.rpc("request_city", {
     p_name: name,
     p_email: email,
     p_city: city,
-    p_wants_updates: false,
   });
 
   if (error) {
-    // 23505 is the unique index on (lower(email), kind): asking twice is not an
-    // error worth showing as one.
+    // 23505 is the unique index on (email, city): asking for the same city
+    // twice is not an error worth showing as one.
     if (error.code === "23505") {
       const { data: count } = await supabase.rpc("city_request_count", { p_city: city });
       return ok({ city, count: count ?? 0, already: true, threshold: CITY_REQUEST_THRESHOLD });
