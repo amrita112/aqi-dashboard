@@ -22,7 +22,9 @@ Per station and pollutant:
      seasonal_normal. No band -- these are an average, and drawing uncertainty
      around an average implies a prediction we are not making.
   4. A city-level bias correction, applied only where it has been helping
-     (bias_correction.py).
+     (bias_correction.py), and only to rows labelled forecast or outlook.
+     Seasonal-normal rows are left as the plain seasonal average their label
+     promises (bias_correction.BIAS_CORRECT_MODES).
 
 Stations with too little history, or with no recent observation at all, produce
 climatology-only rows rather than being dropped: a station that says "here is
@@ -51,6 +53,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.forecast.bias_correction import (  # noqa: E402
+    BIAS_CORRECT_MODES,
+    apply_corrections,
     apply_offset,
     city_day_errors,
     decide,
@@ -393,19 +397,15 @@ def main() -> None:
     decisions = {k: decide(v, today) for k, v in errors.items()}
 
     print(f"\n  bias correction, from {len(hist_fc)} scored forecasts:")
-    applied_n = 0
     for (city, pollutant), d in sorted(decisions.items()):
         mark = "APPLY " if d["applied"] else "skip  "
         print(f"    {mark}{city:<12}{pollutant:<6}offset {d['offset']:+8.2f}   {d['reason']}")
-    for r in out_rows:
-        d = decisions.get((r["city_key"], r["pollutant"]))
-        if not d or not d["applied"]:
-            continue
-        raw = r["value"]
-        r["value_raw"] = raw
-        r["value"] = round(apply_offset(raw, d["offset"]), 2)
-        applied_n += 1
-    print(f"    corrected {applied_n} of {len(out_rows)} rows")
+    # Only rows labelled forecast/outlook are corrected; seasonal-normal rows
+    # stay the plain seasonal average their label promises (BIAS_CORRECT_MODES).
+    counts = apply_corrections(out_rows, decisions)
+    print(f"    corrected {counts['corrected']} of {len(out_rows)} rows "
+          f"(left alone: {counts['city_not_applied']} in cities not corrected tonight, "
+          f"{counts['mode_excluded']} labelled outside {'/'.join(BIAS_CORRECT_MODES)})")
 
     # city_key exists only to join rows to decisions; it is not a column.
     for r in out_rows:

@@ -52,5 +52,6 @@ def test_nightly_forecast_can_see_its_bias_helpers() -> None:
     missing import is invisible until the job runs against a real database.
     """
     m = importlib.import_module("scripts.forecast.nightly_forecast")
-    for fn in ("city_day_errors", "decide", "apply_offset", "load_scored_history"):
+    for fn in ("city_day_errors", "decide", "apply_offset", "apply_corrections",
+               "BIAS_CORRECT_MODES", "load_scored_history"):
         assert hasattr(m, fn), f"nightly_forecast cannot see {fn}"

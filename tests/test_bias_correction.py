@@ -14,10 +14,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.forecast.bias_correction import (  # noqa: E402
+    BIAS_CORRECT_MODES,
     DAMPING,
     MAX_RELATIVE_SHIFT,
     MIN_DAYS,
     WINDOW_DAYS,
+    apply_corrections,
     apply_offset,
     city_day_errors,
     decide,
@@ -227,3 +229,69 @@ def test_load_scored_history_keeps_pollutants_apart():
     errors = city_day_errors(hist_fc, actuals, {"m1": "Delhi"})
     assert all(e == pytest.approx(0.0) for e in errors[("Delhi", "pm25")].values())
     assert decide(errors[("Delhi", "pm25")], today)["applied"] is False
+
+
+# ── which rows get corrected: forecast/outlook yes, seasonal_normal no ───────
+
+def _row(mode: str, h: int, city: str = "Delhi", value: float = 100.0) -> dict:
+    return {"city_key": city, "pollutant": "pm25", "mode": mode,
+            "horizon_days": h, "value": value}
+
+
+def test_seasonal_normal_rows_are_never_corrected():
+    """A row labelled "typical for this time of year" must stay the seasonal
+    average, even in a city whose correction is switched on tonight."""
+    decisions = {("Delhi", "pm25"): {"applied": True, "offset": -20.0}}
+    rows = [_row("forecast", 1), _row("outlook", 2), _row("seasonal_normal", 3),
+            *[_row("seasonal_normal", h) for h in range(4, 8)]]
+    counts = apply_corrections(rows, decisions)
+
+    shifted = 100.0 - DAMPING * -20.0
+    assert rows[0]["value"] == pytest.approx(shifted) and rows[0]["value_raw"] == 100.0
+    assert rows[1]["value"] == pytest.approx(shifted) and rows[1]["value_raw"] == 100.0
+    for r in rows[2:]:
+        assert r["value"] == 100.0
+        assert r["value_raw"] is None, "a seasonal-normal row was marked as corrected"
+    assert counts == {"corrected": 2, "city_not_applied": 0, "mode_excluded": 5}
+
+
+def test_forecast_rows_on_any_day_are_corrected():
+    """The rule is by label, not by day: a forecast-labelled row is corrected
+    whatever its horizon."""
+    decisions = {("Delhi", "pm25"): {"applied": True, "offset": 10.0}}
+    rows = [_row("forecast", h) for h in range(1, 8)]
+    assert apply_corrections(rows, decisions)["corrected"] == 7
+
+
+def test_city_gate_still_decides_first():
+    """The per-city APPLY/skip decision is unchanged: a city that is not being
+    corrected keeps every row as it was, forecast or not."""
+    decisions = {("Delhi", "pm25"): {"applied": True, "offset": -20.0},
+                 ("Mumbai", "pm25"): {"applied": False, "offset": -20.0}}
+    rows = [_row("forecast", 1, "Mumbai"), _row("outlook", 2, "Mumbai"),
+            _row("forecast", 1, "Pune"),      # no decision at all
+            _row("forecast", 1, "Delhi")]
+    counts = apply_corrections(rows, decisions)
+    assert [r["value"] for r in rows[:3]] == [100.0, 100.0, 100.0]
+    assert all(r["value_raw"] is None for r in rows[:3])
+    assert rows[3]["value"] != 100.0
+    assert counts == {"corrected": 1, "city_not_applied": 3, "mode_excluded": 0}
+
+
+def test_stale_value_raw_is_cleared():
+    """A row upserted over last night's corrected row must not inherit its
+    value_raw when it is not corrected tonight."""
+    decisions = {("Delhi", "pm25"): {"applied": True, "offset": -20.0}}
+    rows = [{**_row("seasonal_normal", 3), "value_raw": 87.0}]
+    apply_corrections(rows, decisions)
+    assert rows[0]["value_raw"] is None and rows[0]["value"] == 100.0
+
+
+def test_modes_are_configurable():
+    """Adding seasonal_normal back restores the old correct-everything rule."""
+    assert "seasonal_normal" not in BIAS_CORRECT_MODES
+    decisions = {("Delhi", "pm25"): {"applied": True, "offset": -20.0}}
+    rows = [_row("seasonal_normal", 5)]
+    apply_corrections(rows, decisions,
+                      modes=BIAS_CORRECT_MODES + ("seasonal_normal",))
+    assert rows[0]["value_raw"] == 100.0
