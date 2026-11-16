@@ -153,14 +153,12 @@ describe("POST /api/client-error — rejected reports", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  // KNOWN BUG (reported, not fixed here): a body of JSON `null` parses fine,
-  // then `payload.message` throws a TypeError outside the try/catch, so the
-  // route crashes (an unhandled 500) instead of answering 400. `it.fails`
-  // passes while the bug exists and will start failing once it is fixed —
-  // at which point change it to a plain `it`.
-  it.fails("rejects a JSON null body with 400 (currently throws)", async () => {
+  // A body of JSON `null` parses fine, so it needs its own check: reading
+  // `payload.message` off null used to crash the route with a 500.
+  it("rejects a JSON null body with 400", async () => {
     const res = await POST(post("null"));
     expect(res.status).toBe(400);
+    expect(rpc).not.toHaveBeenCalled();
   });
 });
 

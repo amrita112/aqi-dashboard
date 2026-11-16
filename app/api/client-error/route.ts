@@ -45,6 +45,12 @@ export async function POST(request: Request) {
   } catch {
     return badRequest("Body must be JSON");
   }
+  // `null` is valid JSON, so it gets past the try above -- but reading
+  // `.message` off null would crash the route (a 500). Anything that is not
+  // an object gets the same 400 as any other body without a message.
+  if (typeof payload !== "object" || payload === null) {
+    return badRequest("message is required");
+  }
 
   const message = clip(payload.message, MAX_MESSAGE);
   if (!message) return badRequest("message is required");

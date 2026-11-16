@@ -62,7 +62,9 @@ export async function POST(request: Request) {
   });
   // A count that failed to record is not worth telling anyone about, and
   // certainly not worth an error on screen: this endpoint exists to observe
-  // the app, never to affect it. Logged for us, 204 for them.
+  // the app, never to affect it. So the failure is logged here, and the 502
+  // goes back to lib/analytics.ts, which ignores the response -- nothing
+  // reaches the screen.
   if (error) {
     console.error(`usage_events insert failed: ${error.message}`);
     return fail("Could not record", 502, error.message);
