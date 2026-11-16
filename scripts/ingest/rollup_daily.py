@@ -144,6 +144,12 @@ def fetch_day_measurements(client, day: date) -> pd.DataFrame:
                            .eq("source", "openaq")
                            .gte("recorded_at", day_start.isoformat())
                            .lt("recorded_at", day_end.isoformat())
+                           # Sort by the primary key so each 1000-row page
+                           # picks up exactly where the last one stopped.
+                           # Without a sort order Postgres may return rows in
+                           # a different order on each request, so paging by
+                           # offset could repeat some readings and skip others.
+                           .order("id")
                            .range(off, off + page - 1)),
             f"readings {day} offset {off}")
         r_rows.extend(r.data or [])
@@ -176,6 +182,10 @@ def fetch_day_measurements(client, day: date) -> pd.DataFrame:
                 lambda: (client.table("measurements")
                                .select("reading_id, pollutant, value")
                                .in_("reading_id", chunk)
+                               # (reading_id, pollutant) is unique, so this
+                               # sort gives every page a fixed place in the
+                               # list -- no repeats or gaps between pages.
+                               .order("reading_id").order("pollutant")
                                .range(off, off + PAGE - 1)),
                 f"measurements {day} chunk {i}")
             batch = m.data or []
