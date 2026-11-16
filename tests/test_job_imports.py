@@ -29,6 +29,7 @@ JOBS = [
     "scripts.ingest.ingest_recent_readings",
     "scripts.ingest.daily_backfill_s3",
     "scripts.ingest.rollup_daily",
+    "scripts.alerts.threshold_alerts",
 ]
 
 
@@ -52,6 +53,13 @@ def test_nightly_forecast_can_see_its_bias_helpers() -> None:
     missing import is invisible until the job runs against a real database.
     """
     m = importlib.import_module("scripts.forecast.nightly_forecast")
-    for fn in ("city_day_errors", "decide", "apply_offset", "apply_corrections",
+    for fn in ("city_day_errors", "decide_all", "apply_offset", "apply_corrections",
                "BIAS_CORRECT_MODES", "load_scored_history"):
         assert hasattr(m, fn), f"nightly_forecast cannot see {fn}"
+
+
+def test_refit_can_see_its_skill_helpers() -> None:
+    """The multi-year skill test (Nov 2026) is called inside fit_city."""
+    m = importlib.import_module("scripts.forecast.refit_params")
+    for fn in ("station_skill_years", "city_skill_years"):
+        assert hasattr(m, fn), f"refit_params cannot see {fn}"

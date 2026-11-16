@@ -23,6 +23,9 @@ What gets fitted, and the reasoning behind each choice:
                  (blend or persistence, whichever measured better), its skill,
                  band, and the mode that follows. This is what lets the app
                  degrade honestly when OpenAQ is behind, which it frequently is.
+                 Skill is measured on EVERY eligible held-out year (each
+                 trained on the years before it) and the median across years
+                 decides; see baselines.skill_by_test_year for the rule.
 
 Usage (from repo root):
     python3 -m scripts.forecast.refit_params            # all cities, PM2.5 + AQI
@@ -47,8 +50,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.forecast.baselines import (  # noqa: E402
-    CITIES, SEASON_MONTHS, aqi_series, city_series, climatology, complete_days,
-    diurnal_shape, fit_alpha, forecast_mode_table, station_mode_table, load_city_daily,
+    CITIES, SEASON_MONTHS, aqi_series, city_series, city_skill_years, climatology,
+    complete_days, diurnal_shape, fit_alpha, station_skill_years, load_city_daily,
     load_city_daily_aqi, load_city_hourly, load_history_from_db,
     load_station_daily, load_station_daily_aqi, load_city_hourly_aqi, xkdr_names,
 )
@@ -74,10 +77,13 @@ APP_TO_ANALYSIS = {
 # excludes it and falls back to the city.
 MIN_HISTORY_DAYS = 365
 
-# The test year the skill numbers are measured against. 2024 is the most recent
-# year with a complete pollution season; 2025 stops on 1 September in the XKDR
-# export, which would score the forecast on the clean half of the year only.
-SKILL_TEST_YEAR = 2024
+# Which held-out years the skill (and so the served model and label) is
+# measured on. Until Nov 2026 this was one year, SKILL_TEST_YEAR = 2024. Now it
+# is every year with at least two full years of data before it whose season has
+# finished, and the median across those years decides. The rule and its knobs
+# (SKILL_MIN_PRIOR_YEARS, SKILL_FULL_YEAR_MIN_DAYS, SKILL_TEST_MONTHS,
+# SKILL_TEST_YEAR_RANGE, SKILL_MIN_STATIONS_PER_YEAR) live in baselines.py next
+# to the function that applies them, so the notebook and the refit share them.
 
 CLIMATOLOGY_LEN = 367   # index 1..366; element 0 unused so day-of-year indexes directly
 
@@ -119,11 +125,18 @@ def fit_city(analysis_city: str, pollutant: str,
     # SERVED per station. Falls back to the city series only when there is no
     # station history to measure -- a city-fitted table claims skill at data
     # ages where no individual monitor still has any.
+    #
+    # Measured on every eligible test year, median across years (see the note
+    # at the top of this file). `last_day` is the end of the whole station
+    # table, so a season still in progress is never scored.
     modes = pd.DataFrame()
     if station_hist is not None and not station_hist.empty:
-        modes = station_mode_table(station_hist, analysis_city, SKILL_TEST_YEAR)
+        modes = station_skill_years(station_hist, analysis_city)["modes"]
     if modes.empty:
-        modes = forecast_mode_table(series, SKILL_TEST_YEAR)
+        modes = city_skill_years(series)["modes"]
+    if not modes.empty:
+        years = modes["test_years"].iat[0]
+        print(f"  {analysis_city}/{pollutant}: skill measured on test years {years}")
 
     # forecast_params.model is a one-word summary for people reading the
     # table: the model served most often where there is a forecast at all.

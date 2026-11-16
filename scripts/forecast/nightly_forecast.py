@@ -24,7 +24,8 @@ Per station and pollutant:
   4. A city-level bias correction, applied only where it has been helping
      (bias_correction.py), and only to rows labelled forecast or outlook.
      Seasonal-normal rows are left as the plain seasonal average their label
-     promises (bias_correction.BIAS_CORRECT_MODES).
+     promises (bias_correction.BIAS_CORRECT_MODES). The correction also LEARNS
+     only from past +1-day rows with those labels.
 
 Stations with too little history, or with no recent observation at all, produce
 climatology-only rows rather than being dropped: a station that says "here is
@@ -57,7 +58,7 @@ from scripts.forecast.bias_correction import (  # noqa: E402
     apply_corrections,
     apply_offset,
     city_day_errors,
-    decide,
+    decide_all,
 )
 from scripts.forecast.model import (  # noqa: E402
     FORECAST_HORIZONS,
@@ -289,9 +290,17 @@ def load_scored_history(client, pollutants: List[str], since: date
                         ) -> Tuple[List[Dict[str, Any]], Dict[Tuple[str, str, str], float]]:
     """Past forecasts and what actually happened, for learning the bias.
 
-    Returns the forecasts (carrying value_raw where one was stored) and the
-    observed daily value per (monitor_id, date, pollutant) -- the same key the
-    forecasts carry, so city_day_errors can line them up.
+    Returns the forecasts (carrying value_raw where one was stored, and the
+    `mode` label each was served with) and the observed daily value per
+    (monitor_id, date, pollutant) -- the same key the forecasts carry, so
+    city_day_errors can line them up.
+
+    Every label is returned, not only forecast/outlook: city_day_errors does
+    the filtering (BIAS_CORRECT_MODES), so the notebook can still score the
+    seasonal-normal rows from the same fetch. forecast_daily.mode is NOT NULL
+    (database-setup/12-forecast-tables.sql), so every row carries one. The +1
+    row for a target date is the one written the night before it, so its mode
+    is the label that night's forecast was served with.
 
     The pollutant MUST be part of the key. Until Nov 2026 it was keyed by
     (monitor_id, date) alone, so the AQI written second overwrote the PM2.5
@@ -302,7 +311,7 @@ def load_scored_history(client, pollutants: List[str], since: date
     fc, offset = [], 0
     while True:
         r = (client.table("forecast_daily")
-                   .select("monitor_id, pollutant, target_date, value, value_raw")
+                   .select("monitor_id, pollutant, target_date, value, value_raw, mode")
                    .eq("horizon_days", 1)
                    .in_("pollutant", pollutants)
                    .gte("target_date", since.isoformat())
@@ -393,10 +402,18 @@ def main() -> None:
     # why it polices itself.
     hist_fc, hist_actual = load_scored_history(
         client, args.pollutants, today - timedelta(days=BIAS_HISTORY_DAYS))
+    # Learned only from rows labelled forecast/outlook (BIAS_CORRECT_MODES):
+    # the same rows it is allowed to correct. Every city/pollutant in the
+    # manifest gets a decision, so one with no such rows is logged -- and its
+    # forecast_bias row overwritten -- as "skip" with the reason, instead of
+    # silently keeping last night's decision.
     errors = city_day_errors(hist_fc, hist_actual, city_of)
-    decisions = {k: decide(v, today) for k, v in errors.items()}
+    learnable = sum(1 for f in hist_fc if f.get("mode") in BIAS_CORRECT_MODES)
+    keys = sorted({(c, p) for c in set(city_of.values()) for p in args.pollutants})
+    decisions = decide_all(errors, keys, today, BIAS_HISTORY_DAYS)
 
-    print(f"\n  bias correction, from {len(hist_fc)} scored forecasts:")
+    print(f"\n  bias correction, from {len(hist_fc)} scored forecasts "
+          f"({learnable} labelled {'/'.join(BIAS_CORRECT_MODES)}, the only ones learned from):")
     for (city, pollutant), d in sorted(decisions.items()):
         mark = "APPLY " if d["applied"] else "skip  "
         print(f"    {mark}{city:<12}{pollutant:<6}offset {d['offset']:+8.2f}   {d['reason']}")
