@@ -1,12 +1,12 @@
 {
   "_about": [
     "Spelling variants of place names, for counting 'add my city' requests.",
-    "Read by scripts/alerts/place_names.py (the daily threshold-alert job).",
+    "Read by lib/place-names.ts (the live count in the city-request form) and scripts/alerts/place_names.py (the fortnightly threshold-alert job). Both apply the same rule, tested on tests/fixtures/place_names/cases.json.",
     "Each entry is  variant -> the one name to count it under.",
     "Before matching, every name is lowercased, cut at the first comma or bracket (so 'Brahmapur, Odisha' and 'Brahmapur (Odisha)' are 'brahmapur'), and stripped of punctuation and extra spaces, so you only need to list genuinely different spellings, not capitalisation or state suffixes.",
     "A name on the RIGHT must not also appear on the LEFT (no chains); tests/test_threshold_alerts.py checks this.",
     "Do not alias two real, different places. Example: Berhampur/Brahmapur (Odisha) is a different city from Berhampore/Baharampur (West Bengal), so the West Bengal spellings are deliberately NOT listed. Known limit: because the state after the comma is ignored, 'Berhampur, West Bengal' would still be counted as Brahmapur. Each city alert includes a SQL query that lists the spellings as typed, so check it before acting.",
-    "Adding a line here changes the next daily run's counts; nothing in the database changes."
+    "Adding a line here changes the form's count once the app is redeployed, and the next alert run's counts; nothing in the database changes (requests store only the pre-alias key)."
   ],
   "aliases": {
     "berhampur": "brahmapur",

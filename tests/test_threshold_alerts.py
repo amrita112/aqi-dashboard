@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.alerts.place_names import (  # noqa: E402
     basic_place,
     canonical_place,
+    key_drift,
     load_aliases,
     near_misses,
     tally_places,
@@ -36,6 +37,22 @@ from scripts.alerts.threshold_alerts import (  # noqa: E402
 )
 
 ALIASES = load_aliases()
+PLACE_CASES = json.loads((ROOT / "tests" / "fixtures" / "place_names" / "cases.json").read_text(encoding="utf-8"))
+
+
+# ─── Shared cases: must agree with lib/place-names.ts ───────────────────────
+
+@pytest.mark.parametrize("case", PLACE_CASES["cases"], ids=lambda c: repr(c["typed"]))
+def test_shared_cases_file(case):
+    """The same file is run by tests/api/place-names.test.ts against the
+    TypeScript copy, so the public form count and the alert cannot drift."""
+    assert basic_place(case["typed"]) == case["basic"]
+    assert canonical_place(case["typed"], ALIASES) == case["key"]
+
+
+def test_shared_alias_groups():
+    for canonical, group in PLACE_CASES["groups"].items():
+        assert sorted({canonical} | {v for v, k in ALIASES.items() if k == canonical}) == group
 
 
 # ─── Place names ────────────────────────────────────────────────────────────
@@ -85,6 +102,27 @@ def test_alias_chain_is_rejected(tmp_path):
     bad.write_text(json.dumps({"aliases": {"a": "b", "b": "c"}}))
     with pytest.raises(ValueError):
         load_aliases(bad)
+
+
+def test_stored_place_key_is_used_and_aliased():
+    # The key stored by the app (migration 29) is what is counted; aliases are
+    # applied on top. A row without one falls back to the city.
+    rows = [
+        {"city": "Berhampur", "place_key": "berhampur", "requester": "p1"},
+        {"city": "Brahmapur, Odisha", "place_key": "brahmapur", "requester": "p2"},
+        {"city": "Brahmapur", "requester": "p3"},                     # no key
+        {"city": "Brahmapur", "place_key": "brahmapur", "requester": "p1"},  # p1 again
+    ]
+    assert tally_places(rows, ALIASES) == {"brahmapur": 3}
+
+
+def test_key_drift_counts_disagreeing_rows():
+    rows = [
+        {"city": "Brahmapur, Odisha", "place_key": "brahmapur"},
+        {"city": "Indore", "place_key": "indor"},       # disagrees
+        {"city": "Pune"},                               # no key: not drift
+    ]
+    assert key_drift(rows) == 1
 
 
 def test_one_person_counts_once_per_place_across_spellings():
@@ -277,3 +315,12 @@ def test_job_dry_run_opens_nothing(monkeypatch, capsys):
     run_job(monkeypatch, 5, [], DRY_RUN="1", PETITION_THRESHOLDS="1")
     assert FakeGitHub.opened == []
     assert "[dry run] would open: Petition reached 1 signature" in capsys.readouterr().out
+
+
+def test_job_warns_on_key_drift_without_naming_places(monkeypatch, capsys):
+    FakeGitHub.issues, FakeGitHub.opened = [], []
+    rows = [{"city": "Secretville", "place_key": "elsewhere", "requester": "p1"}]
+    run_job(monkeypatch, 0, rows, DRY_RUN="1")
+    out = capsys.readouterr().out
+    assert "WARNING: 1 request(s) have a stored place_key" in out
+    assert "Secretville" not in out and "Elsewhere" not in out

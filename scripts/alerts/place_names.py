@@ -5,15 +5,24 @@ People type the place themselves, so "Brahmapur", "Brahmapur, Odisha",
 "brahmapur." and "Berhampur" all arrive for one city. To count requests per
 place, each name is turned into one canonical KEY:
 
-  1. basic_place():  lowercase, cut at the first comma or "(" (drops the
-     state: "Brahmapur, Odisha", "Brahmapur (Odisha)"),
-     punctuation -> spaces, runs of spaces -> one. "Brahmapur, Odisha" and
-     " BRAHMAPUR. " both become "brahmapur".
+  1. basic_place():  Unicode-normalise (NFKC: full-width and look-alike
+     characters become their plain form), lowercase, cut at the first comma
+     or "(" (drops the state: "Brahmapur, Odisha", "Brahmapur (Odisha)"),
+     anything that is not a letter, a combining mark or a digit -> a space,
+     runs of spaces -> one. "Brahmapur, Odisha" and " BRAHMAPUR. " both
+     become "brahmapur".
   2. canonical_place():  look the result up in lib/place-aliases.json, which
      maps real spelling variants ("berhampur") to one name ("brahmapur").
 
-This file is the ONLY place that rule lives. The alert job calls it; nothing
-else re-implements it.
+THE SAME RULE EXISTS IN TWO LANGUAGES, ON PURPOSE. The app's live count in the
+city-request form needs it in TypeScript (lib/place-names.ts), and this job
+needs it in Python. They cannot drift because both are tested against one
+cases file, tests/fixtures/place_names/cases.json (tests/test_threshold_alerts.py
+and tests/api/place-names.test.ts), and both read the one alias file.
+
+The app stores step 1's result on each request (city_requests.place_key,
+migration 29); aliases are applied when counting, never stored, so editing the
+alias file changes counts at once without touching the database.
 
 Fuzzy matching (near_misses) is only ever a SUGGESTION in the alert, never an
 automatic merge: "Raipur" and "Jaipur" are 83% similar and are different
@@ -37,18 +46,26 @@ DEFAULT_ALIASES_PATH = REPO_ROOT / "lib" / "place-aliases.json"
 # different cities.
 DEFAULT_NEAR_MISS_RATIO = 0.85
 
-# Anything that is not a letter or digit in any script (so Devanagari, Odia
-# etc. survive) becomes a space. `_` counts as a word character to `\w`, so it
-# is listed explicitly.
-_NON_WORD = re.compile(r"[\W_]+", re.UNICODE)
+
+def _keep(ch: str) -> str:
+    r"""A character is kept if its Unicode category is a Letter (L*), a Mark
+    (M*: the vowel signs and viramas of Devanagari, Odia etc., without which
+    "ब्रह्मपुर" falls apart) or a Number (N*). Everything else -- punctuation,
+    symbols, spaces, "_" -- becomes a space. Categories, not Python's `\w`,
+    because the TypeScript copy can say exactly the same thing
+    (/[^\p{L}\p{M}\p{N}]/u)."""
+    return ch if unicodedata.category(ch)[0] in "LMN" else " "
 
 
 def basic_place(name: str) -> str:
     """The spelling-insensitive part of the rule: case, state suffix,
-    punctuation and spacing. Returns "" for a name with nothing left."""
-    text = unicodedata.normalize("NFKC", name or "").casefold()
+    punctuation and spacing. Returns "" for a name with nothing left.
+
+    `.lower()`, not `.casefold()`: JavaScript has no casefold, and the app
+    must produce the identical key."""
+    text = unicodedata.normalize("NFKC", name or "").lower()
     text = re.split(r"[,(]", text, maxsplit=1)[0]
-    text = _NON_WORD.sub(" ", text)
+    text = "".join(_keep(ch) for ch in text)
     return " ".join(text.split())
 
 
@@ -71,6 +88,32 @@ def canonical_place(name: str, aliases: Mapping[str, str]) -> str:
     return aliases.get(key, key)
 
 
+def row_key(row: Mapping[str, str], aliases: Mapping[str, str]) -> str:
+    """The key one tally row is counted under.
+
+    Uses the key STORED on the row (place_key, written by the app since
+    migration 29) so this job counts exactly what the public form shows, and
+    applies the aliases on top. A row without one (none should exist after
+    migration 29's backfill) falls back to computing it from the city."""
+    stored = row.get("place_key")
+    if stored is None:
+        return canonical_place(row.get("city") or "", aliases)
+    return aliases.get(stored, stored)
+
+
+def key_drift(rows: Iterable[Mapping[str, str]]) -> int:
+    """How many rows have a stored place_key that differs from what this file
+    computes from the city as typed. Should be 0: the app (lib/place-names.ts)
+    and this file follow one rule, checked by a shared cases file. Non-zero
+    means one copy changed without the other, or the database's backfill
+    (migration 29, which only had SQL to work with) read an unusual name
+    differently. A count only: the names are never printed."""
+    return sum(
+        1 for r in rows
+        if r.get("place_key") is not None and r.get("place_key") != basic_place(r.get("city") or "")
+    )
+
+
 def tally_places(
     rows: Iterable[Mapping[str, str]],
     aliases: Mapping[str, str],
@@ -78,13 +121,14 @@ def tally_places(
     """Requests per canonical place, counting each PERSON once per place.
 
     `rows` are what city_request_tally() returns: {"city": as typed,
-    "requester": md5 of the email}. The database already allows only one
-    request per person per spelling, but "Brahmapur" and "Berhampur, Odisha"
-    from the same person are two rows there and one request here.
+    "place_key": the stored key, "requester": md5 of the email}. The database
+    allows only one request per person per spelling, but "Brahmapur" and
+    "Berhampur, Odisha" from the same person are two rows there and one
+    request here -- the same as the public count, city_request_count_for().
     """
     people: Dict[str, Set[str]] = {}
     for row in rows:
-        key = canonical_place(row.get("city") or "", aliases)
+        key = row_key(row, aliases)
         if not key:
             continue
         people.setdefault(key, set()).add(row.get("requester") or "")

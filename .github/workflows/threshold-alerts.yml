@@ -1,14 +1,16 @@
 name: Petition and city-request milestone alerts
 
-# Once a day, checks whether the petition has reached 100 signatures, or any
-# one place has reached 50 "add my city" requests. When a milestone is first
-# reached it opens a GitHub issue, and GitHub emails the repo owner about it
-# (the issue also @mentions the owner, which notifies even if "watching" is
-# turned down). Each milestone is announced ONCE: the job skips any milestone
-# that already has an issue, open or closed. Deleting that issue re-arms it.
+# Twice a month (the 1st and the 15th), checks whether the petition has
+# reached 100 signatures, or any one place has reached 50 "add my city"
+# requests. When a milestone is first reached it opens a GitHub issue, and
+# GitHub emails the repo owner about it (the issue also @mentions the owner,
+# which notifies even if "watching" is turned down). Each milestone is
+# announced ONCE: the job skips any milestone that already has an issue, open
+# or closed. Deleting that issue re-arms it.
 #
 # Spelling variants of a place ("Brahmapur, Odisha", "Berhampur") are counted
-# together: scripts/alerts/place_names.py and lib/place-aliases.json.
+# together, by the same rule as the live count in the app's city-request form:
+# scripts/alerts/place_names.py, lib/place-names.ts and lib/place-aliases.json.
 #
 # THE REPO IS PUBLIC, so issues and this job's log are public. The job never
 # writes names or emails, and names a place only once at least
@@ -25,8 +27,13 @@ name: Petition and city-request milestone alerts
 
 on:
   schedule:
-    # 06:30 UTC = 12:00 IST, daily.
-    - cron: '30 6 * * *'
+    # Roughly fortnightly: 06:30 UTC (= 12:00 IST) on the 1st and the 15th of
+    # every month. GitHub's schedule is a cron expression, and cron has no way
+    # to say "every 14 days" -- it can only name days of the month or of the
+    # week. "1st and 15th" is the nearest fixed rule: gaps of 14-16 days.
+    # (Every other Monday would need a date check inside the job; not worth it.)
+    # Manual runs (workflow_dispatch below) are always available in between.
+    - cron: '30 6 1,15 * *'
   workflow_dispatch:
     inputs:
       dry_run:

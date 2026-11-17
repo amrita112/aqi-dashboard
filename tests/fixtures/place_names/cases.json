@@ -1,0 +1,314 @@
+{
+ "_comment": [
+  "Shared by tests/test_threshold_alerts.py (Python, scripts/alerts/place_names.py) and tests/api/place-names.test.ts (TypeScript, lib/place-names.ts). Both implementations must give exactly `basic` and `key` for every `typed` name.",
+  "`basic` is the rule alone (stored as city_requests.place_key); `key` is after lib/place-aliases.json. If you change the alias file, `key` here may need updating too: the tests will say which case.",
+  "`groups`: every basic key that counts towards a canonical place, which the app sends to city_request_count_for()."
+ ],
+ "cases": [
+  {
+   "typed": "Brahmapur",
+   "basic": "brahmapur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "brahmapur",
+   "basic": "brahmapur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "  BRAHMAPUR  ",
+   "basic": "brahmapur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "Brahmapur, Odisha",
+   "basic": "brahmapur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "Brahmapur,Odisha",
+   "basic": "brahmapur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "Brahmapur.",
+   "basic": "brahmapur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "Berhampur",
+   "basic": "berhampur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "Berhampur, Odisha",
+   "basic": "berhampur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "Behrampur",
+   "basic": "behrampur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "Brahmapur (Odisha)",
+   "basic": "brahmapur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "BRAHMPUR",
+   "basic": "brahmpur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "Berhampore",
+   "basic": "berhampore",
+   "key": "berhampore"
+  },
+  {
+   "typed": "Baharampur",
+   "basic": "baharampur",
+   "key": "baharampur"
+  },
+  {
+   "typed": "Bombay",
+   "basic": "bombay",
+   "key": "mumbai"
+  },
+  {
+   "typed": "Bangalore",
+   "basic": "bangalore",
+   "key": "bengaluru"
+  },
+  {
+   "typed": "Calcutta",
+   "basic": "calcutta",
+   "key": "kolkata"
+  },
+  {
+   "typed": "Madras",
+   "basic": "madras",
+   "key": "chennai"
+  },
+  {
+   "typed": "Gurgaon, Haryana",
+   "basic": "gurgaon",
+   "key": "gurugram"
+  },
+  {
+   "typed": "Poona",
+   "basic": "poona",
+   "key": "pune"
+  },
+  {
+   "typed": "New Delhi",
+   "basic": "new delhi",
+   "key": "delhi"
+  },
+  {
+   "typed": "new-delhi",
+   "basic": "new delhi",
+   "key": "delhi"
+  },
+  {
+   "typed": "New  Delhi!!",
+   "basic": "new delhi",
+   "key": "delhi"
+  },
+  {
+   "typed": "Delhi NCR",
+   "basic": "delhi ncr",
+   "key": "delhi ncr"
+  },
+  {
+   "typed": "  Navi   Mumbai!! ",
+   "basic": "navi mumbai",
+   "key": "navi mumbai"
+  },
+  {
+   "typed": "Port_Blair",
+   "basic": "port blair",
+   "key": "port blair"
+  },
+  {
+   "typed": "Port Blair (A&N)",
+   "basic": "port blair",
+   "key": "port blair"
+  },
+  {
+   "typed": "St. Thomas Mount",
+   "basic": "st thomas mount",
+   "key": "st thomas mount"
+  },
+  {
+   "typed": "Indore",
+   "basic": "indore",
+   "key": "indore"
+  },
+  {
+   "typed": "Indore)",
+   "basic": "indore",
+   "key": "indore"
+  },
+  {
+   "typed": "Navi-Mumbai, Maharashtra",
+   "basic": "navi mumbai",
+   "key": "navi mumbai"
+  },
+  {
+   "typed": ",,,",
+   "basic": "",
+   "key": ""
+  },
+  {
+   "typed": "   ",
+   "basic": "",
+   "key": ""
+  },
+  {
+   "typed": "(Odisha)",
+   "basic": "",
+   "key": ""
+  },
+  {
+   "typed": "!!!",
+   "basic": "",
+   "key": ""
+  },
+  {
+   "typed": "",
+   "basic": "",
+   "key": ""
+  },
+  {
+   "typed": "ब्रह्मपुर, ओडिशा",
+   "basic": "ब्रह्मपुर",
+   "key": "ब्रह्मपुर"
+  },
+  {
+   "typed": "ब्रह्मपुर",
+   "basic": "ब्रह्मपुर",
+   "key": "ब्रह्मपुर"
+  },
+  {
+   "typed": "ବ୍ରହ୍ମପୁର",
+   "basic": "ବ୍ରହ୍ମପୁର",
+   "key": "ବ୍ରହ୍ମପୁର"
+  },
+  {
+   "typed": "சென்னை",
+   "basic": "சென்னை",
+   "key": "சென்னை"
+  },
+  {
+   "typed": "বহরমপুর",
+   "basic": "বহরমপুর",
+   "key": "বহরমপুর"
+  },
+  {
+   "typed": "Ｂｒａｈｍａｐｕｒ",
+   "basic": "brahmapur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "Brahmapur，Odisha",
+   "basic": "brahmapur",
+   "key": "brahmapur"
+  },
+  {
+   "typed": "Bhubaneshwar",
+   "basic": "bhubaneshwar",
+   "key": "bhubaneswar"
+  },
+  {
+   "typed": "Bhubaneswar",
+   "basic": "bhubaneswar",
+   "key": "bhubaneswar"
+  },
+  {
+   "typed": "Thiruvananthapuram",
+   "basic": "thiruvananthapuram",
+   "key": "thiruvananthapuram"
+  },
+  {
+   "typed": "Trivandrum",
+   "basic": "trivandrum",
+   "key": "thiruvananthapuram"
+  },
+  {
+   "typed": "Sector 62, Noida",
+   "basic": "sector 62",
+   "key": "sector 62"
+  },
+  {
+   "typed": "Phase 2",
+   "basic": "phase 2",
+   "key": "phase 2"
+  },
+  {
+   "typed": "ÉVORA",
+   "basic": "évora",
+   "key": "évora"
+  },
+  {
+   "typed": "Zürich",
+   "basic": "zürich",
+   "key": "zürich"
+  },
+  {
+   "typed": "İstanbul",
+   "basic": "i̇stanbul",
+   "key": "i̇stanbul"
+  },
+  {
+   "typed": "ΑΘΗΝΑΣ",
+   "basic": "αθηνας",
+   "key": "αθηνας"
+  },
+  {
+   "typed": "Tiruchirapalli",
+   "basic": "tiruchirapalli",
+   "key": "tiruchirappalli"
+  },
+  {
+   "typed": "Trichy",
+   "basic": "trichy",
+   "key": "tiruchirappalli"
+  },
+  {
+   "typed": "Kochi—Ernakulam",
+   "basic": "kochi ernakulam",
+   "key": "kochi ernakulam"
+  },
+  {
+   "typed": "Pune 411001",
+   "basic": "pune 411001",
+   "key": "pune 411001"
+  }
+ ],
+ "groups": {
+  "brahmapur": [
+   "behrampur",
+   "berhampur",
+   "brahmapur",
+   "brahmpur"
+  ],
+  "delhi": [
+   "delhi",
+   "new delhi"
+  ],
+  "indore": [
+   "indore"
+  ],
+  "varanasi": [
+   "banaras",
+   "benares",
+   "varanasi"
+  ],
+  "bengaluru": [
+   "bangalore",
+   "bengalooru",
+   "bengaluru"
+  ]
+ }
+}

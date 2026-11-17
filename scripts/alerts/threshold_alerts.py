@@ -1,5 +1,6 @@
 """
-Daily check: has the petition, or any one place's city requests, reached a
+Fortnightly check (the 1st and 15th of each month, plus manual runs): has
+the petition, or any one place's city requests, reached a
 milestone? If so, open a GitHub issue -- once -- so GitHub emails you.
 
 WHY A GITHUB ISSUE. It needs no new service, no email account or password in
@@ -15,10 +16,12 @@ the issue re-arms that milestone.
 
 WHAT IS COUNTED
   petition     petition_count(): live (unexpired) signatures.
-  city         city_request_tally(): one row per live request, place as typed
-               plus an md5 fingerprint of the email. Places are matched by
-               scripts/alerts/place_names.py and each person counts once per
-               place. The address never leaves the database.
+  city         city_request_tally(): one row per live request -- place as
+               typed, the place_key the app stored for it (migration 29), and
+               an md5 fingerprint of the email. Places are matched on the
+               stored key plus lib/place-aliases.json (the same rule as the
+               form's public count), and each person counts once per place.
+               The address never leaves the database.
 
 WHAT IS NEVER WRITTEN to the issue or the log (the repo is PUBLIC): names,
 emails, or any place name typed by fewer than NEAR_MISS_MIN_COUNT people.
@@ -50,6 +53,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.alerts.place_names import (  # noqa: E402
     DEFAULT_NEAR_MISS_RATIO,
     display_name,
+    key_drift,
     load_aliases,
     near_misses,
     tally_places,
@@ -118,7 +122,7 @@ def due_alerts(
                 body=(
                     f"The petition has **{petition_count}** live signatures "
                     f"(milestone: {t}).\n\n"
-                    "Opened automatically by the daily threshold-alert job; it will "
+                    "Opened automatically by the threshold-alert job; it will "
                     "not be opened again for this milestone, even if closed."
                     f"{ping}\n\n{MARKER.format(key=key)}"
                 ),
@@ -149,8 +153,9 @@ def due_alerts(
                     "`scripts/alerts/place_names.py` and `lib/place-aliases.json`; "
                     "each person counts once."
                     f"{hint}\n\n"
-                    "To see the requests: `SELECT city, count(*) FROM city_requests "
-                    "GROUP BY city ORDER BY 2 DESC;` in the Supabase SQL editor."
+                    "To see the spellings: `SELECT place_key, city, count(*) FROM "
+                    "city_requests GROUP BY 1, 2 ORDER BY 1, 3 DESC;` in the Supabase "
+                    "SQL editor."
                     f"{ping}\n\n{MARKER.format(key=key)}"
                 ),
             ))
@@ -171,7 +176,7 @@ def due_alerts(
                         f"({round(r * 100)}% similar names). Together: **{combined}**, "
                         f"over the milestone of {t}; separately, neither is.\n\n"
                         "If they are the same place, add one as an alias of the other in "
-                        "`lib/place-aliases.json`; the next daily run then opens the "
+                        "`lib/place-aliases.json`; the next run then opens the "
                         "normal milestone issue. If they are different places, close this."
                         f"{ping}\n\n{MARKER.format(key=key)}"
                     ),
@@ -196,7 +201,7 @@ def truthy(value: Optional[str]) -> bool:
 # ─── Supabase ───────────────────────────────────────────────────────────────
 
 def fetch_counts(client: Any, aliases: Mapping[str, str]):
-    """(petition count, {place key: people})."""
+    """(petition count, {place key: people}, rows whose stored key drifted)."""
     petition = client.rpc("petition_count").execute().data or 0
     rows: List[Dict[str, str]] = []
     start = 0
@@ -211,7 +216,7 @@ def fetch_counts(client: Any, aliases: Mapping[str, str]):
         if len(page) < PAGE:
             break
         start += PAGE
-    return int(petition), tally_places(rows, aliases)
+    return int(petition), tally_places(rows, aliases), key_drift(rows)
 
 
 # ─── GitHub ─────────────────────────────────────────────────────────────────
@@ -251,7 +256,7 @@ class GitHub:
         r = self.http.post(
             f"{self.api}/repos/{self.repo}/labels",
             json={"name": LABEL, "color": "d93f0b",
-                  "description": "Opened by the daily threshold-alert job"},
+                  "description": "Opened by the threshold-alert job"},
             timeout=30,
         )
         return r.status_code in (201, 422)  # 422 = already exists
@@ -280,9 +285,14 @@ def main() -> int:
 
     from scripts.ingest.lib.supabase_client import make_client
 
-    petition, places = fetch_counts(make_client(), load_aliases())
+    petition, places, drift = fetch_counts(make_client(), load_aliases())
     print(f"Petition: {petition} live signatures (milestones {petition_thresholds})")
     print(f"City requests: {sum(places.values())} across {len(places)} places (milestones {city_thresholds})")
+    if drift:
+        # A count only, never the names (the log is public).
+        print(f"WARNING: {drift} request(s) have a stored place_key that differs from "
+              "scripts/alerts/place_names.py's rule; the public count and this job may "
+              "disagree for them. See key_drift() in place_names.py.")
     # Only places at or above the privacy floor are named in the (public) log.
     for place, n in sorted(places.items(), key=lambda kv: -kv[1]):
         if n >= min_count:

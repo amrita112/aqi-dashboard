@@ -98,7 +98,7 @@ describe("the route writes to city_requests, never to the petition", () => {
   beforeEach(() => {
     rpc.mockReset();
     rpc.mockImplementation((fn: string) =>
-      Promise.resolve(fn === "city_request_count" ? { data: 7, error: null } : { data: null, error: null }),
+      Promise.resolve(fn === "city_request_count_for" ? { data: 7, error: null } : { data: null, error: null }),
     );
   });
 
@@ -111,7 +111,7 @@ describe("the route writes to city_requests, never to the petition", () => {
     });
   const VALID = { name: "Meera", email: "Meera@Example.com", city: "Brahmapur, Odisha" };
 
-  it("calls request_city with exactly name, email and city", async () => {
+  it("calls request_city with name, email, city and the place key", async () => {
     const { POST } = await import("@/app/api/city-request/route");
     const res = await POST(post(VALID));
     expect(res.status).toBe(200);
@@ -120,6 +120,7 @@ describe("the route writes to city_requests, never to the petition", () => {
       p_name: "Meera",
       p_email: "meera@example.com",
       p_city: "Brahmapur, Odisha",
+      p_place_key: "brahmapur",
     });
     expect(rpc.mock.calls.some((c) => c[0] === "sign_petition")).toBe(false);
     const body = await res.json();
@@ -143,5 +144,86 @@ describe("the route writes to city_requests, never to the petition", () => {
     const { POST } = await import("@/app/api/city-request/route");
     const body = await (await POST(post(VALID))).json();
     expect(JSON.stringify(body)).not.toMatch(/example\.com/i);
+  });
+
+  it("counts every spelling of the place, after submitting too", async () => {
+    const { POST } = await import("@/app/api/city-request/route");
+    await POST(post({ ...VALID, city: "Berhampur" }));
+    const count = rpc.mock.calls.find((c) => c[0] === "city_request_count_for");
+    expect(count?.[1]).toEqual({ p_keys: ["behrampur", "berhampur", "brahmapur", "brahmpur"] });
+    // The stored key is the spelling's own (pre-alias) key.
+    expect(rpc.mock.calls.find((c) => c[0] === "request_city")?.[1].p_place_key).toBe("berhampur");
+    // The old exact-spelling count is not used any more.
+    expect(rpc.mock.calls.some((c) => c[0] === "city_request_count")).toBe(false);
+  });
+
+  it("refuses a city with nothing left after normalising", async () => {
+    const { POST } = await import("@/app/api/city-request/route");
+    const res = await POST(post({ ...VALID, city: ",,," }));
+    expect(res.status).toBe(400);
+    expect(rpc.mock.calls.some((c) => c[0] === "request_city")).toBe(false);
+  });
+});
+
+describe("the live count while typing", () => {
+  beforeEach(() => {
+    rpc.mockReset();
+    rpc.mockResolvedValue({ data: 12, error: null });
+  });
+  const get = (city: string) =>
+    new Request(`http://localhost/api/city-request?city=${encodeURIComponent(city)}`);
+
+  it("asks for the same set of keys whichever spelling is typed", async () => {
+    const { GET } = await import("@/app/api/city-request/route");
+    for (const typed of ["Brahmapur", "Brahmapur, Odisha", "BERHAMPUR", "Brahmapur (Odisha)"]) {
+      rpc.mockClear();
+      const body = await (await GET(get(typed))).json();
+      expect(body.data.count).toBe(12);
+      expect(rpc).toHaveBeenCalledTimes(1);
+      expect(rpc).toHaveBeenCalledWith("city_request_count_for", {
+        p_keys: ["behrampur", "berhampur", "brahmapur", "brahmpur"],
+      });
+    }
+  });
+
+  it("answers 0 for punctuation without asking the database", async () => {
+    const { GET } = await import("@/app/api/city-request/route");
+    const body = await (await GET(get("!!!"))).json();
+    expect(body.data.count).toBe(0);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("reports a database failure as an error, not as zero", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "boom" } });
+    const { GET } = await import("@/app/api/city-request/route");
+    expect((await GET(get("Indore"))).status).toBe(502);
+  });
+});
+
+describe("migration 29 counts per place without exposing the rows", () => {
+  const read = async () =>
+    (await import("node:fs/promises")).readFile("database-setup/29-city-request-place-keys.sql", "utf8");
+
+  it("backfills, then requires, a key on every request", async () => {
+    const sql = await read();
+    expect(sql).toContain("UPDATE city_requests SET place_key = city_place_key_fallback(city)");
+    expect(sql).toContain("ALTER COLUMN place_key SET NOT NULL");
+    expect(sql).toMatch(/^BEGIN;$/m);
+    expect(sql).toMatch(/^COMMIT;$/m);
+  });
+
+  it("counts distinct people, returns only a number, and is the only new public door", async () => {
+    const sql = await read();
+    const fn = sql.slice(sql.indexOf("CREATE FUNCTION city_request_count_for"));
+    expect(fn).toContain("RETURNS INTEGER");
+    expect(fn).toContain("SECURITY DEFINER");
+    expect(fn).toContain("count(DISTINCT email)");
+    expect(fn).toContain("expires_at > now()");
+    expect(sql).toContain("GRANT EXECUTE ON FUNCTION city_request_count_for(TEXT[]) TO anon, authenticated");
+    // No table grants or policies for the public roles.
+    expect(sql).not.toMatch(/CREATE POLICY/);
+    expect(sql).not.toMatch(/GRANT [A-Z, ]+ ON (TABLE )?city_requests/);
+    // The alert job's read stays service-only.
+    expect(sql).toContain("REVOKE ALL ON FUNCTION city_request_tally() FROM PUBLIC, anon, authenticated");
   });
 });
