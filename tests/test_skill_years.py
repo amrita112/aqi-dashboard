@@ -184,3 +184,59 @@ def test_refit_stores_the_multi_year_table(three_stations):
     assert fit["modes"][["data_age_days", "horizon_days", "model", "mode"]].equals(
         want[["data_age_days", "horizon_days", "model", "mode"]])
     assert fit["modes"].n_years.min() == 7
+
+
+# ── per-city first test year (Delhi from 2019, decided 17 Nov 2026) ─────────
+
+def test_delhi_starts_at_2019_by_default():
+    assert B.SKILL_FIRST_TEST_YEAR_BY_CITY == {"Delhi": 2019}
+
+
+def test_city_range_combines_with_the_global_range():
+    first = {"Delhi": 2019}
+    assert B.city_test_year_range("Delhi", None, first) == (2019, 9999)
+    assert B.city_test_year_range("Delhi", (2017, 2023), first) == (2019, 2023)
+    assert B.city_test_year_range("Delhi", (2020, 2023), first) == (2020, 2023)
+    assert B.city_test_year_range("Pune", (2017, 2023), first) == (2017, 2023)
+    assert B.city_test_year_range("Pune", None, first) is None
+    lo, hi = B.city_test_year_range("Delhi", (2016, 2018), first)
+    assert lo > hi                              # empty: nothing tested
+
+
+def test_delhi_skill_years_start_at_2019_other_cities_unchanged(three_stations):
+    delhi = B.station_skill_years(frame(three_stations, city="Delhi"), "Delhi",
+                                  data_ages=(1,), horizons=(1,))
+    assert delhi["summary"].test_years.iat[0] == "2019,2020,2021,2022,2023,2024"
+    assert delhi["eligible"].test_year.min() == 2019
+    pune = B.station_skill_years(frame(three_stations, city="Pune"), "Pune",
+                                 data_ages=(1,), horizons=(1,))
+    assert pune["summary"].test_years.iat[0].startswith("2018,")
+
+
+def test_delhi_combined_with_global_range_and_override(three_stations):
+    st = frame(three_stations, city="Delhi")
+    res = B.station_skill_years(st, "Delhi", data_ages=(1,), horizons=(1,),
+                                year_range=(2017, 2021))
+    assert res["summary"].test_years.iat[0] == "2019,2020,2021"
+    off = B.station_skill_years(st, "Delhi", data_ages=(1,), horizons=(1,),
+                                first_test_year_by_city={})
+    assert off["summary"].test_years.iat[0].startswith("2018,")
+
+
+def test_delhi_city_fallback_also_starts_at_2019():
+    s = seasonal_ar(seed=3).rename("Delhi")
+    res = B.city_skill_years(s, data_ages=(1,), horizons=(1,))
+    assert res["summary"].test_years.iat[0].split(",")[0] == "2019"
+
+
+@pytest.mark.parametrize("pollutant", ["pm25", "aqi"])
+def test_refit_prints_delhi_test_years_from_2019(three_stations, pollutant, capsys):
+    from scripts.forecast import refit_params as rp
+    st = frame(three_stations, city="Delhi")
+    series = seasonal_ar(seed=9).values
+    daily = pd.DataFrame({"city_name": "Delhi", "d": IDX, "pm25": series, "n_stations": 3})
+    daily_aqi = pd.DataFrame({"city": "Delhi", "d": IDX, "aqi": series})
+    fit = rp.fit_city("Delhi", pollutant, daily, daily_aqi, None, station_hist=st)
+    out = capsys.readouterr().out
+    assert f"Delhi/{pollutant}: skill measured on test years 2019,2020," in out
+    assert fit["modes"].n_years.min() == 6

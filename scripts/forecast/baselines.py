@@ -1439,7 +1439,8 @@ def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
 #   - Y's test season (SKILL_TEST_MONTHS: Jan and Oct-Dec of Y) has ended
 #     inside the data -- a half-finished season scores only its cleaner half;
 #   - it has at least SKILL_MIN_TEST_DAYS test-season days of its own;
-#   - Y is inside SKILL_TEST_YEAR_RANGE, if one is set.
+#   - Y is inside SKILL_TEST_YEAR_RANGE, if one is set, and not before the
+#     city's SKILL_FIRST_TEST_YEAR_BY_CITY entry, if it has one.
 # A year counts for a CITY when at least SKILL_MIN_STATIONS_PER_YEAR stations
 # qualify: the median of one station is that station, not a city.
 
@@ -1458,6 +1459,34 @@ SKILL_TEST_MONTHS: Tuple[int, ...] = SEASON_MONTHS
 
 # Optional (first, last) test year, inclusive; None tests every eligible year.
 SKILL_TEST_YEAR_RANGE: Optional[Tuple[int, int]] = None
+
+# Per-city first test year, on top of SKILL_TEST_YEAR_RANGE (the later of the
+# two starts wins; the global last year still applies). Applies to every
+# pollutant of that city. Cities not listed use the global rule unchanged.
+#   Delhi: 2019 (decided 17 Nov 2026). Delhi's 2016-2018 test years pass the
+#   rule but rest on only 2-5 stations, so a "city" year there is a handful of
+#   monitors standing in for a city that later has dozens.
+SKILL_FIRST_TEST_YEAR_BY_CITY: Dict[str, int] = {"Delhi": 2019}
+
+
+def city_test_year_range(city: str,
+                         year_range: Optional[Tuple[int, int]] = SKILL_TEST_YEAR_RANGE,
+                         first_by_city: Optional[Dict[str, int]] = None
+                         ) -> Optional[Tuple[int, int]]:
+    """The (first, last) test-year range for `city`: the global range with the
+    city's own first year (SKILL_FIRST_TEST_YEAR_BY_CITY) applied on top.
+
+    None means no limit. A city first year later than the global last year
+    gives an empty range (first > last), so no year is tested.
+    """
+    if first_by_city is None:
+        first_by_city = SKILL_FIRST_TEST_YEAR_BY_CITY
+    first = first_by_city.get(city)
+    if first is None:
+        return year_range
+    if year_range is None:
+        return (int(first), 9999)
+    return (max(int(year_range[0]), int(first)), year_range[1])
 
 # As in model_skill_table: under 40 season days a year's skill is noise.
 SKILL_MIN_TEST_DAYS = 40
@@ -1523,7 +1552,9 @@ def skill_by_test_year(series_by_station: Dict[str, pd.Series], city: str,
                        year_range: Optional[Tuple[int, int]] = SKILL_TEST_YEAR_RANGE,
                        min_test_days: int = SKILL_MIN_TEST_DAYS,
                        min_stations_per_year: int = SKILL_MIN_STATIONS_PER_YEAR,
-                       quantiles: Iterable[int] = (50, 80)) -> Dict[str, pd.DataFrame]:
+                       quantiles: Iterable[int] = (50, 80),
+                       first_test_year_by_city: Optional[Dict[str, int]] = None
+                       ) -> Dict[str, pd.DataFrame]:
     """Skill of each served model on EVERY eligible test year, and the median.
 
     Returns a dict of DataFrames:
@@ -1563,7 +1594,14 @@ def skill_by_test_year(series_by_station: Dict[str, pd.Series], city: str,
     itself would leak it into the score, so the mismatch is the honest choice;
     its size is the change in alpha from adding more years, usually a few
     hundredths. The notebook shows the per-year alphas next to the served one.
+
+    PER-CITY FIRST YEAR. `year_range` is combined with the city's entry in
+    SKILL_FIRST_TEST_YEAR_BY_CITY (or `first_test_year_by_city`, if given; pass
+    {} to switch the per-city rule off) -- see city_test_year_range.
     """
+    # The city's own first test year (SKILL_FIRST_TEST_YEAR_BY_CITY, or the
+    # first_test_year_by_city override) narrows the global year_range.
+    year_range = city_test_year_range(city, year_range, first_test_year_by_city)
     rule = dict(min_prior_years=min_prior_years, full_year_min_days=full_year_min_days,
                 months=months, year_range=year_range, min_test_days=min_test_days)
     months = tuple(months)

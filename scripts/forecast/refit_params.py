@@ -82,7 +82,8 @@ MIN_HISTORY_DAYS = 365
 # is every year with at least two full years of data before it whose season has
 # finished, and the median across those years decides. The rule and its knobs
 # (SKILL_MIN_PRIOR_YEARS, SKILL_FULL_YEAR_MIN_DAYS, SKILL_TEST_MONTHS,
-# SKILL_TEST_YEAR_RANGE, SKILL_MIN_STATIONS_PER_YEAR) live in baselines.py next
+# SKILL_TEST_YEAR_RANGE, SKILL_FIRST_TEST_YEAR_BY_CITY -- Delhi from 2019 --,
+# SKILL_MIN_STATIONS_PER_YEAR) live in baselines.py next
 # to the function that applies them, so the notebook and the refit share them.
 
 CLIMATOLOGY_LEN = 367   # index 1..366; element 0 unused so day-of-year indexes directly
