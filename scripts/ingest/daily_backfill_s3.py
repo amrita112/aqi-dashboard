@@ -22,8 +22,21 @@ Env vars required:
     SUPABASE_SERVICE_ROLE_KEY
 
 Optional:
-    BACKFILL_DATE=2026-08-13   # override which date to fetch (default: yesterday UTC)
+    BACKFILL_DATE=2026-08-13   # override which date's files to fetch (default: 7 days ago)
     DRY_RUN=1                  # print what would be inserted without writing
+
+Timestamps (fixed 2026-11-16). Every value OpenAQ publishes is an AVERAGE over
+a short period, e.g. 17:45-18:00 UTC. The live API (ingest_recent_readings.py)
+labels it with the period START, 17:45; the S3 archive labels the same average
+with the period END, 18:00. We store the START everywhere, so this job
+subtracts one averaging period from each S3 timestamp (see period_start_utc).
+Before the fix it stored the END unchanged, so each S3 copy sat one slot later
+than the live copy of the same measurement. That produced ~1% duplicate
+readings (mostly at 18:00 UTC, the slot neither source fills itself) and
+attached some backfilled values to the neighbouring reading. Rows stored
+before the fix are LEFT AS THEY ARE, by decision: the effect on daily means is
+negligible and deleting raw rows is not reversible. Evidence:
+docs/investigations/2026-11-timestamp-duplicates.md (local, not in git).
 """
 
 from __future__ import annotations
@@ -41,6 +54,7 @@ from scripts.ingest.lib.aqi_rule import composite_aqi
 from scripts.ingest.lib.aqi_utils import convert_to_canonical
 from scripts.ingest.lib.supabase_client import canonical_ts
 from scripts.ingest.lib.config import (
+    DEFAULT_S3_PERIOD_MINUTES,
     OPENAQ_S3_BASE,
     TARGET_POLLUTANTS,
     TARGET_STATIONS_PATH,
@@ -83,8 +97,75 @@ def fetch_station_day(location_id: int, day: date) -> pd.DataFrame:
     return pd.read_csv(io.BytesIO(r.content), compression="gzip")
 
 
+def infer_period_minutes(
+    csv_df: pd.DataFrame, default_minutes: float = DEFAULT_S3_PERIOD_MINUTES
+) -> pd.Series:
+    """How long each row's averaging period is, in minutes (one value per row).
+
+    The S3 file does not say how long each average covers, so we measure it:
+    a sensor that reports every 15 minutes has timestamps 15 minutes apart. For
+    each sensor we take the MEDIAN gap between its consecutive timestamps. The
+    median (rather than the smallest or average gap) shrugs off the odd missing
+    slot: a 15-minute sensor with a few gaps of 30 or 45 minutes still comes
+    out at 15.
+
+    Fallbacks, in order, when a sensor has only one row in the file:
+      1. the median period of the OTHER sensors at the same station (stations
+         generally run all their instruments on one cadence), then
+      2. `default_minutes` (DEFAULT_S3_PERIOD_MINUTES in config.py).
+
+    We deliberately do not use repeated values (e.g. PM2.5 sitting at the same
+    number for four slots) as evidence of an hourly sensor: some stations hold
+    a value across slots for other reasons, and spacing is the direct measure.
+
+    Expects a `ts_end` column (parsed UTC timestamps). Groups by `sensors_id`
+    when the file has one (it always does in the OpenAQ archive), otherwise by
+    `parameter`.
+    """
+    key = "sensors_id" if "sensors_id" in csv_df.columns else "parameter"
+
+    def median_gap(ts: pd.Series) -> float:
+        # Unique + sorted so duplicates and file order cannot create 0 gaps.
+        gaps = ts.drop_duplicates().sort_values().diff().dropna()
+        gaps = gaps[gaps > pd.Timedelta(0)]
+        if gaps.empty:
+            return float("nan")   # single timestamp: cannot be measured
+        return gaps.median() / pd.Timedelta(minutes=1)
+
+    per_sensor = csv_df.groupby(key)["ts_end"].apply(median_gap)
+    measured = per_sensor.dropna()
+    station_fallback = float(measured.median()) if not measured.empty else float(default_minutes)
+    per_sensor = per_sensor.fillna(station_fallback)
+    return csv_df[key].map(per_sensor).astype(float)
+
+
+def period_start_utc(
+    csv_df: pd.DataFrame, default_minutes: float = DEFAULT_S3_PERIOD_MINUTES
+) -> pd.Series:
+    """Convert the S3 `datetime` column (period END, local +05:30) to the
+    period START in UTC -- the same instant the live API stores.
+
+    Real example, Anand Vihar NO2 on 8 Nov 2026: the live API sends
+    42.7 ppb for 17:45-18:00 UTC and we store 17:45. The S3 file has the same
+    42.7 at "2026-11-08T23:30:00+05:30" = 18:00 UTC. 18:00 minus the measured
+    15-minute period = 17:45, so both sources now land on one reading.
+
+    Rows with an unparseable datetime come back as NaT; the caller drops them.
+    """
+    df = csv_df.copy()
+    df["ts_end"] = pd.to_datetime(df["datetime"], utc=True, errors="coerce")
+    valid = df["ts_end"].notna()
+    minutes = pd.Series(float("nan"), index=df.index)
+    if valid.any():
+        minutes[valid] = infer_period_minutes(df[valid], default_minutes)
+    return df["ts_end"] - pd.to_timedelta(minutes, unit="m")
+
+
 def rows_to_ingest(
-    csv_df: pd.DataFrame, monitor_id: str, admin_user_id: str
+    csv_df: pd.DataFrame,
+    monitor_id: str,
+    admin_user_id: str,
+    default_period_minutes: float = DEFAULT_S3_PERIOD_MINUTES,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Turn a day-CSV into a set of readings + measurements rows.
 
@@ -98,8 +179,17 @@ def rows_to_ingest(
     if csv_df.empty:
         return [], []
 
-    # Normalize + filter
     csv_df = csv_df.copy()
+    # Period START in UTC (see period_start_utc). Done BEFORE filtering to our
+    # pollutants on purpose: the other instruments in the file (temperature,
+    # wind, CO...) help measure the station's reporting cadence when one of
+    # our pollutants has only a single row.
+    csv_df["ts_utc"] = period_start_utc(csv_df, default_period_minutes)
+    csv_df = csv_df.dropna(subset=["ts_utc"])
+    if csv_df.empty:
+        return [], []
+
+    # Normalize + filter
     csv_df["pollutant"] = csv_df["parameter"].str.lower().replace({"pm2.5": "pm25"})
     csv_df = csv_df[csv_df.pollutant.isin(TARGET_POLLUTANTS)]
     if csv_df.empty:
@@ -119,10 +209,6 @@ def rows_to_ingest(
     csv_df = csv_df[csv_df["value_canonical"] >= 0]
     if csv_df.empty:
         return [], []
-
-    # Timestamps come in local TZ per file; normalize to UTC.
-    csv_df["ts_utc"] = pd.to_datetime(csv_df["datetime"], utc=True, errors="coerce")
-    csv_df = csv_df.dropna(subset=["ts_utc"])
 
     # Preserve the station's lat/lng (constant per file) for readings rows.
     latitude  = float(csv_df.iloc[0]["lat"])
@@ -187,41 +273,63 @@ def link_measurements_to_readings(
         k = f"{r['monitor_id']}:{canonical_ts(r['recorded_at'])}"
         key_to_uuid[k] = r["id"]
     linked = []
+    unlinked = 0
     for m in measurements_placeholder:
         rid = key_to_uuid.get(m["_reading_key"])
         if rid is None:
-            continue   # shouldn't happen but be defensive
+            # Means the lookup window missed this reading. It used to happen
+            # silently for the first ~4.75h of every file (UTC-day lookup vs
+            # an India-day file); lookup_bounds now covers the file's real
+            # span, so this should stay at zero. Counted below, not hidden.
+            unlinked += 1
+            continue
         row = {k: v for k, v in m.items() if not k.startswith("_")}
         row["reading_id"] = rid
         linked.append(row)
+    if unlinked:
+        print(f"  WARNING: {unlinked} measurements had no matching reading and were skipped")
     return linked
 
 
+def lookup_bounds(readings_rows: List[Dict[str, Any]]) -> Tuple[str, str] | None:
+    """Earliest and latest recorded_at among the readings built from one file.
+
+    The lookup of already-stored readings must cover exactly the instants this
+    file touches. It used to use the UTC day (00:00-24:00 UTC), but a file
+    holds an India day (about 19:00 UTC the previous day to 18:00 UTC), so the
+    first ~4.75 hours were outside the window and their measurements were
+    dropped whenever the reading already existed. Returns None for no rows.
+    Both ends are inclusive.
+    """
+    if not readings_rows:
+        return None
+    stamps = sorted(canonical_ts(r["recorded_at"]) for r in readings_rows)
+    # canonical_ts gives one fixed format in UTC, so string order == time order.
+    return stamps[0], stamps[-1]
+
+
 def fetch_existing_readings_for_lookup(
-    client, monitor_ids: List[str], day: date
+    client, monitor_ids: List[str], start_iso: str, end_iso: str
 ) -> List[Dict[str, Any]]:
-    """Query readings we already have for these monitors on this day.
+    """Query readings we already have for these monitors in [start, end].
 
     Needed because upsert(ignore_duplicates=True) returns only the newly
     inserted rows — we still need reading_ids for the pre-existing readings
     so we can attach measurements to them.
+
+    start/end come from lookup_bounds(): the real UTC span of the file's
+    (period-start) timestamps, both inclusive. Not a UTC day -- see
+    lookup_bounds for why that was wrong.
     """
     if not monitor_ids:
         return []
-    # UTC deliberately, and the only place in the pipeline that stays UTC.
-    # OpenAQ partitions its S3 archive by UTC date, so this is reading the
-    # source's filing system, not choosing our calendar. The readings it
-    # writes carry their own recorded_at; rollup_daily regroups them onto IST
-    # days afterwards. See the time-base note in scripts/ingest/lib/config.py.
-    day_start = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc)
-    day_end   = day_start + timedelta(days=1)
     result = (
         client.table("readings")
               .select("id, monitor_id, recorded_at")
               .in_("monitor_id", monitor_ids)
               .eq("source", "openaq")
-              .gte("recorded_at", day_start.isoformat())
-              .lt("recorded_at", day_end.isoformat())
+              .gte("recorded_at", start_iso)
+              .lte("recorded_at", end_iso)
               .execute()
     )
     return result.data or []
@@ -280,9 +388,11 @@ def main() -> None:
             total_measurements += len(meas_placeholder)
         else:
             newly_inserted = upsert_readings(client, readings)
-            # Get UUIDs for pre-existing readings too so we can link measurements
+            # Get UUIDs for pre-existing readings too so we can link
+            # measurements. The window is this file's own span, not a UTC day.
+            start_iso, end_iso = lookup_bounds(readings)
             existing_all = fetch_existing_readings_for_lookup(
-                client, [station["monitor_id"]], target_day
+                client, [station["monitor_id"]], start_iso, end_iso
             )
             linked = link_measurements_to_readings(meas_placeholder, newly_inserted, existing_all)
             m_inserted = upsert_measurements(client, linked)

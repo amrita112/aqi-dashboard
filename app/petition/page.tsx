@@ -31,6 +31,7 @@
  */
 
 import PetitionForm from "@/components/PetitionForm";
+import { CONTACT_EMAIL } from "@/lib/brand";
 import { PETITION_PURPOSE } from "@/lib/api/petition";
 import { createClient } from "@/lib/supabase/server";
 
@@ -150,8 +151,11 @@ export default async function PetitionPage() {
       </div>
 
       <p className="mt-8 text-sm text-gray-500">
-        Already signed and want your name removed? Use the code you were shown, or email us
-        and we will do it.
+        Already signed and want your name removed? Email{" "}
+        <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-700 underline">
+          {CONTACT_EMAIL}
+        </a>{" "}
+        and we will delete it.
       </p>
     </main>
   );

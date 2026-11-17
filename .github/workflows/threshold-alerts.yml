@@ -1,0 +1,88 @@
+name: Petition and city-request milestone alerts
+
+# Twice a month (the 1st and the 15th), checks whether the petition has
+# reached 100 signatures, or any one place has reached 50 "add my city"
+# requests. When a milestone is first reached it opens a GitHub issue, and
+# GitHub emails the repo owner about it (the issue also @mentions the owner,
+# which notifies even if "watching" is turned down). Each milestone is
+# announced ONCE: the job skips any milestone that already has an issue, open
+# or closed. Deleting that issue re-arms it.
+#
+# Spelling variants of a place ("Brahmapur, Odisha", "Berhampur") are counted
+# together, by the same rule as the live count in the app's city-request form:
+# scripts/alerts/place_names.py, lib/place-names.ts and lib/place-aliases.json.
+#
+# THE REPO IS PUBLIC, so issues and this job's log are public. The job never
+# writes names or emails, and names a place only once at least
+# near_miss_min_count people have asked for it.
+#
+# No settings to change: the token below is GitHub's own per-run token, and
+# `permissions` grants it issue-writing for this workflow only. The Supabase
+# secrets are the ones the other jobs already use.
+#
+# TRY IT: Actions -> this workflow -> Run workflow. Dry run is on by default
+# for manual runs (prints what it would open). To see a real issue and email,
+# run with dry_run = false and petition_thresholds = 1; that opens "Petition
+# reached 1 signature" once, and leaves the 100 milestone untouched.
+
+on:
+  schedule:
+    # Roughly fortnightly: 06:30 UTC (= 12:00 IST) on the 1st and the 15th of
+    # every month. GitHub's schedule is a cron expression, and cron has no way
+    # to say "every 14 days" -- it can only name days of the month or of the
+    # week. "1st and 15th" is the nearest fixed rule: gaps of 14-16 days.
+    # (Every other Monday would need a date check inside the job; not worth it.)
+    # Manual runs (workflow_dispatch below) are always available in between.
+    - cron: '30 6 1,15 * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: print what would be opened, open nothing (true/false)'
+        required: false
+        default: 'true'
+      petition_thresholds:
+        description: 'Petition milestones, comma-separated (blank = 100)'
+        required: false
+        default: ''
+      city_thresholds:
+        description: 'Requests-per-place milestones, comma-separated (blank = 50)'
+        required: false
+        default: ''
+      near_miss_min_count:
+        description: 'Only name places with at least this many requests (blank = 3)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scripts/ingest/requirements.txt'
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/ingest/requirements.txt
+
+      - name: Check milestones
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GITHUB_TOKEN:              ${{ secrets.GITHUB_TOKEN }}
+          # Scheduled runs have no inputs: real run, default milestones.
+          DRY_RUN:                   ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
+          PETITION_THRESHOLDS:       ${{ github.event.inputs.petition_thresholds }}
+          CITY_REQUEST_THRESHOLDS:   ${{ github.event.inputs.city_thresholds }}
+          NEAR_MISS_MIN_COUNT:       ${{ github.event.inputs.near_miss_min_count }}
+          ALERT_MENTION:             ${{ github.repository_owner }}
+          PYTHONUNBUFFERED:          '1'
+        run: python -m scripts.alerts.threshold_alerts

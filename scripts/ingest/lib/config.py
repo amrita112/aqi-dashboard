@@ -95,6 +95,21 @@ OPENAQ_COUNTRY_ID_INDIA = 9   # v3 country_id (was 27 in v2)
 OPENAQ_API_BASE = "https://api.openaq.org/v3"
 OPENAQ_S3_BASE  = "https://openaq-data-archive.s3.amazonaws.com"
 
+# Fallback averaging period (minutes) for S3 archive rows, used only when it
+# cannot be measured from the file itself.
+#
+# WHY IT MATTERS. A pollution "reading" is an average over a period, e.g.
+# 17:45-18:00. The live API labels that average with the period START (17:45);
+# the S3 archive labels the very same average with the period END (18:00). We
+# store the START, so the S3 backfill has to subtract one period. Normally
+# daily_backfill_s3.infer_period_minutes measures the period from the spacing
+# of a sensor's own timestamps (15 minutes for most CPCB/DPCC stations, 60 for
+# hourly ones). This constant is only reached when a sensor has a single row in
+# the file AND no other sensor at the same station has enough rows either.
+# 15 is chosen because every station checked in Nov 2026 reported 15-minute
+# averages; pass default_period_minutes to override.
+DEFAULT_S3_PERIOD_MINUTES = 15
+
 # ─── Environment variables (validated at script start) ──────────────────────
 
 def get_env(name: str, required: bool = True) -> str:
@@ -144,9 +159,14 @@ def which_city(lat: float, lng: float) -> str | None:
 # day-to-day change) between the climatology and the observation it is
 # subtracted from. Measured 2026-09-22.
 #
-# The one deliberate exception is which S3 FILES to fetch: OpenAQ partitions
-# its archive by UTC date, so daily_backfill_s3.py asks for UTC days. That is
-# reading the source's filing system, not choosing our own calendar.
+# Which S3 FILE to fetch is a filing-system question, not a calendar choice.
+# Each S3 file is named by a date, and (checked 2026-11-16 against Anand Vihar,
+# Pusa) it holds roughly that INDIA day, not that UTC day: the file named
+# 20261108 runs from 19:15 UTC on 7 Nov to 18:00 UTC on 8 Nov (00:45-23:30
+# IST, stamped as period END). An earlier version of this note said the
+# archive was split by UTC date; it is not. daily_backfill_s3.py therefore
+# works out each file's real UTC span from the rows inside it rather than
+# assuming a UTC midnight-to-midnight day.
 
 IST = timezone(timedelta(hours=5, minutes=30))
 

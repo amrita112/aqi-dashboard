@@ -4,10 +4,11 @@
  * WRITTEN FROM THE CODE, not from a template. Every claim below corresponds to
  * something checkable: the localStorage keys are the ones in lib/prefs.ts and
  * lib/ask-count.ts, the two-year retention is the DEFAULT on
- * petition_signatures.expires_at, the ninety days is in
- * purge_old_usage_events(), and "no SELECT policy" is literally true of that
- * table. A privacy page that cannot be checked against the source is a
- * statement of intent; this one is a description.
+ * petition_signatures.expires_at and city_requests.expires_at, the ninety days
+ * is in purge_old_usage_events(), and "no read permission" is literally true
+ * of both tables (no SELECT policy; migration 28 for city_requests). A privacy
+ * page that cannot be checked against the source is a statement of intent;
+ * this one is a description.
  *
  * The thing it exists to say, which nothing in the app said before: a question
  * typed into the Ask box leaves this app. It goes to a third party, with the
@@ -123,27 +124,28 @@ export default function PrivacyPage() {
           along with what you were told you were agreeing to at the time.
         </p>
         <p>
-          <strong>Nobody can read that list through this app.</strong> The table has
-          no read permission of any kind — the public count comes from a function
-          that returns a number and nothing else. Your name is never shown beside a
+          <strong>Nobody can read that list through this app.</strong> Petition
+          signatures and city requests are kept in two separate tables, and
+          neither has read permission of any kind — the public counts come from
+          functions that return a number and nothing else. Your name is never shown beside a
           count.
         </p>
         <p>
-          Rows are deleted automatically after {RETENTION_YEARS} years. You can
-          delete yours sooner with the withdrawal code shown when you signed, which
-          removes the row rather than marking it hidden. Lost the code? Write to{" "}
+          Rows are deleted automatically after {RETENTION_YEARS} years. To have
+          yours deleted sooner, write to{" "}
           <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-700 underline">
             {CONTACT_EMAIL}
           </a>
-          .
+          . We delete the row itself, rather than marking it hidden.
         </p>
       </Section>
 
       <Section title="Counting how the app is used">
         <p>
-          We record three things: that the app was installed, which of the AI&apos;s
-          tools answered a question, and that a question could not be answered along
-          with the reason. Each is stored as one short word.
+          We record four things: that the app was installed, which of the AI&apos;s
+          tools answered a question, that a question could not be answered along
+          with the reason, and that the installed app was opened from your home
+          screen. Each is stored as one short word.
         </p>
         <p>
           No identifier of any kind is attached — no account, no session, no device
@@ -151,6 +153,13 @@ export default function PrivacyPage() {
           deliberate: we can see that forty questions were answered this week and we
           can never tell whether that was forty people or one. These counts are
           deleted after 90 days.
+        </p>
+        <p>
+          For the home-screen count, your phone keeps the date it installed the app,
+          in its own storage. At most once a day it tells us only roughly how long
+          ago that was — the same day, within a week, within a month, or longer. The
+          date itself never leaves your phone, and <strong>Reset everything</strong>{" "}
+          in Settings clears it.
         </p>
         <p>
           Page views are counted by Vercel Analytics, which is cookieless and stores
@@ -187,8 +196,7 @@ export default function PrivacyPage() {
           Under India&apos;s Digital Personal Data Protection Act you can ask what we
           hold about you, ask for it to be corrected, and withdraw your consent. For
           anything on your device, you do not need us: <strong>Reset everything</strong>{" "}
-          in Settings. For a petition signature or a city request, use your
-          withdrawal code, or write to{" "}
+          in Settings. For a petition signature or a city request, write to{" "}
           <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-700 underline">
             {CONTACT_EMAIL}
           </a>

@@ -14,13 +14,21 @@
  * in India and we add it. A vague "we'll consider it" would cost nothing and
  * mean nothing.
  *
- * The count is public; the people are not. petition_signatures has no SELECT
- * policy, and the count comes from a SECURITY DEFINER function that returns an
- * integer, so "47 people have asked" is sayable without anyone being able to
- * ask who.
+ * The count is public; the people are not. Requests are stored in their own
+ * table, city_requests (migration 28), which the public key cannot read, and
+ * the count comes from a SECURITY DEFINER function that returns an integer, so
+ * "47 people have asked" is sayable without anyone being able to ask who.
+ *
+ * The count is PER PLACE, not per spelling (migration 29): "Brahmapur",
+ * "Brahmapur, Odisha" and "Berhampur" show the same number, each person
+ * counted once -- the same matching the milestone alert uses
+ * (lib/place-names.ts). The matching happens in the route; this form only
+ * sends what was typed and shows the number that comes back, both while
+ * typing and after submitting.
  */
 
 import { useEffect, useState } from "react";
+import { CONTACT_EMAIL } from "@/lib/brand";
 
 type State =
   | { status: "idle" }
@@ -131,7 +139,7 @@ export default function CityRequestForm({ threshold = 50 }: { threshold?: number
           <p className="text-xs text-gray-600">
             {count === 0
               ? "Nobody has asked for this one yet. You would be first."
-              : `${count} ${count === 1 ? "person has" : "people have"} already asked for this.`}
+              : `${count} ${count === 1 ? "person has" : "people have"} already asked for this place (any spelling).`}
           </p>
         )}
         <input
@@ -175,7 +183,12 @@ export default function CityRequestForm({ threshold = 50 }: { threshold?: number
 
       <p className="mt-3 text-xs text-gray-500">
         Your email is used only to tell you when your city is added, and is deleted with the
-        request. The count for each city is public; who asked is not.
+        request. The count for each city is public; who asked is not. To withdraw your
+        request, email{" "}
+        <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
+          {CONTACT_EMAIL}
+        </a>
+        .
       </p>
     </form>
   );

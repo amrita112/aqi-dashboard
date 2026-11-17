@@ -1261,21 +1261,27 @@ def model_skill_table(series: pd.Series, test_year: int,
                       data_ages: Iterable[int] = MODE_DATA_AGES,
                       horizons: Iterable[int] = FORECAST_HORIZONS,
                       models: Iterable[str] = SERVED_MODELS,
-                      quantiles: Iterable[int] = (50, 80)) -> pd.DataFrame:
+                      quantiles: Iterable[int] = (50, 80),
+                      months: Iterable[int] = SEASON_MONTHS,
+                      keep_residuals: bool = False) -> pd.DataFrame:
     """Every served model's skill at every (data age, horizon), one series.
 
     One row per (data age, horizon, model). Trained on years before
-    `test_year`, scored on the pollution season of `test_year`, against
-    climatology. The prediction is model.predict -- the same function nightly
-    serves with -- and blend's alpha is fitted at the EFFECTIVE horizon
-    (age + h), which is also the alpha nightly serves (model.alpha_for).
+    `test_year`, scored on the `months` (default: the pollution season, Jan and
+    Oct-Dec) of `test_year`, against climatology. The prediction is
+    model.predict -- the same function nightly serves with -- and blend's alpha
+    is fitted at the EFFECTIVE horizon (age + h), which is also the alpha
+    nightly serves (model.alpha_for).
 
     The band columns are RATIOS of the forecast, so one number works at
-    Delhi's 200 ug/m3 and Bengaluru's 30.
+    Delhi's 200 ug/m3 and Bengaluru's 30. With keep_residuals=True each row
+    also carries `rel_err`, the array those band quantiles were taken from, so
+    a caller can pool the band over several test years (skill_by_test_year).
     """
+    months = tuple(months)
     train = series[series.index.year < test_year].dropna()
     test = series[series.index.year == test_year].dropna()
-    test = test[test.index.month.isin(SEASON_MONTHS)]
+    test = test[test.index.month.isin(months)]
     if len(train) < 300 or len(test) < 40:
         return pd.DataFrame()
 
@@ -1286,13 +1292,20 @@ def model_skill_table(series: pd.Series, test_year: int,
     clim_mae = float(np.abs(cl_now[mask_clim] - test[mask_clim]).mean())
 
     rows: List[Dict[str, Any]] = []
+    # alpha depends only on the effective horizon, and several (age, h) pairs
+    # share one (age 2 + h 1 = age 1 + h 2), so fit each once. Same values,
+    # roughly half the work -- it matters once skill is measured over many
+    # test years.
+    alpha_cache: Dict[int, float] = {}
     for age in data_ages:
         for h in horizons:
             # The model's information is `age + h` days old by the time the
             # forecast lands, because the reading it starts from was taken
             # `age` days ago.
             effective = age + h
-            alpha = fit_alpha(train, clim, effective)
+            if effective not in alpha_cache:
+                alpha_cache[effective] = fit_alpha(train, clim, effective)
+            alpha = alpha_cache[effective]
             prev = _lagged(series, idx, effective)
             cl_prev = pd.Series(
                 clim.reindex((idx - pd.Timedelta(days=effective)).dayofyear).values, index=idx)
@@ -1312,10 +1325,12 @@ def model_skill_table(series: pd.Series, test_year: int,
                 # Band as a fraction of the prediction, guarding against the
                 # near-zero predictions that would otherwise give absurd ratios.
                 safe = pred[m] > 1
+                rel = (err[safe] / pred[m][safe]).values
                 if safe.sum() > 20:
-                    rel = (err[safe] / pred[m][safe]).values
                     for q in quantiles:
                         row[f"band_p{q}"] = float(np.percentile(rel, q))
+                if keep_residuals:
+                    row["rel_err"] = rel
                 rows.append(row)
     return pd.DataFrame(rows)
 
@@ -1348,6 +1363,10 @@ def station_model_skill(station_daily: pd.DataFrame, city: str, test_year: int,
 
     One row per (data age, horizon, model). The median rather than the mean so
     one erratic monitor cannot drag a whole city's labelling.
+
+    ONE test year. The refit no longer stores this: it uses station_skill_years,
+    which applies the same per-station median to every eligible year and takes
+    the median across years. Kept for single-year checks in the notebook.
     """
     per_station = []
     for st, sub in station_daily[station_daily.city == city].groupby("station"):
@@ -1395,10 +1414,299 @@ def station_mode_table(station_daily: pd.DataFrame, city: str, test_year: int,
     has any skill left.
 
     The served model is chosen on the median station skill, per (age, horizon).
+
+    ONE test year. The refit now uses station_skill_years (every eligible
+    year, median across years); this is kept for single-year checks.
     """
     agg = station_model_skill(station_daily, city, test_year, min_history,
                               data_ages, horizons)
     return _pick_served_model(agg) if not agg.empty else agg
+
+
+# ─── Which years the skill is measured on ───────────────────────────────────
+#
+# Until Nov 2026 the served model and its label were measured on ONE held-out
+# year (2024). One season is one weather regime: a mild or a smoggy winter can
+# flatter or sink a model by several points, and the label then rests on that
+# accident. Now every year that can be tested honestly is tested, and the
+# MEDIAN across those years decides.
+#
+# A year Y is a test year for a station when:
+#   - the station has at least SKILL_MIN_PRIOR_YEARS "full" calendar years of
+#     data before Y (train on years < Y, as before). Full = at least
+#     SKILL_FULL_YEAR_MIN_DAYS valid days, so a station that started in
+#     November does not count that stub as a year of training;
+#   - Y's test season (SKILL_TEST_MONTHS: Jan and Oct-Dec of Y) has ended
+#     inside the data -- a half-finished season scores only its cleaner half;
+#   - it has at least SKILL_MIN_TEST_DAYS test-season days of its own;
+#   - Y is inside SKILL_TEST_YEAR_RANGE, if one is set, and not before the
+#     city's SKILL_FIRST_TEST_YEAR_BY_CITY entry, if it has one.
+# A year counts for a CITY when at least SKILL_MIN_STATIONS_PER_YEAR stations
+# qualify: the median of one station is that station, not a city.
+
+# Two full years before the test year: one year gives a climatology that is a
+# single season with its noise; two is the least that averages anything.
+SKILL_MIN_PRIOR_YEARS = 2
+
+# Two-thirds of a year. Lower than "complete" on purpose: CPCB stations lose
+# weeks to outages, and the XKDR -> OpenAQ hand-over year (2025) has ~220-250
+# days at most stations. 300 would cut Mumbai's and Pune's test years roughly
+# in half (see the eligibility table in notebooks/forecast_verification.ipynb).
+SKILL_FULL_YEAR_MIN_DAYS = 240
+
+# Same season the single-year test used: Jan and Oct-Dec of the test year.
+SKILL_TEST_MONTHS: Tuple[int, ...] = SEASON_MONTHS
+
+# Optional (first, last) test year, inclusive; None tests every eligible year.
+SKILL_TEST_YEAR_RANGE: Optional[Tuple[int, int]] = None
+
+# Per-city first test year, on top of SKILL_TEST_YEAR_RANGE (the later of the
+# two starts wins; the global last year still applies). Applies to every
+# pollutant of that city. Cities not listed use the global rule unchanged.
+#   Delhi: 2019 (decided 17 Nov 2026). Delhi's 2016-2018 test years pass the
+#   rule but rest on only 2-5 stations, so a "city" year there is a handful of
+#   monitors standing in for a city that later has dozens.
+SKILL_FIRST_TEST_YEAR_BY_CITY: Dict[str, int] = {"Delhi": 2019}
+
+
+def city_test_year_range(city: str,
+                         year_range: Optional[Tuple[int, int]] = SKILL_TEST_YEAR_RANGE,
+                         first_by_city: Optional[Dict[str, int]] = None
+                         ) -> Optional[Tuple[int, int]]:
+    """The (first, last) test-year range for `city`: the global range with the
+    city's own first year (SKILL_FIRST_TEST_YEAR_BY_CITY) applied on top.
+
+    None means no limit. A city first year later than the global last year
+    gives an empty range (first > last), so no year is tested.
+    """
+    if first_by_city is None:
+        first_by_city = SKILL_FIRST_TEST_YEAR_BY_CITY
+    first = first_by_city.get(city)
+    if first is None:
+        return year_range
+    if year_range is None:
+        return (int(first), 9999)
+    return (max(int(year_range[0]), int(first)), year_range[1])
+
+# As in model_skill_table: under 40 season days a year's skill is noise.
+SKILL_MIN_TEST_DAYS = 40
+
+# A city-year needs this many qualifying stations.
+SKILL_MIN_STATIONS_PER_YEAR = 2
+
+
+def full_years(series: pd.Series,
+               min_days: int = SKILL_FULL_YEAR_MIN_DAYS) -> List[int]:
+    """Calendar years in which `series` has at least `min_days` valid days."""
+    s = series.dropna()
+    per_year = pd.Series(s.index.year).value_counts()
+    return sorted(int(y) for y, n in per_year.items() if n >= min_days)
+
+
+def season_end(year: int, months: Iterable[int] = SKILL_TEST_MONTHS) -> pd.Timestamp:
+    """Last day of the latest test month within `year` (31 Dec for Jan+Oct-Dec)."""
+    last_month = max(months)
+    return pd.Timestamp(year=year, month=last_month, day=1) + pd.offsets.MonthEnd(0)
+
+
+def eligible_test_years(series: pd.Series, last_day: pd.Timestamp,
+                        min_prior_years: int = SKILL_MIN_PRIOR_YEARS,
+                        full_year_min_days: int = SKILL_FULL_YEAR_MIN_DAYS,
+                        months: Iterable[int] = SKILL_TEST_MONTHS,
+                        year_range: Optional[Tuple[int, int]] = SKILL_TEST_YEAR_RANGE,
+                        min_test_days: int = SKILL_MIN_TEST_DAYS) -> List[int]:
+    """Years this one series can be honestly tested on (rule above).
+
+    `last_day` is the end of the WHOLE history (all stations), not of this
+    series: a station that died in March still has a finished season the year
+    before, while no station can be tested on a season still in progress.
+    """
+    months = tuple(months)
+    s = series.dropna()
+    if s.empty:
+        return []
+    full = full_years(s, full_year_min_days)
+    in_season = s[s.index.month.isin(months)]
+    season_days = pd.Series(in_season.index.year).value_counts()
+    out = []
+    for y in sorted(set(s.index.year)):
+        if year_range is not None and not (year_range[0] <= y <= year_range[1]):
+            continue
+        if sum(1 for f in full if f < y) < min_prior_years:
+            continue
+        if season_end(y, months) > pd.Timestamp(last_day):
+            continue
+        if season_days.get(y, 0) < min_test_days:
+            continue
+        out.append(int(y))
+    return out
+
+
+def skill_by_test_year(series_by_station: Dict[str, pd.Series], city: str,
+                       last_day: pd.Timestamp,
+                       data_ages: Iterable[int] = MODE_DATA_AGES,
+                       horizons: Iterable[int] = FORECAST_HORIZONS,
+                       min_prior_years: int = SKILL_MIN_PRIOR_YEARS,
+                       full_year_min_days: int = SKILL_FULL_YEAR_MIN_DAYS,
+                       months: Iterable[int] = SKILL_TEST_MONTHS,
+                       year_range: Optional[Tuple[int, int]] = SKILL_TEST_YEAR_RANGE,
+                       min_test_days: int = SKILL_MIN_TEST_DAYS,
+                       min_stations_per_year: int = SKILL_MIN_STATIONS_PER_YEAR,
+                       quantiles: Iterable[int] = (50, 80),
+                       first_test_year_by_city: Optional[Dict[str, int]] = None
+                       ) -> Dict[str, pd.DataFrame]:
+    """Skill of each served model on EVERY eligible test year, and the median.
+
+    Returns a dict of DataFrames:
+
+      per_station_year  one row per (station, test year, age, horizon, model):
+                        model_skill_table trained on years < test year.
+      per_year          the city's skill per test year: the median STATION,
+                        exactly as the single-year test summarised it.
+                        Only years with >= min_stations_per_year stations.
+      summary           per (age, horizon, model): the MEDIAN over the city's
+                        test years of per_year. This is what decides.
+      modes             _pick_served_model(summary): served model and label.
+      eligible          (station, test_year) pairs that were scored.
+
+    Order of the medians: stations first (per year), then years. That keeps
+    each year's number comparable to the old single-year table, and stops a
+    year with 50 Delhi stations outvoting a year with 10.
+
+    WHAT THE SUMMARY COLUMNS MEAN
+      skill_pct, mae, clim_mae   median over test years of the city-year values
+                                 (so skill_pct is not exactly recomputable from
+                                 the two MAEs -- each is its own median).
+      band_p50, band_p80         POOLED, not a median of yearly bands. For each
+                                 station the relative errors of all its test
+                                 years go in one pool and the quantile is taken
+                                 once; the city value is the median station. A
+                                 p80 from one ~120-day season moves a lot from
+                                 year to year; pooled, it describes how wide
+                                 the error really runs across winters, which is
+                                 what the band on screen claims.
+      alpha                      median of the per-year alphas (information only).
+      n_years, test_years        how many and which years the median rests on.
+
+    KNOWN MISMATCH (alpha). Each test year's blend skill is measured with alpha
+    fitted on the years before it. The alpha nightly SERVES is fitted on all
+    history (refit_params.fit_city / fit_stations). Fitting on the test year
+    itself would leak it into the score, so the mismatch is the honest choice;
+    its size is the change in alpha from adding more years, usually a few
+    hundredths. The notebook shows the per-year alphas next to the served one.
+
+    PER-CITY FIRST YEAR. `year_range` is combined with the city's entry in
+    SKILL_FIRST_TEST_YEAR_BY_CITY (or `first_test_year_by_city`, if given; pass
+    {} to switch the per-city rule off) -- see city_test_year_range.
+    """
+    # The city's own first test year (SKILL_FIRST_TEST_YEAR_BY_CITY, or the
+    # first_test_year_by_city override) narrows the global year_range.
+    year_range = city_test_year_range(city, year_range, first_test_year_by_city)
+    rule = dict(min_prior_years=min_prior_years, full_year_min_days=full_year_min_days,
+                months=months, year_range=year_range, min_test_days=min_test_days)
+    months = tuple(months)
+    quantiles = tuple(quantiles)
+    tables, eligible = [], []
+    for station, s in series_by_station.items():
+        for y in eligible_test_years(s, last_day, **rule):
+            s_named = s.copy()
+            s_named.name = city
+            t = model_skill_table(s_named, y, data_ages=data_ages, horizons=horizons,
+                                  quantiles=quantiles, months=months, keep_residuals=True)
+            if t.empty:
+                continue
+            tables.append(t.assign(station=station, test_year=y))
+            eligible.append({"station": station, "test_year": y})
+
+    empty = {k: pd.DataFrame() for k in ("per_station_year", "per_year", "summary", "modes")}
+    empty["eligible"] = pd.DataFrame(eligible, columns=["station", "test_year"])
+    if not tables:
+        return empty
+    psy = pd.concat(tables, ignore_index=True)
+    for q in quantiles:
+        if f"band_p{q}" not in psy.columns:
+            psy[f"band_p{q}"] = np.nan
+
+    keys = ["data_age_days", "horizon_days", "model"]
+    per_year = (psy.groupby(["test_year"] + keys, as_index=False)
+                   .agg(effective_horizon=("effective_horizon", "first"),
+                        alpha=("alpha", "median"),
+                        mae=("mae", "median"),
+                        clim_mae=("clim_mae", "median"),
+                        skill_pct=("skill_pct", "median"),
+                        **{f"band_p{q}": (f"band_p{q}", "median") for q in quantiles},
+                        n=("n", "sum"),
+                        n_stations=("station", "nunique")))
+    per_year = per_year[per_year.n_stations >= min_stations_per_year].reset_index(drop=True)
+    per_year["city"] = city
+    if per_year.empty:
+        empty["per_station_year"] = psy.drop(columns="rel_err")
+        empty["eligible"] = pd.DataFrame(eligible)
+        return empty
+
+    years_kept = set(per_year.test_year)
+    summary = (per_year.groupby(keys, as_index=False)
+                       .agg(effective_horizon=("effective_horizon", "first"),
+                            alpha=("alpha", "median"),
+                            mae=("mae", "median"),
+                            clim_mae=("clim_mae", "median"),
+                            skill_pct=("skill_pct", "median"),
+                            n=("n", "sum"),
+                            n_years=("test_year", "nunique"),
+                            test_years=("test_year",
+                                        lambda ys: ",".join(str(y) for y in sorted(set(ys)))),
+                            n_stations=("n_stations", "median")))
+
+    # Pooled bands: per station, every kept year's relative errors together.
+    pooled = psy[psy.test_year.isin(years_kept)]
+    band_rows = []
+    for (st, age, h, model), g in pooled.groupby(["station"] + keys):
+        rel = np.concatenate([np.asarray(r) for r in g["rel_err"] if r is not None and len(r)]) \
+            if len(g) else np.array([])
+        row = {"station": st, "data_age_days": age, "horizon_days": h, "model": model}
+        for q in quantiles:
+            row[f"band_p{q}"] = float(np.percentile(rel, q)) if rel.size > 20 else np.nan
+        band_rows.append(row)
+    bands = (pd.DataFrame(band_rows).groupby(keys, as_index=False)
+               [[f"band_p{q}" for q in quantiles]].median())
+    summary = summary.merge(bands, on=keys, how="left")
+    summary["city"] = city
+
+    return {"per_station_year": psy.drop(columns="rel_err"),
+            "per_year": per_year,
+            "summary": summary,
+            "modes": _pick_served_model(summary),
+            "eligible": pd.DataFrame(eligible)}
+
+
+def station_skill_years(station_daily: pd.DataFrame, city: str,
+                        last_day: Optional[pd.Timestamp] = None,
+                        **kwargs) -> Dict[str, pd.DataFrame]:
+    """skill_by_test_year on every station of `city` -- what the refit stores.
+
+    `station_daily` is the refit's (city, station, d, v) table. `last_day`
+    defaults to the last day anywhere in it (see eligible_test_years).
+    Keyword arguments override the SKILL_* rule (min_prior_years, months, ...).
+    """
+    if last_day is None:
+        last_day = pd.Timestamp(station_daily["d"].max())
+    series = {st: sub.groupby("d")["v"].mean().asfreq("D")
+              for st, sub in station_daily[station_daily.city == city].groupby("station")}
+    return skill_by_test_year(series, city, last_day, **kwargs)
+
+
+def city_skill_years(series: pd.Series, last_day: Optional[pd.Timestamp] = None,
+                     **kwargs) -> Dict[str, pd.DataFrame]:
+    """The same multi-year test on a single city-mean series.
+
+    The refit's fallback when there is no station history at all. One series,
+    so a year needs only itself (min_stations_per_year = 1).
+    """
+    s = series.asfreq("D") if series.index.freq is None else series
+    if last_day is None:
+        last_day = pd.Timestamp(s.dropna().index.max())
+    kwargs.setdefault("min_stations_per_year", 1)
+    return skill_by_test_year({str(series.name): s}, str(series.name), last_day, **kwargs)
 
 
 def max_useful_age(mode_table: pd.DataFrame, horizon: int = 1) -> Optional[int]:

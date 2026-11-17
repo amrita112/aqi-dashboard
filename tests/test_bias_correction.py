@@ -14,13 +14,17 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.forecast.bias_correction import (  # noqa: E402
+    BIAS_CORRECT_MODES,
     DAMPING,
     MAX_RELATIVE_SHIFT,
     MIN_DAYS,
     WINDOW_DAYS,
+    apply_corrections,
     apply_offset,
     city_day_errors,
     decide,
+    decide_all,
+    no_evidence,
     offset_for,
 )
 
@@ -128,14 +132,14 @@ def test_shift_is_capped_relative_to_the_forecast():
 def test_learns_from_value_raw_not_the_corrected_value():
     """Otherwise the offset chases its own tail."""
     fc = [{"monitor_id": "m1", "pollutant": "aqi", "target_date": "2026-10-05",
-           "value": 150.0, "value_raw": 100.0}]
+           "value": 150.0, "value_raw": 100.0, "mode": "forecast"}]
     out = city_day_errors(fc, {("m1", "2026-10-05", "aqi"): 120.0}, {"m1": "Delhi"})
     assert out[("Delhi", "aqi")][date(2026, 10, 5)] == pytest.approx(-20.0)
 
 
 def test_falls_back_to_value_when_no_correction_was_applied():
     fc = [{"monitor_id": "m1", "pollutant": "aqi", "target_date": "2026-10-05",
-           "value": 100.0, "value_raw": None}]
+           "value": 100.0, "value_raw": None, "mode": "forecast"}]
     out = city_day_errors(fc, {("m1", "2026-10-05", "aqi"): 120.0}, {"m1": "Delhi"})
     assert out[("Delhi", "aqi")][date(2026, 10, 5)] == pytest.approx(-20.0)
 
@@ -143,9 +147,9 @@ def test_falls_back_to_value_when_no_correction_was_applied():
 def test_averages_stations_within_a_city():
     fc = [
         {"monitor_id": "m1", "pollutant": "aqi", "target_date": "2026-10-05",
-         "value": 100.0, "value_raw": None},
+         "value": 100.0, "value_raw": None, "mode": "forecast"},
         {"monitor_id": "m2", "pollutant": "aqi", "target_date": "2026-10-05",
-         "value": 140.0, "value_raw": None},
+         "value": 140.0, "value_raw": None, "mode": "outlook"},
     ]
     actuals = {("m1", "2026-10-05", "aqi"): 120.0, ("m2", "2026-10-05", "aqi"): 120.0}
     out = city_day_errors(fc, actuals, {"m1": "Delhi", "m2": "Delhi"})
@@ -154,7 +158,7 @@ def test_averages_stations_within_a_city():
 
 def test_skips_forecasts_with_no_observation():
     fc = [{"monitor_id": "m1", "pollutant": "aqi", "target_date": "2026-10-05",
-           "value": 100.0, "value_raw": None}]
+           "value": 100.0, "value_raw": None, "mode": "forecast"}]
     assert city_day_errors(fc, {}, {"m1": "Delhi"}) == {}
 
 
@@ -192,9 +196,9 @@ def test_pm25_forecast_is_not_scored_against_aqi():
     overwrote PM2.5 and a perfect PM2.5 forecast looked 107 too low."""
     fc = [
         {"monitor_id": "m1", "pollutant": "pm25", "target_date": "2026-10-05",
-         "value": 60.0, "value_raw": None},
+         "value": 60.0, "value_raw": None, "mode": "forecast"},
         {"monitor_id": "m1", "pollutant": "aqi", "target_date": "2026-10-05",
-         "value": 150.0, "value_raw": None},
+         "value": 150.0, "value_raw": None, "mode": "forecast"},
     ]
     actuals = {("m1", "2026-10-05", "pm25"): 60.0,
                ("m1", "2026-10-05", "aqi"): 167.0}
@@ -213,7 +217,7 @@ def test_load_scored_history_keeps_pollutants_apart():
     for i in range(1, 11):
         d = (today - timedelta(days=i)).isoformat()
         fc.append({"monitor_id": "m1", "pollutant": "pm25", "target_date": d,
-                   "value": 60.0, "value_raw": None})
+                   "value": 60.0, "value_raw": None, "mode": "forecast"})
         rd.append({"monitor_id": "m1", "pollutant": "pm25", "date": d,
                    "mean": 60.0, "count": 96})
         rd.append({"monitor_id": "m1", "pollutant": "pm10", "date": d,
@@ -227,3 +231,169 @@ def test_load_scored_history_keeps_pollutants_apart():
     errors = city_day_errors(hist_fc, actuals, {"m1": "Delhi"})
     assert all(e == pytest.approx(0.0) for e in errors[("Delhi", "pm25")].values())
     assert decide(errors[("Delhi", "pm25")], today)["applied"] is False
+
+
+# ── which rows get corrected: forecast/outlook yes, seasonal_normal no ───────
+
+def _row(mode: str, h: int, city: str = "Delhi", value: float = 100.0) -> dict:
+    return {"city_key": city, "pollutant": "pm25", "mode": mode,
+            "horizon_days": h, "value": value}
+
+
+def test_seasonal_normal_rows_are_never_corrected():
+    """A row labelled "typical for this time of year" must stay the seasonal
+    average, even in a city whose correction is switched on tonight."""
+    decisions = {("Delhi", "pm25"): {"applied": True, "offset": -20.0}}
+    rows = [_row("forecast", 1), _row("outlook", 2), _row("seasonal_normal", 3),
+            *[_row("seasonal_normal", h) for h in range(4, 8)]]
+    counts = apply_corrections(rows, decisions)
+
+    shifted = 100.0 - DAMPING * -20.0
+    assert rows[0]["value"] == pytest.approx(shifted) and rows[0]["value_raw"] == 100.0
+    assert rows[1]["value"] == pytest.approx(shifted) and rows[1]["value_raw"] == 100.0
+    for r in rows[2:]:
+        assert r["value"] == 100.0
+        assert r["value_raw"] is None, "a seasonal-normal row was marked as corrected"
+    assert counts == {"corrected": 2, "city_not_applied": 0, "mode_excluded": 5}
+
+
+def test_forecast_rows_on_any_day_are_corrected():
+    """The rule is by label, not by day: a forecast-labelled row is corrected
+    whatever its horizon."""
+    decisions = {("Delhi", "pm25"): {"applied": True, "offset": 10.0}}
+    rows = [_row("forecast", h) for h in range(1, 8)]
+    assert apply_corrections(rows, decisions)["corrected"] == 7
+
+
+def test_city_gate_still_decides_first():
+    """The per-city APPLY/skip decision is unchanged: a city that is not being
+    corrected keeps every row as it was, forecast or not."""
+    decisions = {("Delhi", "pm25"): {"applied": True, "offset": -20.0},
+                 ("Mumbai", "pm25"): {"applied": False, "offset": -20.0}}
+    rows = [_row("forecast", 1, "Mumbai"), _row("outlook", 2, "Mumbai"),
+            _row("forecast", 1, "Pune"),      # no decision at all
+            _row("forecast", 1, "Delhi")]
+    counts = apply_corrections(rows, decisions)
+    assert [r["value"] for r in rows[:3]] == [100.0, 100.0, 100.0]
+    assert all(r["value_raw"] is None for r in rows[:3])
+    assert rows[3]["value"] != 100.0
+    assert counts == {"corrected": 1, "city_not_applied": 3, "mode_excluded": 0}
+
+
+def test_stale_value_raw_is_cleared():
+    """A row upserted over last night's corrected row must not inherit its
+    value_raw when it is not corrected tonight."""
+    decisions = {("Delhi", "pm25"): {"applied": True, "offset": -20.0}}
+    rows = [{**_row("seasonal_normal", 3), "value_raw": 87.0}]
+    apply_corrections(rows, decisions)
+    assert rows[0]["value_raw"] is None and rows[0]["value"] == 100.0
+
+
+def test_modes_are_configurable():
+    """Adding seasonal_normal back restores the old correct-everything rule."""
+    assert "seasonal_normal" not in BIAS_CORRECT_MODES
+    decisions = {("Delhi", "pm25"): {"applied": True, "offset": -20.0}}
+    rows = [_row("seasonal_normal", 5)]
+    apply_corrections(rows, decisions,
+                      modes=BIAS_CORRECT_MODES + ("seasonal_normal",))
+    assert rows[0]["value_raw"] == 100.0
+
+
+# ── it learns only from the rows it may correct (forecast / outlook) ─────────
+
+def _fc(mode, value, day="2026-10-05", monitor="m1"):
+    return {"monitor_id": monitor, "pollutant": "pm25", "target_date": day,
+            "value": value, "value_raw": None, "mode": mode}
+
+
+def test_seasonal_normal_rows_are_not_learned_from():
+    """A seasonal-normal row's error is the climatology's, not the model's.
+    Here it is wildly off (-80) while the forecast row is spot on: the city's
+    learned error must be the forecast row's alone."""
+    fc = [_fc("forecast", 100.0, monitor="m1"), _fc("seasonal_normal", 20.0, monitor="m2")]
+    actuals = {("m1", "2026-10-05", "pm25"): 100.0, ("m2", "2026-10-05", "pm25"): 100.0}
+    out = city_day_errors(fc, actuals, {"m1": "Delhi", "m2": "Delhi"})
+    assert out[("Delhi", "pm25")][date(2026, 10, 5)] == pytest.approx(0.0)
+
+
+def test_learning_uses_the_same_labels_as_correcting():
+    fc = [_fc(m, 90.0, monitor=f"m{i}") for i, m in enumerate(("forecast", "outlook", "seasonal_normal"))]
+    actuals = {(f"m{i}", "2026-10-05", "pm25"): 100.0 for i in range(3)}
+    city_of = {f"m{i}": "Delhi" for i in range(3)}
+    # Only two rows are learned from, both -10.
+    out = city_day_errors(fc, actuals, city_of)
+    assert out[("Delhi", "pm25")][date(2026, 10, 5)] == pytest.approx(-10.0)
+    assert set(BIAS_CORRECT_MODES) == {"forecast", "outlook"}
+
+
+def test_rows_without_a_label_are_not_learned_from():
+    """forecast_daily.mode is NOT NULL; a missing label means it was not
+    fetched, and must not quietly let seasonal-normal errors back in."""
+    fc = [{k: v for k, v in _fc("forecast", 50.0).items() if k != "mode"}]
+    assert city_day_errors(fc, {("m1", "2026-10-05", "pm25"): 100.0}, {"m1": "Delhi"}) == {}
+
+
+def test_modes_none_restores_learning_from_every_row():
+    fc = [_fc("seasonal_normal", 80.0)]
+    out = city_day_errors(fc, {("m1", "2026-10-05", "pm25"): 100.0}, {"m1": "Delhi"}, modes=None)
+    assert out[("Delhi", "pm25")][date(2026, 10, 5)] == pytest.approx(-20.0)
+
+
+def test_a_city_with_only_seasonal_normal_rows_is_skipped_with_a_reason():
+    """Stale data all week -> every +1 row seasonal_normal -> nothing to learn
+    from. The city must still get an explicit "skip", not vanish."""
+    fc = [_fc("seasonal_normal", 50.0, day=(TODAY - timedelta(days=i)).isoformat())
+          for i in range(1, 11)]
+    actuals = {("m1", f["target_date"], "pm25"): 100.0 for f in fc}
+    errors = city_day_errors(fc, actuals, {"m1": "Pune"})
+    assert errors == {}
+    decisions = decide_all(errors, [("Pune", "pm25"), ("Pune", "aqi")], TODAY, 21)
+    for key in (("Pune", "pm25"), ("Pune", "aqi")):
+        d = decisions[key]
+        assert d["applied"] is False and d["offset"] == 0.0
+        assert "seasonal-normal rows are not learned from" in d["reason"]
+    assert decisions[("Pune", "pm25")] == no_evidence(21)
+
+
+def test_too_few_learnable_days_is_skipped_with_a_reason():
+    """Only one recent forecast-labelled day (the rest seasonal_normal): the
+    usual MIN_DAYS gate skips it, and says which rows it counted."""
+    fc = [_fc("forecast", 50.0, day=(TODAY - timedelta(days=1)).isoformat())]
+    fc += [_fc("seasonal_normal", 50.0, day=(TODAY - timedelta(days=i)).isoformat())
+           for i in range(2, 10)]
+    actuals = {("m1", f["target_date"], "pm25"): 100.0 for f in fc}
+    errors = city_day_errors(fc, actuals, {"m1": "Pune"})
+    d = decide_all(errors, [("Pune", "pm25")], TODAY, 21)[("Pune", "pm25")]
+    assert d["applied"] is False
+    assert "forecast/outlook" in d["reason"]
+
+
+def test_decide_all_keeps_the_gate_for_cities_with_evidence():
+    e = {TODAY - timedelta(days=i): -30.0 for i in range(1, 9)}
+    out = decide_all({("Delhi", "pm25"): e}, [("Delhi", "pm25")], TODAY, 21)
+    assert out[("Delhi", "pm25")] == decide(e, TODAY)
+    assert out[("Delhi", "pm25")]["applied"] is True
+
+
+def test_load_scored_history_returns_the_label():
+    """End to end: nightly's loader carries `mode`, so a city whose +1 rows were
+    all seasonal_normal learns nothing, while one with forecast rows does."""
+    from scripts.forecast import nightly_forecast as nf
+
+    today = date(2026, 11, 14)
+    fc, rd = [], []
+    for i in range(1, 11):
+        d = (today - timedelta(days=i)).isoformat()
+        fc.append({"monitor_id": "m1", "pollutant": "pm25", "target_date": d,
+                   "value": 40.0, "value_raw": None, "mode": "forecast"})
+        fc.append({"monitor_id": "m2", "pollutant": "pm25", "target_date": d,
+                   "value": 10.0, "value_raw": None, "mode": "seasonal_normal"})
+        for m in ("m1", "m2"):
+            rd.append({"monitor_id": m, "pollutant": "pm25", "date": d,
+                       "mean": 60.0, "count": 96})
+    client = _FakeClient({"forecast_daily": fc, "readings_daily": rd})
+    hist_fc, actuals = nf.load_scored_history(client, ["pm25"], today - timedelta(days=21))
+    assert {f["mode"] for f in hist_fc} == {"forecast", "seasonal_normal"}
+    errors = city_day_errors(hist_fc, actuals, {"m1": "Delhi", "m2": "Pune"})
+    assert ("Pune", "pm25") not in errors
+    assert all(e == pytest.approx(-20.0) for e in errors[("Delhi", "pm25")].values())

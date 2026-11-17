@@ -25,7 +25,9 @@ import { badRequest, fail, ok, rateLimit, callerKey, tooManyRequests } from "@/l
 export const dynamic = "force-dynamic";
 
 /** Mirrors the CHECK constraint in migration 19. Both must agree. */
-const NAMES = new Set(["installed", "question", "question_failed"]);
+// "opened": a launch of the installed app, once per device per day, with a
+// time-since-install bucket as its detail (lib/launch.ts). Needs migration 27.
+const NAMES = new Set(["installed", "question", "question_failed", "opened"]);
 
 /** Short, lowercase, no free text. Tool names and failure reasons only. */
 const DETAIL = /^[a-z0-9_]{1,40}$/;
@@ -60,7 +62,9 @@ export async function POST(request: Request) {
   });
   // A count that failed to record is not worth telling anyone about, and
   // certainly not worth an error on screen: this endpoint exists to observe
-  // the app, never to affect it. Logged for us, 204 for them.
+  // the app, never to affect it. So the failure is logged here, and the 502
+  // goes back to lib/analytics.ts, which ignores the response -- nothing
+  // reaches the screen.
   if (error) {
     console.error(`usage_events insert failed: ${error.message}`);
     return fail("Could not record", 502, error.message);

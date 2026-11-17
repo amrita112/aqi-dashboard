@@ -30,12 +30,14 @@ add it to your home screen, and it runs full screen with no account.
 
 A daily level from a blend of the seasonal climatology and the most recent
 reading's anomaly, multiplied by a diurnal shape fitted per city and month. The
-per-city choice between blend and persistence is stored rather than hardcoded,
-and a running bias correction is applied nightly.
+per-city choice between blend and persistence is stored rather than hardcoded
+(measured on every eligible held-out year, median across years), and a running
+bias correction is applied nightly to rows labelled forecast or outlook.
 
 Measured, so you do not have to take it on faith: the model needs exactly **one**
 recent day (N=1 beats N=2 through 30 in every city), the diurnal shape cuts
-hourly error by about **16%** against quoting a flat daily number, and skill
+hourly error by a median **5.7%** against quoting a flat daily number (varies by
+city and pollutant; `notebooks/forecast_verification.ipynb` §6), and skill
 decays sharply as the anchoring reading ages — which is why the app is so
 insistent about data age.
 

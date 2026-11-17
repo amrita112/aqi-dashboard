@@ -37,11 +37,10 @@ export const FEEDBACK_FORM_URL =
   "https://docs.google.com/forms/d/e/1FAIpQLScwJv28MK72U7FAxrMSCTekVv6WXz_9n0mkVYvz6gIl9iSQWw/viewform";
 
 /**
- * Where someone writes to about their own data.
- *
- * ⚠️ REPLACE THIS. It is printed on the privacy and terms pages, and India's
- * DPDP Act expects a real, reachable address for questions and withdrawal
- * requests — the petition page already says "email us" without giving one.
+ * Where someone writes to about their own data, including to have a petition
+ * signature or city request deleted -- the only way to withdraw since Nov 2026.
+ * Confirmed 15 Nov 2026 to reach the owner. India's DPDP Act expects a real,
+ * reachable address for questions and withdrawal requests.
  *
  * USE A ROLE ADDRESS ON THE APP'S OWN DOMAIN, not a personal inbox. It will
  * sit in public HTML, which is where address harvesters look, and a role

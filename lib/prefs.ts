@@ -16,6 +16,8 @@
  * checking on family in Chennai is a first-class case, possibly the common one.
  */
 
+import { LAUNCH_KEYS } from "@/lib/launch";
+
 export type Measurement = "aqi" | "pm25";
 
 export interface Prefs {
@@ -120,6 +122,7 @@ export function clearPrefs(): void {
     PREFS_KEY,
     "aqi.ask.v1", // the Ask tab's cached questions and answers
     "aqi.installHint.dismissed", // the "Add to Home Screen" banner
+    ...LAUNCH_KEYS, // install date and last report for the home-screen count (lib/launch.ts)
   ];
   try {
     for (const key of keys) window.localStorage.removeItem(key);

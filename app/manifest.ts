@@ -30,7 +30,17 @@ export default function manifest(): MetadataRoute.Manifest {
     name: APP_NAME,
     short_name: APP_SHORT_NAME,
     description: APP_DESCRIPTION,
-    start_url: "/",
+    // THE APP'S IDENTITY, PINNED. Without an `id`, Chrome identifies an
+    // installed app by its start_url, so changing start_url below would make
+    // existing installs look like a different app. "/" is exactly the id
+    // those installs already have (derived from the old start_url "/").
+    id: "/",
+    // TAGGED, so a launch from the home screen is countable in Vercel's
+    // "UTM Parameters" tab, separately from people using the website. Counts
+    // visits only; it identifies nobody. Phones that installed before this
+    // change may keep the old untagged address until Chrome refreshes the
+    // installed app, so early numbers undercount.
+    start_url: "/?utm_source=homescreen",
     display: "standalone",
     orientation: "portrait",
     background_color: BACKGROUND_COLOR,

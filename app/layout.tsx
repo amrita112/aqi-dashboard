@@ -13,6 +13,7 @@ import TabBar from "@/components/TabBar";
 import ErrorReporter from "@/components/ErrorReporter";
 import AppShell from "@/components/AppShell";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import LaunchTracker from "@/components/LaunchTracker";
 import { Analytics } from "@vercel/analytics/next";
 import { APP_NAME, APP_DESCRIPTION, THEME_COLOR } from "@/lib/brand";
 
@@ -78,6 +79,7 @@ export default function RootLayout({
         <AppShell>{children}</AppShell>
         <TabBar />
         <ServiceWorkerRegistration />
+        <LaunchTracker />
         {/* Catches what app/error.tsx cannot: event handlers, unawaited
             promises, timer callbacks. Renders nothing. */}
         <ErrorReporter />

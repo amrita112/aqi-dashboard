@@ -8,6 +8,9 @@
  *   installed        did the install hint work, or are people on a bookmark?
  *   question_asked   is the AI box used at all, and which TOOL answered?
  *   question_failed  how often do we decline, and for what reason?
+ *   opened           do people open the installed app days and weeks later?
+ *                    (once per device per day, with only a time-since-install
+ *                    bucket; see lib/launch.ts)
  *
  * NOTHING HERE RECORDS WHAT ANYONE ASKED. Not the question, not the place, not
  * the answer. Only the name of the tool that ran and, when something failed,
@@ -31,6 +34,7 @@
  */
 
 import { track } from "@vercel/analytics";
+import { launchDetailForToday, stampInstallDate } from "@/lib/launch";
 
 /**
  * Post a count to our own store, and never let it matter if it fails.
@@ -116,10 +120,22 @@ export function trackFailure(reason: FailureReason): void {
 
 /** The PWA was installed to a home screen. Fires once, when it happens. */
 export function trackInstalled(source: "prompt" | "browser"): void {
+  // The install date stays on the phone, for the `opened` buckets below.
+  stampInstallDate();
   try {
     track("installed", { source });
   } catch {
     /* see above */
   }
   record("installed", source);
+}
+
+/**
+ * The installed app was opened from the home screen. At most once per device
+ * per day; the detail is only a time-since-install bucket (lib/launch.ts).
+ */
+export function trackLaunch(): void {
+  const detail = launchDetailForToday();
+  if (detail === null) return;
+  record("opened", detail);
 }

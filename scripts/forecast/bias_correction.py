@@ -15,13 +15,24 @@ errors for target days strictly BEFORE it. Nothing from the day being corrected
 or later is visible, which is what makes the backtest honest and the live
 behaviour identical to it.
 
-SELF-POLICING, BECAUSE THE CORRECTION IS NOT ALWAYS AN IMPROVEMENT. Backtested
-over 102 city-days: overall MAE 23.2 -> 18.1 (-22%), bias -13.4 -> -2.4, with
-Pune -39%, Kolkata -38%, Bangalore -38%, Chennai -34%. But MUMBAI GOT 18%
-WORSE -- its real bias is small enough that correcting it mostly adds noise, and
-no threshold rule removed that (they reduced it to +12% at the cost of gains
-elsewhere). So the decision is made per city from its own recent record: apply
-only where the correction would have beaten the raw forecast over the window.
+SELF-POLICING, BECAUSE THE CORRECTION IS NOT ALWAYS AN IMPROVEMENT. In the
+original backtest it helped most cities but made Mumbai worse -- Mumbai's real
+bias is small enough that correcting it mostly adds noise, and no threshold rule
+removed that without costing gains elsewhere. So the decision is made per city
+from its own recent record: apply only where the correction would have beaten
+the raw forecast over the window. (That backtest predates the Nov 2026 audit
+fixes, so its numbers are not quoted here. The live before/after error is in
+notebooks/forecast_verification.ipynb: section 5 re-runs the decision on the
+stored history, section 9 scores served vs uncorrected values.)
+
+IT LEARNS ONLY FROM THE ROWS IT CORRECTS. Both the offset and the APPLY/skip
+decision are computed from scored +1-day rows whose label is in
+BIAS_CORRECT_MODES (forecast / outlook). A seasonal-normal row is the plain
+climatology: its error is the climatology's error, not the model's, and the
+correction is never applied to it. Learning from it would estimate the bias of
+one number and subtract it from another. A city with too few such rows (for
+example one served as the seasonal normal all week because its data is stale)
+is simply not corrected, and `decide`/`no_evidence` say why.
 
 That same mechanism handles the turn of the season. A correction learned on a
 ramp will start over-predicting once levels plateau in late November; when it
@@ -77,6 +88,21 @@ MIN_OFFSET_FRACTION_OF_MAE = 0.30
 # A guard against a single bad day of observations, not a tuning parameter.
 MAX_RELATIVE_SHIFT = 0.5
 
+# Which rows the correction may touch, by the label the row carries.
+#
+# Only rows that claim to be a forecast ("forecast" or "outlook") are corrected.
+# A "seasonal_normal" row is what the app shows when the model has NO
+# demonstrated skill for that day, and it is labelled "typical for this time of
+# year". Nudging it by our recent errors would quietly turn it into a forecast
+# it does not claim to be: the number would no longer be the seasonal average
+# its label promises. So it is left exactly as the climatology says.
+#
+# This is not a horizon rule. Any day +1..+7 is corrected if its label is in
+# this tuple; in practice only days in model.FORECAST_HORIZONS can carry these
+# labels, because later days are always served as the seasonal normal. Add
+# "seasonal_normal" here to restore the old behaviour (correct every row).
+BIAS_CORRECT_MODES: Tuple[str, ...] = ("forecast", "outlook")
+
 
 def _mean(xs: List[float]) -> Optional[float]:
     return sum(xs) / len(xs) if xs else None
@@ -86,11 +112,19 @@ def city_day_errors(
     forecasts: List[Dict[str, Any]],
     actuals: Dict[Tuple[str, str, str], float],
     city_of: Dict[str, str],
+    modes: Optional[Tuple[str, ...]] = BIAS_CORRECT_MODES,
 ) -> Dict[Tuple[str, str], Dict[date, float]]:
     """(city, pollutant) -> {target_date: mean (forecast - actual)}.
 
     `actuals` is keyed by (monitor_id, date, pollutant), so a PM2.5 forecast is
     only ever scored against measured PM2.5, and an AQI forecast against AQI.
+
+    Only rows whose `mode` is in `modes` are learned from -- the same labels
+    `apply_corrections` is allowed to touch (see the module docstring). A row
+    with no `mode` is skipped too: forecast_daily.mode is NOT NULL, so a
+    missing label means the caller did not fetch it, and guessing would bring
+    seasonal-normal errors back in. Pass modes=None to learn from every row
+    (the pre-Nov-2026 behaviour).
 
     Errors are averaged over the stations of a city, because the correction is a
     city-level offset. A per-station offset would be fitted on a handful of days
@@ -103,6 +137,8 @@ def city_day_errors(
     for f in forecasts:
         city = city_of.get(f["monitor_id"])
         if not city:
+            continue
+        if modes is not None and f.get("mode") not in modes:
             continue
         raw = f.get("value_raw")
         value = float(raw if raw is not None else f["value"])
@@ -143,7 +179,8 @@ def decide(errors: Dict[date, float], today: date) -> Dict[str, Any]:
     offset = offset_for(errors, today)
     if offset is None:
         return {"offset": 0.0, "applied": False, "n_days": len(errors),
-                "reason": f"fewer than {MIN_DAYS} scored days in the last {WINDOW_DAYS}",
+                "reason": (f"fewer than {MIN_DAYS} scored {'/'.join(BIAS_CORRECT_MODES)} "
+                           f"days in the last {WINDOW_DAYS}"),
                 "mae_raw": None, "mae_corrected": None}
 
     raw_abs: List[float] = []
@@ -201,6 +238,32 @@ def decide(errors: Dict[date, float], today: date) -> Dict[str, Any]:
     }
 
 
+def no_evidence(history_days: int,
+                modes: Tuple[str, ...] = BIAS_CORRECT_MODES) -> Dict[str, Any]:
+    """The decision for a city/pollutant with NO scored row it may learn from.
+
+    city_day_errors leaves such a city out entirely (typically: every recent
+    +1-day row was labelled seasonal_normal). Without an explicit decision it
+    would vanish from the nightly log, and last night's forecast_bias row --
+    possibly APPLY -- would stay in the table looking current.
+    """
+    return {"offset": 0.0, "applied": False, "n_days": 0,
+            "reason": (f"no scored +1-day {'/'.join(modes)} rows in the last "
+                       f"{history_days} days (seasonal-normal rows are not learned from)"),
+            "mae_raw": None, "mae_corrected": None}
+
+
+def decide_all(errors: Dict[Tuple[str, str], Dict[date, float]],
+               keys: List[Tuple[str, str]], today: date,
+               history_days: int) -> Dict[Tuple[str, str], Dict[str, Any]]:
+    """`decide` for every (city, pollutant) in `keys`, plus any extra key that
+    has errors. Keys without a single learnable row get `no_evidence`."""
+    out = {k: decide(v, today) for k, v in errors.items()}
+    for k in keys:
+        out.setdefault(k, no_evidence(history_days))
+    return out
+
+
 def apply_offset(value: float, offset: float) -> float:
     """The corrected forecast: never negative, never moved more than half itself.
 
@@ -212,3 +275,47 @@ def apply_offset(value: float, offset: float) -> float:
     limit = MAX_RELATIVE_SHIFT * value
     shift = max(-limit, min(limit, shift))
     return max(value - shift, 0.0)
+
+
+def should_correct(row: Dict[str, Any],
+                   modes: Tuple[str, ...] = BIAS_CORRECT_MODES) -> bool:
+    """True if this forecast row's label allows a bias correction (see
+    BIAS_CORRECT_MODES for why seasonal-normal rows are left alone)."""
+    return row.get("mode") in modes
+
+
+def apply_corrections(rows: List[Dict[str, Any]],
+                      decisions: Dict[Tuple[str, str], Dict[str, Any]],
+                      modes: Tuple[str, ...] = BIAS_CORRECT_MODES) -> Dict[str, int]:
+    """Correct, in place, every row whose city/pollutant decision says APPLY and
+    whose label is in `modes`. Returns counts for the nightly log.
+
+    Each row needs "city_key", "pollutant", "mode" and "value". A corrected row
+    keeps its uncorrected number in "value_raw", so the correction can always be
+    audited or undone, and so the next night learns from the raw forecast
+    rather than from an already-corrected one.
+
+    A row left alone gets value_raw = None explicitly. The nightly upsert
+    overwrites the same (monitor, pollutant, day) row each night, so without
+    this a day that was corrected last night (say as a +3 forecast) and is
+    uncorrected tonight could keep last night's stale value_raw, and would look
+    corrected when it is not. It also gives every row the same columns.
+
+    The counts separate the two reasons a row is left alone: its city was not
+    corrected tonight (the per-city gate in `decide`), or its label is excluded.
+    """
+    counts = {"corrected": 0, "city_not_applied": 0, "mode_excluded": 0}
+    for r in rows:
+        r["value_raw"] = None
+        d = decisions.get((r["city_key"], r["pollutant"]))
+        if not d or not d["applied"]:
+            counts["city_not_applied"] += 1
+            continue
+        if not should_correct(r, modes):
+            counts["mode_excluded"] += 1
+            continue
+        raw = r["value"]
+        r["value_raw"] = raw
+        r["value"] = round(apply_offset(raw, d["offset"]), 2)
+        counts["corrected"] += 1
+    return counts

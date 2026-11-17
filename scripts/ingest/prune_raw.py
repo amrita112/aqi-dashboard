@@ -83,6 +83,14 @@ WARN_ABOVE_MB = 450
 
 
 def _page_all(query_fn) -> List[Dict[str, Any]]:
+    """Fetch every row of a query, 1000 at a time.
+
+    The query passed in must sort on a unique key (see the .order() calls in
+    verify_day). Postgres does not promise rows come back in the same order
+    on each request unless told to, so offset paging without a sort can
+    return a row twice and miss another -- which here would make the counts
+    verify_day compares wrong.
+    """
     rows, offset = [], 0
     while True:
         batch = query_fn(offset).execute().data or []
@@ -110,6 +118,7 @@ def verify_day(client, day: date) -> Tuple[bool, str, Dict[str, int]]:
     readings = _page_all(lambda off: (
         client.table("readings").select("id")
               .gte("recorded_at", start).lt("recorded_at", end)
+              .order("id")  # primary key: a fixed order across pages
               .range(off, off + PAGE - 1)))
     n_readings = len(readings)
     if n_readings == 0:
@@ -124,6 +133,9 @@ def verify_day(client, day: date) -> Tuple[bool, str, Dict[str, int]]:
         while True:
             batch = (client.table("measurements").select("reading_id")
                            .in_("reading_id", chunk)
+                           # Unique pair, so pages neither overlap nor skip
+                           # rows (same reason as in _page_all).
+                           .order("reading_id").order("pollutant")
                            .range(offset, offset + PAGE - 1).execute().data or [])
             n_measurements += len(batch)
             if len(batch) < PAGE:
@@ -145,6 +157,9 @@ def verify_day(client, day: date) -> Tuple[bool, str, Dict[str, int]]:
     rollup = _page_all(lambda off: (
         client.table("readings_daily").select("count")
               .eq("date", day.isoformat())
+              # The table's primary key (monitor_id, pollutant, date), so
+              # every row has one fixed place across pages.
+              .order("monitor_id").order("pollutant").order("date")
               .range(off, off + PAGE - 1)))
     if not rollup:
         return False, "NOT ROLLED UP", {"readings": n_readings,
