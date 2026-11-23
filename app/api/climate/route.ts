@@ -3,9 +3,11 @@
  * GET /api/climate?lat=&lng=[&k=&max_km=&city=]&metric=...     a place
  *
  * Historical trends: the yearly pattern, month by month, from every year of
- * history we hold (CPCB via XKDR from 2009, OpenAQ since Sep 2025). The place
- * is resolved exactly as /api/history resolves it (lib/api/place.ts), so the
- * same nearest stations answer both charts.
+ * history we hold (CPCB via XKDR from 2009, OpenAQ since Sep 2025). A station
+ * or a point is resolved exactly as /api/history resolves it
+ * (lib/api/place.ts), so the same nearest stations answer both charts. A CITY
+ * AVERAGE (city=...) draws on the city's whole network by default instead:
+ * see DEFAULT_CLIMATE_CITY_POOL in lib/api/climate.ts for why.
  *
  * Reads station_monthly_climate, a small table rebuilt monthly by
  * scripts/climate/build_station_climate.py, and combines the stations with
@@ -17,10 +19,11 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { ok, fail, badRequest } from "@/lib/api/respond";
-import { resolvePlace, placeMeta, cityMinStations } from "@/lib/api/place";
-import { pageAll } from "@/lib/api/data";
+import { resolvePlace, placeMeta, cityMonitors, minStationsOf } from "@/lib/api/place";
+import { pageAll, DataError, type NearbyMonitor } from "@/lib/api/data";
 import {
   combineClimate,
+  DEFAULT_CLIMATE_CITY_POOL,
   DEFAULT_EXTREMES_RULE,
   DEFAULT_MIN_DAYS_PER_MONTH,
   DEFAULT_MIN_YEARS,
@@ -51,11 +54,36 @@ export async function GET(request: Request) {
   const resolved = await resolvePlace(supabase, params);
   if ("error" in resolved) return fail(resolved.error.message, resolved.error.status);
   const { place } = resolved;
-  const ids = place.monitors.map((m) => m.id);
+
+  // WHICH STATIONS. A city average takes its pool from
+  // DEFAULT_CLIMATE_CITY_POOL: the whole city's network ("city") or the k
+  // nearest that resolvePlace found ("nearest"). A point or a station keeps
+  // the stations resolvePlace found.
+  const city = params.get("city");
+  let monitors: NearbyMonitor[] = place.monitors;
+  if (city && place.kind === "point" && DEFAULT_CLIMATE_CITY_POOL === "city") {
+    try {
+      const whole = await cityMonitors(supabase, city, Number(place.query.lat), Number(place.query.lng));
+      // Empty only if the city name matches no monitors row; keep the
+      // nearest stations then rather than answer about nothing.
+      if (whole.length) monitors = whole;
+    } catch (err) {
+      if (err instanceof DataError) return fail("Could not load historical trends", 502, err.detail);
+      throw err;
+    }
+  }
+  const ids = monitors.map((m) => m.id);
+
+  // City averages drop year-months with too few stations, like /api/history:
+  // fewer than 10% OF THE POOL ABOVE. (The share must be of the stations the
+  // average can actually draw on; taking 10% of all 79 Delhi stations while
+  // drawing on only 10 demanded 8 of those 10 at once, and left one year.)
+  const minStations = city ? minStationsOf(monitors.length) : null;
 
   // Ordered on (monitor_id, year, month), unique within one metric, so pages
-  // never overlap or skip. A city of 10 stations x 15 years x 12 months can
-  // pass 1000 rows, which PostgREST would otherwise cut off silently.
+  // never overlap or skip. A whole city (Delhi NCR: 79 stations, ~5,500 rows
+  // per measure) passes the 1000-row cap many times over; PostgREST would
+  // otherwise cut it off silently.
   const { data, error } = await pageAll<ClimateRow>((lo, hi) =>
     supabase
       .from("station_monthly_climate")
@@ -71,11 +99,9 @@ export async function GET(request: Request) {
   // tell someone their station has no past when the fault is ours.
   if (error) return fail("Could not load historical trends", 502, error);
 
-  // City averages drop year-months with too few stations, like /api/history.
-  const minStations = await cityMinStations(supabase, params.get("city"));
   const result = combineClimate(data, { minStations });
 
-  const contributing = place.monitors
+  const contributing = monitors
     .filter((m) => result.monitor_ids.includes(m.id))
     .map((m) => ({ monitor_id: m.id, name: m.name, distance_km: m.distance_km }));
 
@@ -87,6 +113,8 @@ export async function GET(request: Request) {
     extremes_rule: DEFAULT_EXTREMES_RULE,
     screen: { min_years: SCREEN_MIN_YEARS, min_reference_years: SCREEN_MIN_REFERENCE_YEARS, factor: SCREEN_FACTOR },
     min_stations: minStations,
+    // "city" when a city average drew on the city's whole network.
+    city_pool: city ? (monitors === place.monitors ? "nearest" : "city") : null,
   });
   res.headers.set("Cache-Control", CACHE_CONTROL);
   return res;

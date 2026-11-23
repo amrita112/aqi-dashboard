@@ -14,7 +14,7 @@ import {
   savePrefs,
   MAX_PLACE_LABEL_CHARS,
 } from "@/lib/prefs";
-import { nearLabel, areaUnknownLabel, stationsNote, trendsShareText } from "@/lib/public-label";
+import { nearLabel, areaUnknownLabel, stationsNote, trendsShareText, climateNote, yearSpan } from "@/lib/public-label";
 import { myPlace, pointPlace, cityPlace } from "@/components/PlaceEditor";
 
 beforeEach(() => window.localStorage.clear());
@@ -134,5 +134,31 @@ describe("savePrefs applies the name rules", () => {
       threshold: null,
     });
     expect(loadPrefs()!.anchor.name).toBe("Kherwadi, Bandra East");
+  });
+});
+
+describe("Historical trends share note", () => {
+  it("years first, then monitoring stations; no distance for a city average", () => {
+    expect(climateNote(11, 2016, 2026, 73, 41.2, true)).toBe("11 years, 2016–2026; 73 monitoring stations");
+    expect(climateNote(12, 2015, 2026, 3, 2.06, false)).toBe(
+      "12 years, 2015–2026; 3 monitoring stations within 2.1 km",
+    );
+  });
+  it("one year, one station (the Map tab), and nothing known", () => {
+    expect(climateNote(1, 2026, 2026, 1, 0, false)).toBe("1 year, 2026; 1 monitoring station");
+    expect(climateNote(0, null, null, 0, null, false)).toBeNull();
+    expect(yearSpan(null, 2026)).toBeNull();
+  });
+  it("the shared sentence names the public label with the note", () => {
+    expect(
+      trendsShareText(
+        "Air quality month by month, from every year of records",
+        [{ label: "Delhi NCR (city average)", note: climateNote(11, 2016, 2026, 73, 40, true) }],
+        "See the forecast for your area: https://airgyaan.in",
+      ),
+    ).toBe(
+      "Air quality month by month, from every year of records, from AirGyaan — Delhi NCR (city average) " +
+        "(11 years, 2016–2026; 73 monitoring stations). See the forecast for your area: https://airgyaan.in",
+    );
   });
 });

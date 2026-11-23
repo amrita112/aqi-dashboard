@@ -37,8 +37,22 @@ import { APP_NAME } from "@/lib/brand";
 import ShareButton from "@/components/ShareButton";
 import { chartImage } from "@/lib/chart-image";
 import { SEE_YOUR_AREA } from "@/lib/share";
-import { areaUnknownLabel, nearLabel, stationsNote, trendsShareText } from "@/lib/public-label";
-import ClimateChart from "@/components/ClimateChart";
+import {
+  areaUnknownLabel,
+  climateNote,
+  nearLabel,
+  stationsNote,
+  trendsShareText,
+  yearSpan,
+} from "@/lib/public-label";
+import {
+  PETITION_PATH,
+  SAME_STATIONS_LINK_TEXT,
+  sameStationSet,
+  sameStationsMessage,
+  stationIdsOf,
+} from "@/lib/same-stations";
+import ClimateChart, { type ClimateAnswer } from "@/components/ClimateChart";
 import TrendsChart, {
   SERIES_COLORS,
   type HoverReading,
@@ -77,7 +91,7 @@ interface Day {
 interface StationsMeta {
   stations_used?: number;
   furthest_km?: number;
-  stations?: { name: string }[];
+  stations?: { name: string; monitor_id?: string }[];
 }
 
 interface HistoryRow {
@@ -154,6 +168,22 @@ function Readout({ reading }: { reading: HoverReading | null }) {
   );
 }
 
+/**
+ * Said in a comparison card instead of drawing a second, identical line, when
+ * both places use exactly the same monitoring stations (lib/same-stations.ts).
+ */
+function SameStationsWarning({ count }: { count: number }) {
+  return (
+    <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+      {sameStationsMessage(count)}{" "}
+      <Link href={PETITION_PATH} className="font-medium underline">
+        {SAME_STATIONS_LINK_TEXT}
+      </Link>
+      .
+    </p>
+  );
+}
+
 /** "9 Oct" */
 function humanDate(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
@@ -193,6 +223,13 @@ export default function TrendsScreen() {
   const [historyErrors, setHistoryErrors] = useState<Record<string, string | null>>({});
   /** Per place: which stations the forecast came from (for the share text). */
   const [stationMetas, setStationMetas] = useState<Record<string, StationsMeta | null>>({});
+  /** Per place: which stations the daily history came from (same shape). */
+  const [historyMetas, setHistoryMetas] = useState<Record<string, StationsMeta | null>>({});
+  /**
+   * Per place: the Historical trends answer, reported by ClimateChart once
+   * loaded, for the share message and the same-stations check.
+   */
+  const [climateAnswers, setClimateAnswers] = useState<Record<string, ClimateAnswer>>({});
   const [error, setError] = useState<string | null>(null);
   /** Which pill is open for editing, or null. */
   const [editing, setEditing] = useState<number | null>(null);
@@ -210,6 +247,8 @@ export default function TrendsScreen() {
   /** The two charts, captured as images when shared. */
   const forecastChartRef = useRef<HTMLDivElement>(null);
   const historyChartRef = useRef<HTMLDivElement>(null);
+  /** The Historical trends plot (ClimateChart's plotRef), for its share image. */
+  const climateChartRef = useRef<HTMLDivElement>(null);
   /**
    * Which round of loading is current. Switching pollutant or range while
    * answers are still coming back let a late answer for the OLD choice land
@@ -275,6 +314,7 @@ export default function TrendsScreen() {
       }));
       setForecasts((prev) => ({ ...prev, [place.key]: fr?.error ? [] : (fr?.data?.days ?? []) }));
       setStationMetas((prev) => ({ ...prev, [place.key]: fr?.error ? null : (fr?.meta ?? null) }));
+      setHistoryMetas((prev) => ({ ...prev, [place.key]: hr?.error ? null : (hr?.meta ?? null) }));
       setHistories((prev) => ({
         ...prev,
         [place.key]: hr?.error ? [] : (Array.isArray(hr?.data) ? hr.data : []),
@@ -297,6 +337,8 @@ export default function TrendsScreen() {
     setHourlies({});
     setHistoryErrors({});
     setStationMetas({});
+    setHistoryMetas({});
+    setClimateAnswers({});
     // THE READING BELONGS TO THE CHART THAT WAS THERE. Switching pollutant,
     // range or place left the last one standing: an AQI figure of 203 sitting
     // above a PM2.5 axis that tops out at 150, which reads as a wrong number
@@ -463,6 +505,30 @@ export default function TrendsScreen() {
       : `${humanDate(days[0].target_date)} – ${humanDate(days[days.length - 1].target_date)}`;
   }, [forecasts, places]);
 
+  // ── Two places, the same monitoring stations? ──────────────────────────
+  // Each card checks the stations ITS answer came from (lib/same-stations.ts):
+  // when they are exactly the same set, the two lines would be identical, so
+  // only the first place is drawn and the card says why. `same*` is the
+  // number of shared stations, or 0 when the places differ.
+  const chosen = places.filter((pl) => Object.keys(pl.query).length > 0);
+  const sharedCount = (a: string[] | null | undefined, b: string[] | null | undefined): number =>
+    chosen.length === 2 && sameStationSet(a, b) ? new Set(a).size : 0;
+  const forecastSame = sharedCount(
+    stationIdsOf(stationMetas[chosen[0]?.key]),
+    stationIdsOf(stationMetas[chosen[1]?.key]),
+  );
+  const historySame = sharedCount(
+    stationIdsOf(historyMetas[chosen[0]?.key]),
+    stationIdsOf(historyMetas[chosen[1]?.key]),
+  );
+  const climateSame = sharedCount(
+    climateAnswers[chosen[0]?.key]?.data?.monitor_ids,
+    climateAnswers[chosen[1]?.key]?.data?.monitor_ids,
+  );
+  // What each card draws: the first place only, when the two coincide.
+  const forecastShown = forecastSame ? forecastSeries.filter((s) => s.key === chosen[0].key) : forecastSeries;
+  const historyShown = historySame ? historySeries.filter((s) => s.key === chosen[0].key) : historySeries;
+
   /**
    * OLDER INSTALLS: SAVE THE AREA NAME ONCE IT IS KNOWN.
    *
@@ -549,6 +615,42 @@ export default function TrendsScreen() {
         fileName,
       };
     };
+
+  /**
+   * Historical trends as an image and message. Built like shareChart, but
+   * from the climate answers (years and monitoring stations per place)
+   * rather than a series of dates. Public names only, as above.
+   */
+  const shareClimate = async () => {
+    const node = climateChartRef.current;
+    const shown = chosen
+      .map((pl) => ({ pl, color: SERIES_COLORS[places.indexOf(pl)] ?? "#5c6b73" }))
+      .filter(({ pl }) => !(climateSame && pl.key === chosen[1]?.key))
+      .filter(({ pl }) => (climateAnswers[pl.key]?.data?.n_years ?? 0) > 0);
+    const named = shown.map(({ pl, color }) => {
+      const a = climateAnswers[pl.key];
+      const d = a.data!;
+      return {
+        color,
+        label: sharedName(pl),
+        span: yearSpan(d.first_year, d.last_year),
+        note: climateNote(d.n_years, d.first_year, d.last_year, a.stationsUsed, a.furthestKm, pl.key.startsWith("city:")),
+      };
+    });
+    const image = node
+      ? await chartImage(node, {
+          title: "Historical trends · month by month",
+          subtitle: `${unit ? `PM2.5 (${unit})` : "AQI"} · the average day, median over years`,
+          // The years in the legend, so the picture says how long a record it rests on.
+          legend: named.map((n) => ({ label: n.span ? `${n.label} (${n.span})` : n.label, color: n.color })),
+        })
+      : null;
+    return {
+      text: trendsShareText("Air quality month by month, from every year of records", named, SEE_YOUR_AREA),
+      image,
+      fileName: "airgyaan-historical-trends.png",
+    };
+  };
 
   if (!prefs) return <p className="text-gray-500">Loading…</p>;
 
@@ -657,7 +759,7 @@ export default function TrendsScreen() {
           <ShareButton
             build={shareChart(
               forecastChartRef,
-              forecastSeries,
+              forecastShown,
               `Air quality forecast${forecastDates ? ` · ${forecastDates}` : ""}`,
               "airgyaan-forecast.png",
               "The air quality forecast",
@@ -676,6 +778,7 @@ export default function TrendsScreen() {
             of its own, allowed to wrap, with its height reserved so the chart
             does not jump as a finger moves. */}
         <Readout reading={fHover} />
+        {forecastSame > 0 && <SameStationsWarning count={forecastSame} />}
         <div className="mt-3" ref={forecastChartRef}>
           {forecastSeries.every((s) => !s.points.length) ? (
             <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
@@ -688,7 +791,7 @@ export default function TrendsScreen() {
             // the person's own setting. The home screen keeps its warning, where
             // the measure is always theirs.
             <TrendsChart
-              series={forecastSeries}
+              series={forecastShown}
               unit={unit}
               // The band means two different things depending on range, so it
               // is named for what it actually is rather than left to guess.
@@ -720,19 +823,21 @@ export default function TrendsScreen() {
             <option value={30}>30 days</option>
             <option value="climate">Historical trends</option>
           </select>
-          {/* No share button on Historical trends for now: the shared image
-              and message are built for a chart of dates. */}
-          {!climateView && (
-            <ShareButton
-              build={shareChart(
-                historyChartRef,
-                historySeries,
-                `Measured air quality · last ${hRange} days`,
-                "airgyaan-history.png",
-                `Measured air quality over the last ${hRange} days`,
-              )}
-            />
-          )}
+          {/* A share button in every view, Historical trends included (its
+              image and message are built by shareClimate). */}
+          <ShareButton
+            build={
+              climateView
+                ? shareClimate
+                : shareChart(
+                    historyChartRef,
+                    historyShown,
+                    `Measured air quality · last ${hRange} days`,
+                    "airgyaan-history.png",
+                    `Measured air quality over the last ${hRange} days`,
+                  )
+            }
+          />
           </div>
         </div>
         {/* ── Historical trends, the third option ─────────────────────────
@@ -743,10 +848,19 @@ export default function TrendsScreen() {
           <>
             <p className="mt-1 text-xs text-gray-500">
               What each month is usually like, from every year of records at the monitoring
-              stations near each place.
+              stations near each place
+              {places.some((pl) => pl.key.startsWith("city:")) &&
+                " (for a city average, every monitoring station in the city)"}
+              .
             </p>
+            {climateSame > 0 && <SameStationsWarning count={climateSame} />}
             <div className="mt-3">
               <ClimateChart
+                plotRef={climateChartRef}
+                onLoaded={(answers) =>
+                  setClimateAnswers(Object.fromEntries(answers.map((a) => [a.key, a])))
+                }
+                hiddenKeys={climateSame > 0 && chosen[1] ? [chosen[1].key] : undefined}
                 places={places
                   .map((pl, idx) => ({
                     key: pl.key,
@@ -765,6 +879,7 @@ export default function TrendsScreen() {
         {!climateView && (
         <>
         <Readout reading={hHover} />
+        {historySame > 0 && <SameStationsWarning count={historySame} />}
         {/* WHY THERE ARE HOLES IN THIS LINE. The axis is the window asked
             for, so a day nobody measured is drawn as a gap rather than
             silently skipped — which is honest and, without a word of
@@ -821,7 +936,7 @@ export default function TrendsScreen() {
             </div>
           ) : (
             <TrendsChart
-              series={historySeries}
+              series={historyShown}
               unit={unit}
               solidLabel="Measured"
               showKey={false}

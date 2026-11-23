@@ -19,10 +19,14 @@
  * once and clutter forever after.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ForecastChart, { type ForecastDayInput } from "@/components/ForecastChart";
 import HistoryChart from "@/components/HistoryChart";
-import ClimateChart from "@/components/ClimateChart";
+import ClimateChart, { type ClimateAnswer } from "@/components/ClimateChart";
+import ShareButton from "@/components/ShareButton";
+import { chartImage } from "@/lib/chart-image";
+import { SEE_YOUR_AREA } from "@/lib/share";
+import { climateNote, trendsShareText, yearSpan } from "@/lib/public-label";
 import { MEASUREMENT_COPY, type Measurement } from "@/lib/prefs";
 
 export type DetailRange = "forecast7" | "next24" | "past30" | "climate";
@@ -107,12 +111,18 @@ export default function StationDetail({
   const [days, setDays] = useState<Day[] | null>(null);
   const [history, setHistory] = useState<{ date: string; value: number }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The Historical trends answer, once loaded, for its share message. */
+  const [climate, setClimate] = useState<ClimateAnswer | null>(null);
+  /** The Historical trends plot, captured as the shared image. */
+  const climateRef = useRef<HTMLDivElement>(null);
   const unit = MEASUREMENT_COPY[measurement].unit;
   const short = MEASUREMENT_COPY[measurement].short;
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
+    // A new station, measure or view: the old reading no longer applies.
+    setHovered(null);
 
     // Historical trends fetches its own data (ClimateChart).
     if (range === "climate") return;
@@ -183,6 +193,37 @@ export default function StationDetail({
 
   const hoursLine = cleanestLine(days?.[0]?.hourly ?? null, unit);
 
+  /**
+   * SHARING HISTORICAL TRENDS. The only view of this card with a share
+   * button: it is the one new kind of information here that is worth
+   * sending on (the other views are a single station's next days or last
+   * month, which the Home and Trends tabs already share for a place).
+   * The station's own name is public (it is the government's name for the
+   * monitoring station, not anything the person typed), so it is the label.
+   */
+  const shareClimate = async () => {
+    const d = climate?.data;
+    const node = climateRef.current;
+    const note = d ? climateNote(d.n_years, d.first_year, d.last_year, 1, null, false) : null;
+    const span = d ? yearSpan(d.first_year, d.last_year) : null;
+    const image = node
+      ? await chartImage(node, {
+          title: "Historical trends · month by month",
+          subtitle: `${unit ? `PM2.5 (${unit})` : "AQI"} · the average day, median over years`,
+          legend: [{ label: span ? `${station.name} (${span})` : station.name, color: "#12171b" }],
+        })
+      : null;
+    return {
+      text: trendsShareText(
+        "Air quality month by month, from every year of records",
+        [{ label: station.name, note }],
+        SEE_YOUR_AREA,
+      ),
+      image,
+      fileName: "airgyaan-historical-trends.png",
+    };
+  };
+
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-lg">
       <div className="flex items-start justify-between gap-3">
@@ -208,14 +249,24 @@ export default function StationDetail({
               over the line, matching the Home and Trends cards — and the
               station chart had no readout at all before, so dragging across it
               on a phone showed a cursor and no number. */}
-          {hovered && (
+          {/* Only the forecast views set it (ForecastChart's onHover), so it
+              is shown only there. Without this guard the last forecast
+              reading -- e.g. "Mon · 71", Monday's forecast under the
+              finger -- stayed under the station name after switching to
+              Historical trends or Past month, which have readouts of their
+              own. */}
+          {hovered && (range === "forecast7" || range === "next24") && (
             <p className="mt-0.5 truncate text-xs font-medium text-gray-900">{hovered}</p>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <select
             value={range}
-            onChange={(e) => setRange(e.target.value as DetailRange)}
+            onChange={(e) => {
+              // A reading belongs to the chart it was read from.
+              setHovered(null);
+              setRange(e.target.value as DetailRange);
+            }}
             className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs"
             aria-label="What to show"
           >
@@ -225,6 +276,7 @@ export default function StationDetail({
               </option>
             ))}
           </select>
+          {range === "climate" && <ShareButton build={shareClimate} />}
           <button
             type="button"
             onClick={onClose}
@@ -255,6 +307,8 @@ export default function StationDetail({
               { key: station.monitor_id, label: station.name, query: { monitor_id: station.monitor_id } },
             ]}
             measurement={measurement}
+            plotRef={climateRef}
+            onLoaded={(answers) => setClimate(answers[0] ?? null)}
           />
         )}
         {!error && range !== "past30" && range !== "climate" && (

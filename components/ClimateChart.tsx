@@ -31,7 +31,7 @@
  * three-letter names do not fit a phone's width; the readout names the month.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Ref } from "react";
 import {
   Area,
   CartesianGrid,
@@ -92,7 +92,18 @@ export interface ClimatePlace {
 interface Loaded {
   data: ClimateResult | null;
   stationsUsed: number;
+  /** meta.furthest_km: how far the furthest contributing station is. */
+  furthestKm: number | null;
   error: string | null;
+}
+
+/**
+ * One place's answer, handed to the caller through `onLoaded`, so a card can
+ * build a share message or compare the places' stations without asking the
+ * server a second time.
+ */
+export interface ClimateAnswer extends Loaded {
+  key: string;
 }
 
 type Row = Record<string, number | string | null | [number, number]>;
@@ -102,6 +113,9 @@ export default function ClimateChart({
   measurement,
   stationWord = "monitoring station",
   height = 192,
+  plotRef,
+  onLoaded,
+  hiddenKeys,
 }: {
   places: ClimatePlace[];
   measurement: Measurement;
@@ -111,11 +125,31 @@ export default function ClimateChart({
    */
   stationWord?: string;
   height?: number;
+  /**
+   * Attached to the plot and its key only -- what a SHARED image captures.
+   * The lines above and below the plot name places by their on-screen
+   * labels (possibly the person's own nickname), so they are left out; the
+   * share image draws its own public names (lib/chart-image.ts).
+   */
+  plotRef?: Ref<HTMLDivElement>;
+  /** Called with every place's answer once all have come back. */
+  onLoaded?: (answers: ClimateAnswer[]) => void;
+  /**
+   * Places loaded but NOT drawn, by key: the Trends tab hides the second
+   * place when both use exactly the same monitoring stations (their lines
+   * would be identical; lib/same-stations.ts). Kept loaded rather than
+   * removed from `places`, so hiding does not refetch or re-trigger onLoaded.
+   */
+  hiddenKeys?: readonly string[];
 }) {
   // One answer per place, in the same order as `places`; null while loading.
   const [loaded, setLoaded] = useState<Loaded[] | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const unit = MEASUREMENT_COPY[measurement].unit;
+  // The latest props, read when answers arrive, so the fetch effect below
+  // can stay keyed on the query strings alone.
+  const latest = useRef({ places, onLoaded });
+  latest.current = { places, onLoaded };
 
   // Stable dependency: the places array is rebuilt on every render upstream,
   // so the effect keys on the query strings it would actually send.
@@ -136,18 +170,22 @@ export default function ClimateChart({
           try {
             const r = await fetch(`/api/climate?${qs}`);
             const b = await r.json();
-            if (b?.error) return { data: null, stationsUsed: 0, error: b.error.message };
+            if (b?.error) return { data: null, stationsUsed: 0, furthestKm: null, error: b.error.message };
             return {
               data: b.data as ClimateResult,
               stationsUsed: Number(b.meta?.stations_used ?? 0),
+              furthestKm: typeof b.meta?.furthest_km === "number" ? b.meta.furthest_km : null,
               error: null,
             };
           } catch {
-            return { data: null, stationsUsed: 0, error: "Could not reach the server." };
+            return { data: null, stationsUsed: 0, furthestKm: null, error: "Could not reach the server." };
           }
         }),
       );
-      if (!cancelled) setLoaded(answers);
+      if (cancelled) return;
+      setLoaded(answers);
+      const { places: now, onLoaded: report } = latest.current;
+      report?.(answers.map((a, i) => ({ ...a, key: now[i]?.key ?? String(i) })));
     })();
     return () => {
       cancelled = true;
@@ -158,17 +196,20 @@ export default function ClimateChart({
     return <p className="py-10 text-center text-sm text-gray-500">Loading…</p>;
   }
 
-  // Each place with its answer and colour, in order.
-  const all = places.map((p, idx) => ({
-    ...p,
-    ...loaded[idx],
-    idx,
-    color: p.color ?? SERIES_COLORS[idx] ?? NEUTRAL,
-  }));
+  // Each place with its answer and colour, in order, less any the caller
+  // asked to hide (colours keep their position, so the first stays black).
+  const all = places
+    .map((p, idx) => ({
+      ...p,
+      ...loaded[idx],
+      idx,
+      color: p.color ?? SERIES_COLORS[idx] ?? NEUTRAL,
+    }))
+    .filter((p) => !hiddenKeys?.includes(p.key));
   // The places that have something to draw.
   const live = all.filter((p) => p.data !== null && p.data.n_years > 0);
   const failed = all.filter((p) => p.error !== null);
-  const comparing = places.length > 1;
+  const comparing = all.length > 1;
 
   if (live.length === 0) {
     if (failed.length > 0) {
@@ -284,6 +325,8 @@ export default function ClimateChart({
         )}
       </p>
 
+      {/* The plot and its key: what a shared image captures (plotRef). */}
+      <div ref={plotRef}>
       <div style={{ height }} className="flex w-full gap-1.5">
         <div className="h-full min-w-0 flex-1">
           <ResponsiveContainer width="100%" height="100%">
@@ -399,10 +442,11 @@ export default function ClimateChart({
           </span>
         )}
       </div>
+      </div>
 
       {/* Footnotes: what an AQI low/high is, then how many monitoring stations
-          and where the numbers come from (the owner's wording), then two short
-          caveats. */}
+          and where the numbers come from (the owner's wording), then the
+          months the unusual-year screen left out, when there are any. */}
       <p className="mt-2 text-[11px] leading-snug text-gray-500">
         {isAqi &&
           (comparing ? (
@@ -421,13 +465,14 @@ export default function ClimateChart({
         {comparing
           ? live.map((p) => `${p.label}: ${stationsSentence(p).toLowerCase().replace(/\.$/, "")}. `).join("")
           : `${stationsSentence(live[0])} `}
-        Values are median over years. Data: CPCB (via XKDR and OpenAQ).
+        Values are median over years. Data is from CPCB (via XKDR and OpenAQ).
       </p>
-      <p className="mt-1 text-[11px] leading-snug text-gray-400">
-        {totalDropped > 0 &&
-          `Left out: ${totalDropped} unusual ${totalDropped === 1 ? "month" : "months"} at single monitoring stations (each at least ${SCREEN_FACTOR}× above or below that monitoring station's other years). `}
-        Highs read slightly higher from Sep 2025, when readings became 15-minute.
-      </p>
+      {/* Only when the unusual-year screen left something out. */}
+      {totalDropped > 0 && (
+        <p className="mt-1 text-[11px] leading-snug text-gray-400">
+          {`Left out: ${totalDropped} unusual ${totalDropped === 1 ? "month" : "months"} at single monitoring stations (each at least ${SCREEN_FACTOR}× above or below that monitoring station's other years).`}
+        </p>
+      )}
     </div>
   );
 }

@@ -89,6 +89,29 @@ export const SCREEN_MIN_YEARS = 5;
 export const SCREEN_MIN_REFERENCE_YEARS = 4;
 export const SCREEN_FACTOR = 3;
 
+/**
+ * Which stations a CITY AVERAGE's Historical trends draws on.
+ *
+ *   "city"     every active monitoring station filed under the city (Delhi
+ *              NCR: 79). The default. History is the long view, and the
+ *              city's full network is what holds it: Delhi's 10 stations
+ *              nearest its centre include several that only started in
+ *              2025-26, while the wider network goes back to 2009.
+ *   "nearest"  the same k nearest stations as the Forecast and the Past
+ *              month chart (10 for a city; components/PlaceEditor.tsx).
+ *
+ * Either way, a year-month counts for the city only when at least
+ * CITY_MIN_REPORTING_SHARE (10%) OF THAT POOL had a usable month. The bug
+ * this replaced (Nov 2026): the pool was the 10 nearest but the share was
+ * taken of all 79, so 8 of the 10 had to report at once -- which only ever
+ * happened in 2026, and Delhi NCR showed "1 year (2026)".
+ *
+ * A point or a single station is never affected: it always uses its own
+ * nearest stations, with no minimum.
+ */
+export type ClimateCityPool = "city" | "nearest";
+export const DEFAULT_CLIMATE_CITY_POOL: ClimateCityPool = "city";
+
 export interface ClimateOptions {
   minDaysPerMonth?: number;
   minYears?: number;

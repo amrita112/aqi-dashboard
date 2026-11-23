@@ -69,3 +69,37 @@ export function trendsShareText(
   const where = places.map((p) => (p.note ? `${p.label} (${p.note})` : p.label)).join("; ");
   return `${lead}, from AirGyaan${where ? ` — ${where}` : ""}. ${closing}`;
 }
+
+/**
+ * The span of years behind a Historical trends chart: "2016–2026", or
+ * "2026" for a single year. Null when there are none.
+ */
+export function yearSpan(first: number | null | undefined, last: number | null | undefined): string | null {
+  if (!first || !last) return null;
+  return first === last ? String(first) : `${first}–${last}`;
+}
+
+/**
+ * The note shared with a Historical trends chart, per place: how many years
+ * and how many monitoring stations stand behind it, e.g.
+ * "11 years, 2016–2026; 73 monitoring stations" or
+ * "12 years, 2015–2026; 3 monitoring stations within 2.1 km".
+ *
+ * Years first, because the long view is the point of this chart. The
+ * distance is left off for a city average (`isCity`), where "within 40 km"
+ * says nothing useful.
+ */
+export function climateNote(
+  nYears: number,
+  first: number | null | undefined,
+  last: number | null | undefined,
+  stationsUsed: number | undefined,
+  furthestKm: number | null | undefined,
+  isCity: boolean,
+): string | null {
+  const span = yearSpan(first, last);
+  const years = nYears > 0 ? `${nYears} ${nYears === 1 ? "year" : "years"}${span ? `, ${span}` : ""}` : null;
+  const stations = stationsNote(stationsUsed, isCity ? undefined : (furthestKm ?? undefined));
+  const parts = [years, stations].filter(Boolean);
+  return parts.length ? parts.join("; ") : null;
+}

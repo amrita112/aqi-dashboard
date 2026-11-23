@@ -163,7 +163,54 @@ export async function cityMinStations(
     .eq("city", city)
     .is("disabled_at", null);
   if (error || count === null) return null;
+  return minStationsOf(count);
+}
+
+/**
+ * The CITY_MIN_REPORTING_SHARE rule for a pool of `count` stations: at least
+ * one, else that share of them rounded up (79 stations -> 8, 10 -> 1).
+ */
+export function minStationsOf(count: number): number {
   return Math.max(1, Math.ceil(count * CITY_MIN_REPORTING_SHARE));
+}
+
+/** Straight-line distance in km between two points (the haversine formula). */
+export function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const rad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * rad;
+  const dLng = (lng2 - lng1) * rad;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(a));
+}
+
+/**
+ * Every active monitoring station filed under a city (not disabled), nearest
+ * to (lat, lng) first, with its distance from that point.
+ *
+ * The same stations cityMinStations counts, so "10% of the city's stations"
+ * is measured against the very stations the average can draw on. Throws
+ * DataError when the database cannot be read, so an empty list always means
+ * "no stations filed under this city".
+ */
+export async function cityMonitors(
+  supabase: SupabaseClient,
+  city: string,
+  lat: number,
+  lng: number,
+): Promise<NearbyMonitor[]> {
+  const { data, error } = await supabase
+    .from("monitors")
+    .select("id, name, city, latitude, longitude")
+    .eq("city", city)
+    .is("disabled_at", null)
+    .order("id", { ascending: true });
+  if (error) throw new DataError("Could not load the city's monitoring stations", error);
+  return ((data ?? []) as MonitorRow[])
+    .map((m) => ({
+      ...m,
+      distance_km: Math.round(distanceKm(lat, lng, m.latitude, m.longitude) * 100) / 100,
+    }))
+    .sort((a, b) => a.distance_km - b.distance_km);
 }
 
 /** Shared `meta` describing which stations answered, and how far away. */
