@@ -112,64 +112,103 @@ export interface CurrentReading {
   pollutants: { pollutant: string; value: number; sub_index: number }[];
 }
 
+/**
+ * How many of a station's newest readings to look through for one that can
+ * carry an AQI. OpenAQ publishes pollutants in separate bursts, so the latest
+ * timestamp often has only NO2 or SO2 so far, and its "AQI" would understate
+ * the air.
+ */
+const CURRENT_LOOKBACK_READINGS = 12;
+
 /** The freshest reading we hold for a station, or null if we hold none. */
 export async function getCurrent(
   supabase: SupabaseClient,
   monitor: MonitorRow,
 ): Promise<CurrentReading | null> {
+  return (await getCurrentMany(supabase, [monitor])).get(monitor.id) ?? null;
+}
+
+/**
+ * The freshest reading for EACH of several stations, in ONE database request.
+ *
+ * WHY ONE REQUEST. A city average now uses every station in the city (Delhi
+ * NCR: 79). Asking station by station meant two requests each -- 158 for one
+ * question. Instead this asks the monitors table for the stations and, nested
+ * inside each one (PostgREST "embedding": following the link from a reading
+ * to its station), that station's newest few official readings with their
+ * pollutant values. The limit on the nested readings applies PER STATION, so
+ * this is the same "newest 12 readings of each station" as before.
+ *
+ * The 1000-row cap applies to the top-level rows only, which here are the
+ * stations (at most a few dozen per request; see MONITORS_PER_QUERY).
+ *
+ * THE NEWEST READING THAT CAN CARRY AN AQI, not simply the newest: the
+ * lookback finds one that meets the AQI rule (both PMs by default;
+ * lib/daily-quality-config.json) -- the same rule as everywhere else.
+ *
+ * Returns a map from station id to its reading; a station with no usable
+ * reading is simply absent.
+ */
+export async function getCurrentMany(
+  supabase: SupabaseClient,
+  monitors: MonitorRow[],
+): Promise<Map<string, CurrentReading>> {
   const { computeSubIndex } = await import("@/lib/aqi-utils");
   const { DEFAULT_SCALE } = await import("@/lib/types");
 
-  // THE NEWEST READING THAT CAN CARRY AN AQI, not simply the newest. OpenAQ
-  // publishes pollutants in separate bursts, so the latest timestamp often has
-  // only NO2 or SO2 so far, and its "AQI" would understate the air. Look back
-  // over the last few readings for one that meets the AQI rule (both PMs by
-  // default; lib/daily-quality-config.json) -- the same rule as everywhere else.
-  const LOOKBACK_READINGS = 12;
-  const { data: readings } = await supabase
-    .from("readings")
-    .select("id, recorded_at")
-    .eq("monitor_id", monitor.id)
-    // Official readings only. A user-submitted row (source='user') pointing
-    // at an official station would otherwise become its "current" reading
-    // (audit §2.3). Migration 24 also stops anyone inserting those rows.
-    .eq("source", "openaq")
-    .order("recorded_at", { ascending: false })
-    .limit(LOOKBACK_READINGS);
-  if (!readings?.length) return null;
-
-  const { data: allMeasurements } = await supabase
-    .from("measurements")
-    .select("reading_id, pollutant, value")
-    .in("reading_id", readings.map((r) => r.id));
-
-  const usableFor = (readingId: string) =>
-    (allMeasurements ?? []).filter(
-      (m) =>
-        m.reading_id === readingId &&
-        (MEASURED_POLLUTANTS as readonly string[]).includes(m.pollutant) &&
-        m.value >= 0,
-    );
-  const reading = readings.find((r) => meetsAqiRule(usableFor(r.id).map((m) => m.pollutant)));
-  if (!reading) return null;
-  const rows = usableFor(reading.id);
-
-  const withSub = rows.map((m) => ({
-    pollutant: m.pollutant,
-    value: m.value,
-    sub_index: computeSubIndex(m.pollutant as never, m.value, DEFAULT_SCALE),
-  }));
-  const dominant = withSub.reduce((a, b) => (b.sub_index > a.sub_index ? b : a));
-
-  return {
-    monitor_id: monitor.id,
-    station: monitor.name,
-    recorded_at: reading.recorded_at,
-    age_hours: Math.round(((Date.now() - Date.parse(reading.recorded_at)) / 3_600_000) * 10) / 10,
-    aqi: dominant.sub_index,
-    dominant_pollutant: dominant.pollutant,
-    pollutants: withSub,
+  type Embedded = {
+    id: string;
+    readings: { id: string; recorded_at: string; measurements: { pollutant: string; value: number }[] }[] | null;
   };
+  const chunks = chunked(monitors.map((m) => m.id), MONITORS_PER_QUERY);
+  const results = await mapLimit(chunks, MAX_PARALLEL_QUERIES, async (ids) => {
+    const { data } = await supabase
+      .from("monitors")
+      .select("id, readings(id, recorded_at, measurements(pollutant, value))")
+      .in("id", ids)
+      // Official readings only. A user-submitted row (source='user') pointing
+      // at an official station would otherwise become its "current" reading
+      // (audit §2.3). Migration 24 also stops anyone inserting those rows.
+      .eq("readings.source", "openaq")
+      .order("recorded_at", { referencedTable: "readings", ascending: false })
+      .limit(CURRENT_LOOKBACK_READINGS, { referencedTable: "readings" });
+    return (data ?? []) as Embedded[];
+  });
+
+  const byId = new Map(monitors.map((m) => [m.id, m]));
+  const out = new Map<string, CurrentReading>();
+  for (const row of results.flat()) {
+    const monitor = byId.get(row.id);
+    if (!monitor) continue;
+    // Newest first; re-sorted here rather than trusting the nested order.
+    const readings = [...(row.readings ?? [])].sort(
+      (a, b) => Date.parse(b.recorded_at) - Date.parse(a.recorded_at),
+    );
+    const usableFor = (r: Embedded["readings"] extends (infer R)[] | null ? R : never) =>
+      (r.measurements ?? []).filter(
+        (m) => (MEASURED_POLLUTANTS as readonly string[]).includes(m.pollutant) && m.value >= 0,
+      );
+    const reading = readings.find((r) => meetsAqiRule(usableFor(r).map((m) => m.pollutant)));
+    if (!reading) continue;
+
+    const withSub = usableFor(reading).map((m) => ({
+      pollutant: m.pollutant,
+      value: m.value,
+      sub_index: computeSubIndex(m.pollutant as never, m.value, DEFAULT_SCALE),
+    }));
+    const dominant = withSub.reduce((a, b) => (b.sub_index > a.sub_index ? b : a));
+
+    out.set(monitor.id, {
+      monitor_id: monitor.id,
+      station: monitor.name,
+      recorded_at: reading.recorded_at,
+      age_hours: Math.round(((Date.now() - Date.parse(reading.recorded_at)) / 3_600_000) * 10) / 10,
+      aqi: dominant.sub_index,
+      dominant_pollutant: dominant.pollutant,
+      pollutants: withSub,
+    });
+  }
+  return out;
 }
 
 /** Stored daily forecast for one station, expanded to IST hours. */
@@ -180,7 +219,35 @@ export async function getForecast(
   days: number,
   opts: { includeToday?: boolean } = {},
 ): Promise<ForecastDay[]> {
+  return (await getForecastMany(supabase, [monitor], pollutant, days, opts)).get(monitor.id) ?? [];
+}
+
+/**
+ * Stored daily forecast for EACH of several stations, expanded to IST hours:
+ * for every station, its next `days` rows, exactly as getForecast gives one.
+ *
+ * WHY BATCHED. A city average now uses every station in the city (Delhi NCR:
+ * 79). Station by station that was two requests each (the forecast rows and
+ * the city's hourly shape) -- 158 for one screen. Here the rows for many
+ * stations come in one request per MONITORS_PER_QUERY stations, and the
+ * hourly shape is read once per city rather than once per station. Each row
+ * is then expanded by the same expandDay as before, so the numbers do not
+ * change; only how they are fetched.
+ *
+ * Returns a map from station id to its days; every requested station has an
+ * entry (possibly empty).
+ */
+export async function getForecastMany(
+  supabase: SupabaseClient,
+  monitors: MonitorRow[],
+  pollutant: string,
+  days: number,
+  opts: { includeToday?: boolean } = {},
+): Promise<Map<string, ForecastDay[]>> {
   const today = istToday();
+  const out = new Map<string, ForecastDay[]>(monitors.map((m) => [m.id, []]));
+  if (!monitors.length) return out;
+
   // TODAY'S ROW EXISTS AND WAS BEING THROWN AWAY. The nightly job writes a
   // horizon-1 row for the day it runs, so by the time anyone opens the app
   // there is a forecast for today sitting in the table -- `gt` dropped it and
@@ -190,29 +257,67 @@ export async function getForecast(
   // Still EXCLUDED by default, because the Today screen and the forecast list
   // are built around "the days ahead" and silently prepending today would
   // shift every card. Callers that want it ask for it.
-  const { data: rows } = await supabase
-    .from("forecast_daily")
-    .select(
-      "monitor_id, pollutant, target_date, horizon_days, value, band_p50, band_p80, mode, model, based_on_date, data_age_days, computed_at",
-    )
-    .eq("monitor_id", monitor.id)
-    .eq("pollutant", pollutant)
-    [opts.includeToday ? "gte" : "gt"]("target_date", today)
-    .order("target_date", { ascending: true })
-    .limit(days);
-  if (!rows?.length) return [];
+  //
+  // Every future row of these stations: the table holds at most one row per
+  // (station, pollutant, day) -- its primary key -- and only the next seven
+  // or so days, so a few dozen stations stay well inside one page. Ordered
+  // by (monitor_id, target_date), unique for one pollutant, so pages cannot
+  // overlap or skip; each station's first `days` rows are taken below, which
+  // is what `.limit(days)` did for one station.
+  const chunks = chunked(monitors.map((m) => m.id), MONITORS_PER_QUERY);
+  const pages = await mapLimit(chunks, MAX_PARALLEL_QUERIES, async (ids) => {
+    const { data, error } = await pageAll<ForecastDailyRow>((lo, hi) =>
+        supabase
+          .from("forecast_daily")
+          .select(
+            "monitor_id, pollutant, target_date, horizon_days, value, band_p50, band_p80, mode, model, based_on_date, data_age_days, computed_at",
+          )
+          .in("monitor_id", ids)
+          .eq("pollutant", pollutant)
+          [opts.includeToday ? "gte" : "gt"]("target_date", today)
+          .order("monitor_id", { ascending: true })
+          .order("target_date", { ascending: true })
+          .range(lo, hi),
+    );
+    // As before batching: a failed read gives these stations no forecast
+    // (the route then says none is stored), never half a list.
+    return error ? [] : data;
+  });
+  const rowsByMonitor = new Map<string, ForecastDailyRow[]>();
+  for (const r of pages.flat()) {
+    const list = rowsByMonitor.get(r.monitor_id) ?? [];
+    list.push(r);
+    rowsByMonitor.set(r.monitor_id, list);
+  }
 
-  const analysisCity = APP_TO_ANALYSIS[monitor.city] ?? monitor.city;
-  const { data: shapeRows } = await supabase
-    .from("diurnal_shape")
-    .select("city, pollutant, month, hour, ratio")
-    .eq("city", analysisCity)
-    .eq("pollutant", pollutant);
-
-  const shape = indexShape((shapeRows ?? []) as ShapeRow[]);
-  return (rows as ForecastDailyRow[]).map((r) =>
-    expandDay(r, analysisCity, shape, { hourly: true, today }),
+  // The hourly shape is per CITY, so it is read once per city in the batch
+  // (normally one), not once per station.
+  const cities = Array.from(new Set(monitors.map((m) => APP_TO_ANALYSIS[m.city] ?? m.city)));
+  const shapes = new Map(
+    await Promise.all(
+      cities.map(async (analysisCity) => {
+        const { data: shapeRows } = await supabase
+          .from("diurnal_shape")
+          .select("city, pollutant, month, hour, ratio")
+          .eq("city", analysisCity)
+          .eq("pollutant", pollutant);
+        return [analysisCity, indexShape((shapeRows ?? []) as ShapeRow[])] as const;
+      }),
+    ),
   );
+
+  for (const monitor of monitors) {
+    const rows = (rowsByMonitor.get(monitor.id) ?? [])
+      .sort((a, b) => a.target_date.localeCompare(b.target_date))
+      .slice(0, days);
+    const analysisCity = APP_TO_ANALYSIS[monitor.city] ?? monitor.city;
+    const shape = shapes.get(analysisCity) ?? new Map<string, number[]>();
+    out.set(
+      monitor.id,
+      rows.map((r) => expandDay(r, analysisCity, shape, { hourly: true, today })),
+    );
+  }
+  return out;
 }
 
 /**
@@ -269,37 +374,112 @@ export async function pageAll<T>(
   }
 }
 
+// ─── Reading many stations without one request per station ─────────────────
+//
+// A city average uses every active station in the city (Delhi NCR: 79), so
+// "one request per station" would mean dozens or hundreds of requests per
+// screen. Instead the stations are put into a few requests with
+// `.in("monitor_id", [...])`, and those requests run a few at a time.
+
+/** PostgREST's row cap per response (the project's "max rows" setting). */
+export const PAGE_ROWS = 1000;
+
+/**
+ * At most this many stations in one request. Each station id is 36
+ * characters in the request's web address, and very long addresses can be
+ * refused, so even tiny tables are split at this size.
+ */
+export const MONITORS_PER_QUERY = 40;
+
+/**
+ * At most this many requests in flight at once for one answer: enough to
+ * overlap the waiting, few enough not to crowd the database's connection
+ * pool (the small Supabase plans have tens of connections, shared by
+ * everyone using the app).
+ */
+export const MAX_PARALLEL_QUERIES = 8;
+
+/**
+ * How many stations to put in one request when each station brings about
+ * `rowsPerStation` rows: enough that a request is about one page, at least
+ * one, at most MONITORS_PER_QUERY.
+ */
+export function stationsPerQuery(rowsPerStation: number): number {
+  return Math.max(1, Math.min(MONITORS_PER_QUERY, Math.floor(PAGE_ROWS / Math.max(1, rowsPerStation))));
+}
+
+/** Split a list into pieces of at most `size`. */
+export function chunked<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += Math.max(1, size)) out.push(items.slice(i, i + Math.max(1, size)));
+  return out;
+}
+
+/**
+ * Run `fn` on every item, at most `limit` at a time, keeping the results in
+ * the items' order (like Promise.all, but without starting everything at once).
+ */
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, worker));
+  return out;
+}
+
 type DailyDbRow = {
-  date: string; pollutant: string; mean: number | null; min: number | null;
+  monitor_id: string; date: string; pollutant: string; mean: number | null; min: number | null;
   max: number | null; min_ts: string | null; max_ts: string | null;
   count: number | null; source: string; is_complete: boolean | null;
 };
 
-async function dailyRows(
+/**
+ * readings_daily rows for several stations, a few stations per request.
+ *
+ * How many stations share a request is worked out from the window, so each
+ * request is about one page (rowsPerStation x stations <= PAGE_ROWS): a
+ * 30-day AQI history (4 pollutants) puts 8 stations in a request, a 365-day
+ * one puts 1. The requests run MAX_PARALLEL_QUERIES at a time, and each is
+ * still paged, ordered on (monitor_id, date, pollutant) -- the table's
+ * primary key -- so pages never overlap or skip.
+ */
+async function dailyRowsMany(
   supabase: SupabaseClient,
-  monitorId: string,
+  monitorIds: string[],
   pollutants: readonly string[],
   from: string,
   to: string,
 ): Promise<DailyDbRow[]> {
-  const { data, error } = await pageAll<DailyDbRow>((lo, hi) =>
-    supabase
-      .from("readings_daily")
-      .select("date, pollutant, mean, min, max, min_ts, max_ts, count, source, is_complete")
-      .eq("monitor_id", monitorId)
-      .in("pollutant", [...pollutants])
-      .gte("date", from)
-      .lte("date", to)
-      .order("date", { ascending: true })
-      .order("pollutant", { ascending: true })
-      .range(lo, hi),
+  const days = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+  const perQuery = stationsPerQuery(Math.max(1, days) * pollutants.length);
+  const chunks = chunked(monitorIds, perQuery);
+  const results = await mapLimit(chunks, MAX_PARALLEL_QUERIES, (ids) =>
+    pageAll<DailyDbRow>((lo, hi) =>
+      supabase
+        .from("readings_daily")
+        .select("monitor_id, date, pollutant, mean, min, max, min_ts, max_ts, count, source, is_complete")
+        .in("monitor_id", ids)
+        .in("pollutant", [...pollutants])
+        .gte("date", from)
+        .lte("date", to)
+        .order("monitor_id", { ascending: true })
+        .order("date", { ascending: true })
+        .order("pollutant", { ascending: true })
+        .range(lo, hi),
+    ),
   );
   // A failed read is an error, not an empty history. Returning `data` here
   // (an empty or partial list) is how a database error reached the screen as
   // "nothing was measured". Partial pages are not returned either: half a
   // window drawn as if it were the whole one is the same mistake, smaller.
-  if (error) throw new DataError("Could not load daily readings", error);
-  return data;
+  const failed = results.find((r) => r.error);
+  if (failed) throw new DataError("Could not load daily readings", failed.error);
+  return results.flatMap((r) => r.data);
 }
 
 /**
@@ -317,10 +497,54 @@ export async function getHistory(
   from: string,
   to: string,
 ): Promise<HistoryPoint[]> {
-  if (pollutant === "aqi") return getHistoryAqi(supabase, monitor, from, to);
+  return (await getHistoryMany(supabase, [monitor], pollutant, from, to)).get(monitor.id) ?? [];
+}
 
-  const rows = await dailyRows(supabase, monitor.id, [pollutant], from, to);
-  return completeDays(rows.map((r) => ({ ...r, monitor_id: monitor.id })))
+/**
+ * Daily history for EACH of several stations, as getHistory gives one, read
+ * in batches (see dailyRowsMany) rather than one request per station. A city
+ * average now draws on every station in the city (Delhi NCR: 79).
+ *
+ * Returns a map from station id to its series; every requested station has
+ * an entry (possibly empty). Throws DataError if any batch fails: an average
+ * quietly missing some of its stations is a different number.
+ */
+export async function getHistoryMany(
+  supabase: SupabaseClient,
+  monitors: MonitorRow[],
+  pollutant: string,
+  from: string,
+  to: string,
+): Promise<Map<string, HistoryPoint[]>> {
+  const out = new Map<string, HistoryPoint[]>(monitors.map((m) => [m.id, []]));
+  if (!monitors.length) return out;
+  const pollutants = pollutant === "aqi" ? MEASURED_POLLUTANTS : [pollutant];
+  const rows = await dailyRowsMany(supabase, monitors.map((m) => m.id), pollutants, from, to);
+  const byMonitor = new Map<string, DailyDbRow[]>();
+  for (const r of rows) {
+    const list = byMonitor.get(r.monitor_id) ?? [];
+    list.push(r);
+    byMonitor.set(r.monitor_id, list);
+  }
+  const { computeSubIndex } = await import("@/lib/aqi-utils");
+  const { DEFAULT_SCALE } = await import("@/lib/types");
+  for (const m of monitors) {
+    const mine = (byMonitor.get(m.id) ?? []).sort(
+      (a, b) => a.date.localeCompare(b.date) || a.pollutant.localeCompare(b.pollutant),
+    );
+    out.set(
+      m.id,
+      pollutant === "aqi"
+        ? historyAqiFromRows(mine, computeSubIndex, DEFAULT_SCALE)
+        : historyFromRows(mine),
+    );
+  }
+  return out;
+}
+
+/** One station's single-pollutant series from its readings_daily rows. */
+function historyFromRows(rows: DailyDbRow[]): HistoryPoint[] {
+  return completeDays(rows)
     .filter((r) => r.mean !== null)
     .map((r) => ({
       date: r.date,
@@ -343,19 +567,16 @@ export async function getHistory(
  * the max, on days that meet the AQI rule (both PMs by default; see
  * lib/daily-quality-config.json). Taking a max across different days would
  * invent an AQI that never happened.
+ *
+ * `rows` are ONE station's rows (all four pollutants).
  */
-async function getHistoryAqi(
-  supabase: SupabaseClient,
-  monitor: MonitorRow,
-  from: string,
-  to: string,
-): Promise<HistoryPoint[]> {
-  const { computeSubIndex } = await import("@/lib/aqi-utils");
-  const { DEFAULT_SCALE } = await import("@/lib/types");
+function historyAqiFromRows(
+  rows: DailyDbRow[],
+  computeSubIndex: typeof import("@/lib/aqi-utils").computeSubIndex,
+  scale: Scale,
+): HistoryPoint[] {
   type P = Parameters<typeof computeSubIndex>[0];
-
-  const rows = await dailyRows(supabase, monitor.id, MEASURED_POLLUTANTS, from, to);
-  const complete = completeDays(rows.map((r) => ({ ...r, monitor_id: monitor.id })));
+  const complete = completeDays(rows);
   const qualifying = new Map(stationDayAqi(complete).map((d) => [d.date, d]));
 
   const byDate = new Map<string, { count: number; source: string; minSub: number[]; maxSub: number[] }>();
@@ -364,8 +585,8 @@ async function getHistoryAqi(
     const slot = byDate.get(row.date) ?? { count: 0, source: row.source, minSub: [], maxSub: [] };
     // The day's extremes are sub-indexed too, so min/max stay on the AQI scale
     // rather than being concentrations mixed into an index series.
-    if (row.min !== null && row.min >= 0) slot.minSub.push(computeSubIndex(row.pollutant as P, row.min, DEFAULT_SCALE));
-    if (row.max !== null && row.max >= 0) slot.maxSub.push(computeSubIndex(row.pollutant as P, row.max, DEFAULT_SCALE));
+    if (row.min !== null && row.min >= 0) slot.minSub.push(computeSubIndex(row.pollutant as P, row.min, scale));
+    if (row.max !== null && row.max >= 0) slot.maxSub.push(computeSubIndex(row.pollutant as P, row.max, scale));
     slot.count += row.count ?? 0;
     byDate.set(row.date, slot);
   }
@@ -400,9 +621,6 @@ export function meanAcross(values: number[]): number | null {
   if (!usable.length) return null;
   return Math.round((usable.reduce((a, b) => a + b, 0) / usable.length) * 10) / 10;
 }
-
-/** Cap how many stations a city-level question fans out to. */
-export const MAX_STATIONS_PER_CITY_QUERY = 8;
 
 // ─── Averaging over the stations nearest a place ────────────────────────────
 //

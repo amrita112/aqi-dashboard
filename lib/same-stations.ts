@@ -15,7 +15,7 @@
  * `meta.stations` of the forecast or history response, or the climate
  * answer's monitor_ids), because that is exactly when its two lines would be
  * identical. A city average and a neighbourhood inside it normally differ
- * (10 or more stations against 3), so they are compared as usual.
+ * (every station in the city against 3), so they are compared as usual.
  *
  * Pure (no browser, no network), so it is tested directly in
  * tests/api/same-stations.test.ts.

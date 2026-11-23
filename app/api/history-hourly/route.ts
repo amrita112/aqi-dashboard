@@ -1,8 +1,10 @@
 /**
- * GET /api/history-hourly?lat=&lng=&k=&pollutant=&days=
+ * GET /api/history-hourly?lat=&lng=&k=&pollutant=&days=      a point
+ * GET /api/history-hourly?city=...[&lat=&lng=]&pollutant=&days=  a city average
  *
- * Measured values hour by hour, averaged across the nearby stations — the
- * shape of the last few days rather than one number per day.
+ * Measured values hour by hour, averaged across the nearby stations (or, for
+ * a city average, every active station in the city) — the shape of the last
+ * few days rather than one number per day.
  *
  * SEPARATE FROM /api/history BECAUSE IT READS A DIFFERENT TABLE. The daily
  * endpoint reads readings_daily, which is pre-aggregated and cheap. There is
@@ -17,7 +19,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { badRequest, fail, ok, parseNumber } from "@/lib/api/respond";
-import { resolvePlace, cityMinStations } from "@/lib/api/place";
+import { resolvePlace } from "@/lib/api/place";
+import { pageAll, chunked, mapLimit, stationsPerQuery } from "@/lib/api/data";
 import { istToday, toIstDate, toIstHour } from "@/lib/api/time";
 
 export const dynamic = "force-dynamic";
@@ -26,13 +29,29 @@ const ALLOWED = new Set(["aqi", "pm25", "pm10", "no2", "so2"]);
 
 /**
  * Hard cap. Seven days across three stations is already a few thousand rows
- * read without a suitable aggregate; a month would be tens of thousands, and
- * the daily endpoint answers that question better anyway.
+ * read without a suitable aggregate (a whole city -- Delhi NCR, 79 stations --
+ * was 37,000 rows, about 4-5 MB from the database, on 23 Nov 2026); a month
+ * would be four times that, and the daily endpoint answers that question
+ * better anyway. If city views of this chart become common, an hourly rollup
+ * in the database (one row per station-hour, or per city-hour) would cut that
+ * transfer several-fold; that needs a migration.
  */
 const MAX_DAYS = 7;
 
-/** PostgREST caps a response at 1000 rows and says nothing about it. */
-const PAGE = 1000;
+/**
+ * Readings per station per day to plan requests by: OpenAQ's 15-minute
+ * cadence (96). Most stations send fewer (about 84), so a request planned for
+ * one page usually fits in one.
+ */
+const READINGS_PER_STATION_DAY = 96;
+
+/**
+ * How many requests run at once here. Higher than the shared
+ * MAX_PARALLEL_QUERIES because this route reads raw readings: a city's week
+ * is about one request per station (Delhi NCR: ~80), so the wait is mostly
+ * round trips, which overlap.
+ */
+const HOURLY_PARALLEL_QUERIES = 12;
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
@@ -51,37 +70,58 @@ export async function GET(request: Request) {
   const ids = place.monitors.map((m) => m.id);
   const since = new Date(Date.now() - days * 86_400_000).toISOString();
 
-  // Paged explicitly. An unpaginated read would silently analyse the first
-  // thousand rows — for three stations about four days of one pollutant — and
-  // produce a quietly truncated chart rather than an error.
-  async function pageAll<T>(
-    build: (from: number, to: number) => PromiseLike<{ data: T[] | null }>,
-  ): Promise<T[]> {
-    const out: T[] = [];
-    for (let offset = 0; ; offset += PAGE) {
-      const { data } = await build(offset, offset + PAGE - 1);
-      const batch = data ?? [];
-      out.push(...batch);
-      if (batch.length < PAGE) return out;
-    }
-  }
-
-  const readings = await pageAll<{
-    id: string;
+  // READ IN BATCHES OF STATIONS, EACH PAGED. An unpaginated read would
+  // silently analyse the first thousand rows -- for three stations about four
+  // days of one pollutant -- and produce a quietly truncated chart rather
+  // than an error. Stations are grouped so each request is about one page
+  // (stationsPerQuery), and the groups run HOURLY_PARALLEL_QUERIES at a time.
+  //
+  // ORDERED ON (monitor_id, recorded_at), which is unique for one source
+  // (the readings_monitor_source_time_uniq index). Ordering on recorded_at
+  // alone, as this did before, ties every station that reported at the same
+  // quarter-hour, so a page boundary could repeat some of them and skip
+  // others.
+  //
+  // A single pollutant comes from `measurements`, which holds no timestamp of
+  // its own; it is read in the SAME request, nested under each reading
+  // (PostgREST "embedding" along measurements.reading_id). `!inner` keeps only
+  // readings that have that pollutant. This replaced a second pass of one
+  // request per 400 reading ids -- 130+ requests for a city.
+  type Row = {
     monitor_id: string;
     recorded_at: string;
-    aqi_value: number | null;
-  }>((lo, hi) =>
-    supabase
-      .from("readings")
-      .select("id, monitor_id, recorded_at, aqi_value")
-      .in("monitor_id", ids)
-      // Official readings only (audit §2.3); see getCurrent.
-      .eq("source", "openaq")
-      .gte("recorded_at", since)
-      .order("recorded_at", { ascending: true })
-      .range(lo, hi),
+    aqi_value?: number | null;
+    measurements?: { value: number | null }[];
+  };
+  const groups = chunked(ids, stationsPerQuery(days * READINGS_PER_STATION_DAY));
+  const results = await mapLimit(groups, HOURLY_PARALLEL_QUERIES, (group) =>
+    pageAll<Row>((lo, hi) => {
+      const base =
+        pollutant === "aqi"
+          ? supabase
+              .from("readings")
+              .select("monitor_id, recorded_at, aqi_value")
+              .not("aqi_value", "is", null)
+          : supabase
+              .from("readings")
+              .select("monitor_id, recorded_at, measurements!inner(value)")
+              .eq("measurements.pollutant", pollutant);
+      return (
+        base
+          .in("monitor_id", group)
+          // Official readings only (audit §2.3); see getCurrent.
+          .eq("source", "openaq")
+          .gte("recorded_at", since)
+          .order("monitor_id", { ascending: true })
+          .order("recorded_at", { ascending: true })
+          .range(lo, hi)
+      );
+    }),
   );
+  // A failed read is "could not load", not "nothing measured" (see DataError).
+  const failed = results.find((r) => r.error);
+  if (failed) return fail("Could not load hourly history", 502, failed.error);
+  const readings = results.flatMap((r) => r.data);
   if (!readings.length) {
     return ok([], { pollutant, days, stations: ids.length, points: 0, today: istToday() });
   }
@@ -100,37 +140,15 @@ export async function GET(request: Request) {
     buckets.set(k, b);
   };
 
-  if (pollutant === "aqi") {
-    for (const r of readings) {
-      if (r.aqi_value !== null) push(keyOf(r.recorded_at), r.aqi_value, r.monitor_id);
-    }
-  } else {
-    const whenOf = new Map(readings.map((r) => [r.id, r.recorded_at]));
-    const monitorOf = new Map(readings.map((r) => [r.id, r.monitor_id]));
-    const idList = Array.from(whenOf.keys());
-    // Batched by reading id, and paged WITHIN each batch: measurements carries
-    // no timestamp of its own, and a batch of 400 ids can exceed the row cap.
-    const BATCH = 400;
-    for (let i = 0; i < idList.length; i += BATCH) {
-      const slice = idList.slice(i, i + BATCH);
-      const rows = await pageAll<{ reading_id: string; value: number | null }>((lo, hi) =>
-        supabase
-          .from("measurements")
-          .select("reading_id, value")
-          .eq("pollutant", pollutant)
-          .in("reading_id", slice)
-          .range(lo, hi),
-      );
-      for (const m of rows) {
-        const ts = whenOf.get(m.reading_id);
-        if (ts && m.value !== null) push(keyOf(ts), m.value, monitorOf.get(m.reading_id)!);
-      }
-    }
+  for (const r of readings) {
+    const value = pollutant === "aqi" ? r.aqi_value : r.measurements?.[0]?.value;
+    if (value !== null && value !== undefined) push(keyOf(r.recorded_at), value, r.monitor_id);
   }
 
-  // For a city average, hours when too few of the city's monitors reported are
-  // left out, and the chart draws them as gaps. See CITY_MIN_REPORTING_SHARE.
-  const minStations = await cityMinStations(supabase, params.get("city"));
+  // For a city average, hours when too few of the city's monitoring stations
+  // reported are left out, and the chart draws them as gaps. 10% of the same
+  // stations the average draws on (resolveCity; CITY_MIN_REPORTING_SHARE).
+  const minStations = place.minStations;
 
   const points = Array.from(buckets.entries())
     .filter(([, b]) => minStations === null || b.monitors.size >= minStations)

@@ -594,7 +594,7 @@ export default function TrendsScreen() {
           color: s.color,
           label: pl ? sharedName(pl) : areaUnknownLabel(prefs?.city ?? ""),
           // The stations note only for a neighbourhood; a city average is
-          // already labelled as one, and "10 stations within 14 km" there
+          // already labelled as one, and "79 monitoring stations within N km" there
           // would be noise.
           note: pl && !pl.key.startsWith("city:") ? stationsNote(meta?.stations_used, meta?.furthest_km) : null,
         };

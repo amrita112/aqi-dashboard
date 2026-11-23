@@ -1,5 +1,7 @@
 /**
  * GET /api/history?lat=&lng=&k=&pollutant=&days=   — averaged over a location
+ * GET /api/history?city=...[&lat=&lng=]             — a city average: every
+ *                                                     active station in the city
  * GET /api/history?monitor_id=...                   — one station
  *
  * The time-course screen. Daily statistics from `readings_daily`, the
@@ -28,8 +30,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { ok, fail, badRequest, parseNumber } from "@/lib/api/respond";
-import { resolvePlace, placeMeta, cityMinStations } from "@/lib/api/place";
-import { getHistory, averageHistory, DataError } from "@/lib/api/data";
+import { resolvePlace, placeMeta } from "@/lib/api/place";
+import { getHistoryMany, averageHistory, DataError, type HistoryPoint } from "@/lib/api/data";
 import { istToday, toIstClock, toIstLocalString } from "@/lib/api/time";
 
 export const revalidate = 600;
@@ -89,22 +91,23 @@ export async function GET(request: Request) {
   // missing one of its three stations is a different number presented as the
   // same one. The screen shows "Could not load history", not "Nothing was
   // measured" -- which is what a failed read used to look like.
-  let perStation: { monitor: (typeof place.monitors)[number]; series: Awaited<ReturnType<typeof getHistory>> }[];
+  //
+  // Read in batches (getHistoryMany), not one request per station: a city
+  // average is every station in the city (Delhi NCR: 79).
+  let perStation: { monitor: (typeof place.monitors)[number]; series: HistoryPoint[] }[];
   try {
-    perStation = await Promise.all(
-      place.monitors.map(async (monitor) => ({
-        monitor,
-        series: await getHistory(supabase, monitor, pollutant, from!, to),
-      })),
-    );
+    const byStation = await getHistoryMany(supabase, place.monitors, pollutant, from, to);
+    perStation = place.monitors.map((monitor) => ({ monitor, series: byStation.get(monitor.id) ?? [] }));
   } catch (err) {
     if (err instanceof DataError) return fail("Could not load history", 502, err.detail);
     throw err;
   }
 
-  // For a city average, drop days when too few of the city's monitors
-  // reported; the chart draws them as gaps. See CITY_MIN_REPORTING_SHARE.
-  const minStations = await cityMinStations(supabase, params.get("city"));
+  // For a city average, drop days when too few of the city's monitoring
+  // stations reported; the chart draws them as gaps. The minimum is 10% of
+  // the same stations the average draws on (resolveCity in lib/api/place.ts;
+  // CITY_MIN_REPORTING_SHARE).
+  const minStations = place.minStations;
   const unfiltered = averageHistory(perStation);
   const averaged = {
     ...unfiltered,

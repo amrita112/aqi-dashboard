@@ -5,8 +5,9 @@
  * "1 year (2026)". The route drew on the 10 stations nearest the city centre
  * but required 10% of ALL 79 Delhi stations (8) to report in a month, so only
  * 2026 -- when 8 of those 10 finally overlapped -- survived. The fix draws a
- * city average from the whole city's network (DEFAULT_CLIMATE_CITY_POOL) and
- * takes the 10% of that same pool.
+ * city average from the whole city's network (resolveCity in
+ * lib/api/place.ts, shared by every city view) and takes the 10% of that
+ * same pool.
  *
  * The fake also enforces Supabase's 1000-row cap per request, so a city's
  * thousands of rows only arrive in full if the route really pages.
@@ -39,6 +40,8 @@ function query(table: keyof typeof db) {
     select: () => q,
     eq: (col: string, v: unknown) => (filters.push((r) => r[col] === v), q),
     is: (col: string, v: unknown) => (filters.push((r) => (r[col] ?? null) === v), q),
+    // Only the form the code uses: .not(col, "is", null).
+    not: (col: string, _op: string, v: unknown) => (filters.push((r) => (r[col] ?? null) !== v), q),
     in: (col: string, vs: unknown[]) => (filters.push((r) => vs.includes(r[col])), q),
     // Rows are stored already in (monitor_id, year, month) order.
     order: () => q,

@@ -52,10 +52,14 @@ export interface EditorCity {
   lng: number;
 }
 
-/** A whole city: its centre, with a wide enough net to mean the city. */
-const CITY_K = 10;
-const CITY_MAX_KM = 60;
-
+/**
+ * A whole city: EVERY active monitoring station filed under it (the server
+ * decides which; see resolveCity in lib/api/place.ts). The `city` parameter
+ * is what asks for that. lat/lng (the city centre) only order the stations
+ * nearest first. This used to send k=10 and max_km=60, which made every city
+ * card average the 10 stations nearest the centre; the server now ignores k
+ * and max_km for a city, so they are no longer sent.
+ */
 export function cityPlace(c: EditorCity): TrendsPlace {
   return {
     key: `city:${c.city}`,
@@ -65,8 +69,6 @@ export function cityPlace(c: EditorCity): TrendsPlace {
     query: {
       lat: String(c.lat),
       lng: String(c.lng),
-      k: String(CITY_K),
-      max_km: String(CITY_MAX_KM),
       city: c.city,
     },
   };

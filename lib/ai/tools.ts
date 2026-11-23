@@ -16,16 +16,16 @@ import type { ToolDefinition } from "@/lib/ai/provider";
 import {
   nearestMonitors,
   resolveLocation,
-  getCurrent,
-  getForecast,
-  getHistory,
+  getCurrentMany,
+  getForecastMany,
+  getHistoryMany,
   meanAcross,
   DataError,
-  MAX_STATIONS_PER_CITY_QUERY,
   type HistoryPoint,
+  type MonitorRow,
   type ResolvedLocation,
 } from "@/lib/api/data";
-import { cityMinStations } from "@/lib/api/place";
+import { resolveCity, minStationsOf } from "@/lib/api/place";
 import type { ForecastDay } from "@/lib/api/forecast";
 import { bandFor } from "@/lib/api/forecast";
 import { DEFAULT_SCALE } from "@/lib/types";
@@ -188,6 +188,15 @@ async function resolveFor(
 ): Promise<ResolvedLocation | null> {
   const asked = text.trim();
   const named = asked ? await resolveLocation(supabase, asked) : null;
+  // A CITY means the whole city: every active monitoring station filed under
+  // it, the same stations the app's city average uses (resolveCity). This
+  // used to answer from the first 8 stations in table order -- not even the
+  // central ones -- and on 23 Nov 2026 it answered "no history" for Delhi
+  // NCR's last 30 days of PM2.5, while the app charted 26 of them.
+  if (named?.kind === "city") {
+    const pool = await resolveCity(supabase, named.city);
+    return { ...named, monitors: pool.monitors };
+  }
   if (named) return named;
 
   // THE PERSON'S OWN PLACE, by name or by leaving the location out.
@@ -260,9 +269,36 @@ function notFound(location: string): ToolResult {
   };
 }
 
-/** Cap the fan-out: a city question must not become 73 station queries. */
-function sample(loc: ResolvedLocation) {
-  return loc.monitors.slice(0, MAX_STATIONS_PER_CITY_QUERY);
+/**
+ * rank_places on a whole city ranks EVERY station (Delhi NCR: 79), but a list
+ * that long would cost tokens and draw an unreadable bar chart. Above this
+ * many, `all` holds only the RANK_EACH_END cleanest and dirtiest.
+ */
+const RANK_LIST_ALL_UP_TO = 12;
+const RANK_EACH_END = 5;
+
+/** Each station's forecast days, in the location's station order. */
+async function forecastsFor(
+  supabase: SupabaseClient,
+  monitors: MonitorRow[],
+  pollutant: string,
+  days: number,
+  opts: { includeToday?: boolean } = {},
+): Promise<ForecastDay[][]> {
+  const byStation = await getForecastMany(supabase, monitors, pollutant, days, opts);
+  return monitors.map((m) => byStation.get(m.id) ?? []);
+}
+
+/** Each station's daily history, in the location's station order. */
+async function historiesFor(
+  supabase: SupabaseClient,
+  monitors: MonitorRow[],
+  pollutant: string,
+  from: string,
+  to: string,
+): Promise<HistoryPoint[][]> {
+  const byStation = await getHistoryMany(supabase, monitors, pollutant, from, to);
+  return monitors.map((m) => byStation.get(m.id) ?? []);
 }
 
 function daysAgo(n: number): string {
@@ -307,19 +343,21 @@ const MAX_SERIES_POINTS = 30;
  * OpenAQ lost hours for most stations, a "Mumbai average" could rest on one
  * station -- and on 18 Oct 2026 that one station read 297 µg/m³ against ~60
  * elsewhere, which an answer then charted as a city-wide spike. Trends already
- * drops such days for city views (cityMinStations, CITY_MIN_REPORTING_SHARE);
- * this applies the same rule here. Points and named stations are not filtered,
- * as on Trends: they describe a neighbourhood, not a city.
+ * drops such days for city views (CITY_MIN_REPORTING_SHARE); this applies the
+ * same rule here. Points and named stations are not filtered, as on Trends:
+ * they describe a neighbourhood, not a city.
+ *
+ * The minimum is 10% of the city's stations, which are now exactly the
+ * stations asked (loc.monitors, from resolveCity) -- the same pool on both
+ * sides of the rule, as on Trends.
  */
-export async function wellCoveredHistory(
-  supabase: SupabaseClient,
+export function wellCoveredHistory(
   loc: ResolvedLocation,
   perStation: HistoryPoint[][],
-): Promise<{ rows: HistoryPoint[]; daysDropped: number }> {
+): { rows: HistoryPoint[]; daysDropped: number } {
   const rows = perStation.flat();
   if (loc.kind !== "city") return { rows, daysDropped: 0 };
-  // The city-wide minimum, but never more than the stations actually sampled.
-  const need = Math.min((await cityMinStations(supabase, loc.city)) ?? 1, perStation.length);
+  const need = minStationsOf(loc.monitors.length);
   const stationsOn = new Map<string, number>();
   for (const series of perStation) {
     for (const d of Array.from(new Set(series.map((p) => p.date)))) {
@@ -463,9 +501,11 @@ async function runTool(
     case "current_aqi": {
       const loc = await resolveFor(supabase, String(args.location ?? ""), ctx);
       if (!loc) return notFound(String(args.location ?? ""));
-      const readings = (
-        await Promise.all(sample(loc).map((m) => getCurrent(supabase, m)))
-      ).filter((r): r is NonNullable<typeof r> => r !== null);
+      // One request for every station (getCurrentMany), not two per station.
+      const current = await getCurrentMany(supabase, loc.monitors);
+      const readings = loc.monitors
+        .map((m) => current.get(m.id) ?? null)
+        .filter((r): r is NonNullable<typeof r> => r !== null);
       if (!readings.length) {
         return { location: loc.label, error: "no_recent_data", message: "No readings held for this place." };
       }
@@ -516,9 +556,7 @@ async function runTool(
       if (!loc) return notFound(String(args.location ?? ""));
       const pollutant = measureFor(args, ctx);
       const days = Math.min(7, Math.max(1, Number(args.days ?? 1)));
-      const perStation = await Promise.all(
-        sample(loc).map((m) => getForecast(supabase, m, pollutant, days)),
-      );
+      const perStation = await forecastsFor(supabase, loc.monitors, pollutant, days);
       const usable = perStation.filter((d) => d.length);
       if (!usable.length) {
         return { location: loc.label, error: "no_forecast", message: "No forecast stored for this place yet." };
@@ -577,9 +615,7 @@ async function runTool(
       const loc = await resolveFor(supabase, String(args.location ?? ""), ctx);
       if (!loc) return notFound(String(args.location ?? ""));
       const pollutant = measureFor(args, ctx);
-      const forecasts = await Promise.all(
-        sample(loc).map((m) => getForecast(supabase, m, pollutant, 1)),
-      );
+      const forecasts = await forecastsFor(supabase, loc.monitors, pollutant, 1);
       // Every station's row for the SAME day -- the earliest any of them has.
       // Taking each station's first row mixed days when one lacked a row.
       const firstDate = forecasts
@@ -643,9 +679,7 @@ async function runTool(
       if (!loc) return notFound(String(args.location ?? ""));
       const pollutant = measureFor(args, ctx);
       const today = istToday();
-      const forecasts = await Promise.all(
-        sample(loc).map((m) => getForecast(supabase, m, pollutant, 1, { includeToday: true })),
-      );
+      const forecasts = await forecastsFor(supabase, loc.monitors, pollutant, 1, { includeToday: true });
       // includeToday only guarantees today is not excluded; if the nightly job
       // has not run, the first row is still tomorrow. Match the date rather
       // than trusting the position, or "today" silently becomes tomorrow --
@@ -719,11 +753,11 @@ async function runTool(
       if (!loc) return notFound(String(args.location ?? ""));
       const pollutant = measureFor(args, ctx);
       const today = istToday();
-      const picks = loc.monitors.slice(0, MAX_STATIONS_PER_CITY_QUERY);
-
-      const days = await Promise.all(
-        picks.map((m) => getForecast(supabase, m, pollutant, 1, { includeToday: true })),
-      );
+      // EVERY station of the place: a whole city is ranked in full (it used
+      // to be the first 8 stations in table order, so most of Delhi NCR could
+      // never be named as cleanest or dirtiest).
+      const picks = loc.monitors;
+      const days = await forecastsFor(supabase, picks, pollutant, 1, { includeToday: true });
       const ranked: { station: string; value: number; band: string | null; mode: string }[] = [];
       picks.forEach((m, i) => {
         const d = days[i].find((x) => x.target_date === today) ?? days[i][0];
@@ -753,7 +787,16 @@ async function runTool(
         // and the worst, and twenty rows of middle would only cost tokens.
         cleanest: ranked.slice(0, 3),
         dirtiest: ranked.slice(-3).reverse(),
-        all: ranked,
+        // The whole ranking for a few stations; for a big city only both ends
+        // (see RANK_LIST_ALL_UP_TO), cleanest first either way.
+        all:
+          ranked.length <= RANK_LIST_ALL_UP_TO
+            ? ranked
+            : [...ranked.slice(0, RANK_EACH_END), ...ranked.slice(-RANK_EACH_END)],
+        all_is:
+          ranked.length <= RANK_LIST_ALL_UP_TO
+            ? "every ranked station"
+            : `the ${RANK_EACH_END} cleanest and the ${RANK_EACH_END} dirtiest of ${ranked.length} stations`,
         note: "Only places with a monitoring station appear here. A neighbourhood with no station cannot be ranked.",
       };
     }
@@ -766,10 +809,8 @@ async function runTool(
       // someone reading AQI on every other screen.
       const pollutant = measureFor(args, ctx);
       const days = Math.min(365, Math.max(1, Number(args.days ?? 7)));
-      const series = await Promise.all(
-        sample(loc).map((m) => getHistory(supabase, m, pollutant, daysAgo(days), istToday())),
-      );
-      const { rows: flat, daysDropped } = await wellCoveredHistory(supabase, loc, series);
+      const series = await historiesFor(supabase, loc.monitors, pollutant, daysAgo(days), istToday());
+      const { rows: flat, daysDropped } = wellCoveredHistory(loc, series);
       if (!flat.length) return { location: loc.label, error: "no_history" };
       const mean = meanAcross(flat.map((d) => d.mean));
       return {
@@ -806,12 +847,9 @@ async function runTool(
         [args.location_a, args.location_b].map(async (raw) => {
           const loc = await resolveFor(supabase, String(raw ?? ""), ctx);
           if (!loc) return { input: String(raw ?? ""), error: "unknown_location" as const };
-          const { rows: series } = await wellCoveredHistory(
-            supabase,
+          const { rows: series } = wellCoveredHistory(
             loc,
-            await Promise.all(
-              sample(loc).map((m) => getHistory(supabase, m, pollutant, daysAgo(days), istToday())),
-            ),
+            await historiesFor(supabase, loc.monitors, pollutant, daysAgo(days), istToday()),
           );
           const mean = meanAcross(series.map((d) => d.mean));
           return {

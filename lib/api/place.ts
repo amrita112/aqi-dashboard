@@ -10,6 +10,13 @@
  *                            stations. This is the one the app leads with: a
  *                            person is at a place, not at a monitor.
  *
+ *   city=<name>[&lat=&lng=]  a CITY AVERAGE: every active monitoring station
+ *                            filed under that city (owner's decision, 23 Nov
+ *                            2026), never a sample of them. lat/lng, when
+ *                            given, only set the order the stations are
+ *                            listed in (nearest first) and their distances;
+ *                            k and max_km are ignored. See resolveCity.
+ *
  * Why the point form is the default for the product: answering from whichever
  * single station is nearest is arbitrary when two sit 800 m apart, and
  * answering from the city mean throws away that Anand Vihar and Lodhi Road are
@@ -21,6 +28,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   nearestMonitors,
+  pageAll,
   DataError,
   DEFAULT_NEAREST_K,
   DEFAULT_MAX_KM,
@@ -30,8 +38,14 @@ import {
 import { parseNumber } from "@/lib/api/respond";
 
 export interface PlaceRequest {
-  kind: "station" | "point";
+  kind: "station" | "point" | "city";
   monitors: NearbyMonitor[];
+  /**
+   * City averages only: how many of `monitors` must have reported in a day
+   * or hour for the city average to be shown (CITY_MIN_REPORTING_SHARE of
+   * that same pool). null for a station or a point, which are never hidden.
+   */
+  minStations: number | null;
   /** Echoed back so a caller can see what was actually used. */
   query: Record<string, unknown>;
 }
@@ -72,38 +86,70 @@ export async function resolvePlace(
       place: {
         kind: "station",
         monitors: [{ ...m, distance_km: 0 }],
+        minStations: null,
         query: { monitor_id: m.id },
       },
     };
   }
 
-  if (latRaw === null || lngRaw === null) {
+  const city = params.get("city")?.trim() || null;
+
+  if (!city && (latRaw === null || lngRaw === null)) {
     return {
       error: {
-        message: "Provide either monitor_id, or lat and lng for a location average",
+        message: "Provide monitor_id, or lat and lng for a location average, or city for a city average",
         status: 400,
       },
     };
   }
 
+  // Checked whenever given, even for a city (where they only order the list).
+  const hasPoint = latRaw !== null && lngRaw !== null;
   const lat = Number(latRaw);
   const lng = Number(lngRaw);
-  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+  if (hasPoint && (!Number.isFinite(lat) || lat < -90 || lat > 90)) {
     return { error: { message: "lat must be between -90 and 90", status: 400 } };
   }
-  if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+  if (hasPoint && (!Number.isFinite(lng) || lng < -180 || lng > 180)) {
     return { error: { message: "lng must be between -180 and 180", status: 400 } };
+  }
+
+  // A CITY AVERAGE: the whole city, every time. This used to be "the 10
+  // stations nearest the city centre" (k=10 from the Trends screen), while
+  // the 10% minimum was taken of ALL the city's stations -- Delhi NCR needed
+  // 8 of those 10 to report on the same day, and days went blank.
+  if (city) {
+    let pool: CityPool;
+    try {
+      pool = await resolveCity(supabase, city, hasPoint ? { lat, lng } : null);
+    } catch (err) {
+      if (err instanceof DataError) {
+        console.error("[502] Could not load the city's stations:", err.detail);
+        return { error: { message: "Could not load the city's monitoring stations", status: 502 } };
+      }
+      throw err;
+    }
+    if (!pool.monitors.length) {
+      return { error: { message: `No monitoring stations found for ${city}.`, status: 404 } };
+    }
+    return {
+      place: {
+        kind: "city",
+        monitors: pool.monitors,
+        minStations: pool.minStations,
+        query: { city, lat: pool.centre.lat, lng: pool.centre.lng },
+      },
+    };
   }
 
   const k = parseNumber(params, "k", DEFAULT_NEAREST_K, 1, 10);
   const maxKm = parseNumber(params, "max_km", DEFAULT_MAX_KM, 1, 200);
-  const city = params.get("city");
 
   // A failed lookup must not read as "no stations within N km" (see
   // DataError): that is a 404 about the place, and this is a 502 about us.
   let monitors: Awaited<ReturnType<typeof nearestMonitors>>;
   try {
-    monitors = await nearestMonitors(supabase, lat, lng, k, maxKm, city);
+    monitors = await nearestMonitors(supabase, lat, lng, k, maxKm);
   } catch (err) {
     if (err instanceof DataError) {
       console.error("[502] Could not look up nearby stations:", err.detail);
@@ -127,7 +173,8 @@ export async function resolvePlace(
     place: {
       kind: "point",
       monitors,
-      query: { lat, lng, k, max_km: maxKm, city: city ?? null },
+      minStations: null,
+      query: { lat, lng, k, max_km: maxKm },
     },
   };
 }
@@ -143,28 +190,6 @@ export async function resolvePlace(
  * One monitor is a neighbourhood, not a city.
  */
 export const CITY_MIN_REPORTING_SHARE = 0.1;
-
-/**
- * How many monitors must report before a city average counts, or null when the
- * request is not for a city (a point or a station is never hidden this way).
- *
- * The denominator is every active monitor filed under the city, not just the
- * ones nearest its centre that the average is drawn from: the claim being
- * protected is "this describes the city".
- */
-export async function cityMinStations(
-  supabase: SupabaseClient,
-  city: string | null,
-): Promise<number | null> {
-  if (!city) return null;
-  const { count, error } = await supabase
-    .from("monitors")
-    .select("id", { count: "exact", head: true })
-    .eq("city", city)
-    .is("disabled_at", null);
-  if (error || count === null) return null;
-  return minStationsOf(count);
-}
 
 /**
  * The CITY_MIN_REPORTING_SHARE rule for a pool of `count` stations: at least
@@ -184,33 +209,74 @@ export function distanceKm(lat1: number, lng1: number, lat2: number, lng2: numbe
 }
 
 /**
- * Every active monitoring station filed under a city (not disabled), nearest
- * to (lat, lng) first, with its distance from that point.
+ * A city average's stations: the ONE definition every screen and the AI box
+ * share (owner's decision, 23 Nov 2026).
  *
- * The same stations cityMinStations counts, so "10% of the city's stations"
- * is measured against the very stations the average can draw on. Throws
- * DataError when the database cannot be read, so an empty list always means
- * "no stations filed under this city".
+ *   monitors     every ACTIVE monitoring station filed under the city
+ *                (monitors.city = city, disabled_at IS NULL), nearest the
+ *                centre first. Not a sample, not the nearest few.
+ *   minStations  how many of THOSE stations must report in a day or hour for
+ *                the city average to be shown: CITY_MIN_REPORTING_SHARE of the
+ *                same pool (Delhi NCR: 79 stations -> 8).
+ *   centre       the point distances are measured from: the one given, else
+ *                the mean position of the city's stations (the same centre
+ *                the Trends screen computes from /api/locations).
+ *
+ * WHY THE SAME POOL FOR BOTH. Until Nov 2026 the average was drawn from the
+ * 10 stations nearest the centre while the 10% was taken of all 79, so 8 of
+ * those 10 had to report on the same day, and Delhi lost days.
+ *
+ * Throws DataError when the database cannot be read, so an empty list always
+ * means "no active stations filed under this city".
  */
-export async function cityMonitors(
+export interface CityPool {
+  city: string;
+  monitors: NearbyMonitor[];
+  minStations: number;
+  centre: { lat: number; lng: number };
+}
+
+export async function resolveCity(
   supabase: SupabaseClient,
   city: string,
-  lat: number,
-  lng: number,
-): Promise<NearbyMonitor[]> {
-  const { data, error } = await supabase
-    .from("monitors")
-    .select("id, name, city, latitude, longitude")
-    .eq("city", city)
-    .is("disabled_at", null)
-    .order("id", { ascending: true });
-  if (error) throw new DataError("Could not load the city's monitoring stations", error);
-  return ((data ?? []) as MonitorRow[])
+  centre: { lat: number; lng: number } | null = null,
+): Promise<CityPool> {
+  const rows = await activeCityMonitors(supabase, city);
+  const from = centre ?? {
+    lat: rows.length ? rows.reduce((t, m) => t + m.latitude, 0) / rows.length : 0,
+    lng: rows.length ? rows.reduce((t, m) => t + m.longitude, 0) / rows.length : 0,
+  };
+  const monitors = rows
     .map((m) => ({
       ...m,
-      distance_km: Math.round(distanceKm(lat, lng, m.latitude, m.longitude) * 100) / 100,
+      distance_km: Math.round(distanceKm(from.lat, from.lng, m.latitude, m.longitude) * 100) / 100,
     }))
-    .sort((a, b) => a.distance_km - b.distance_km);
+    // Nearest first; ties broken by id so the order never wobbles.
+    .sort((a, b) => a.distance_km - b.distance_km || a.id.localeCompare(b.id));
+  return { city, monitors, minStations: minStationsOf(monitors.length), centre: from };
+}
+
+/**
+ * The active stations filed under a city, straight from the monitors table.
+ * Stations without coordinates are left out: they cannot be placed on a map
+ * or measured from the centre, and none of them is filed under a city today.
+ * A city has tens of stations, far below the 1000-row cap; it is paged anyway
+ * so a much larger city cannot be cut off silently.
+ */
+async function activeCityMonitors(supabase: SupabaseClient, city: string): Promise<MonitorRow[]> {
+  const { data, error } = await pageAll<MonitorRow>((lo, hi) =>
+    supabase
+      .from("monitors")
+      .select("id, name, city, latitude, longitude")
+      .eq("city", city)
+      .is("disabled_at", null)
+      .not("latitude", "is", null)
+      .not("longitude", "is", null)
+      .order("id", { ascending: true })
+      .range(lo, hi),
+  );
+  if (error) throw new DataError("Could not load the city's monitoring stations", error);
+  return data;
 }
 
 /** Shared `meta` describing which stations answered, and how far away. */

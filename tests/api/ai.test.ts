@@ -30,21 +30,40 @@ import { searchNominatim } from "@/lib/api/nominatim";
 // Each test says what the lookup should find; by default, nothing.
 vi.mock("@/lib/api/nominatim", () => ({ searchNominatim: vi.fn(async () => []) }));
 
-/** A Supabase stand-in returning canned rows for the tables we touch. */
+/**
+ * A Supabase stand-in returning canned rows for the tables we touch.
+ *
+ * Filters are ignored, with one exception: the current reading is read from
+ * `monitors` with each station's readings (and their measurements) NESTED in
+ * it (getCurrentMany), so a select naming `readings(` gets every monitor row
+ * with the canned readings and measurements attached.
+ */
 function fakeSupabase(tables: Record<string, unknown[]>) {
-  const builder = (rows: unknown[]) => {
+  const builder = (t: string) => {
+    let columns = "";
     const chain: Record<string, unknown> = {};
     const self = () => chain;
-    for (const m of ["select", "eq", "in", "gt", "gte", "lte", "not", "order", "limit"]) {
+    for (const m of ["eq", "in", "gt", "gte", "lte", "not", "is", "order", "limit", "range"]) {
       chain[m] = vi.fn(self);
     }
+    chain.select = vi.fn((c: string) => ((columns = c ?? ""), chain));
     // Awaiting the builder resolves to the rows, as postgrest-js does.
-    (chain as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
-      resolve({ data: rows, error: null });
+    (chain as { then: unknown }).then = (resolve: (v: unknown) => unknown) => {
+      let rows = tables[t] ?? [];
+      if (t === "monitors" && columns.includes("readings(")) {
+        const measurements = (tables.measurements ?? []) as { reading_id: string }[];
+        const readings = ((tables.readings ?? []) as { id: string }[]).map((r) => ({
+          ...r,
+          measurements: measurements.filter((m) => m.reading_id === r.id),
+        }));
+        rows = (rows as Record<string, unknown>[]).map((m) => ({ ...m, readings }));
+      }
+      return resolve({ data: rows, error: null });
+    };
     return chain;
   };
   return {
-    from: (t: string) => builder(tables[t] ?? []),
+    from: (t: string) => builder(t),
     // nearest_monitors, as the RPC returns it: canned under that name.
     rpc: async () => ({ data: tables.nearest_monitors ?? [], error: null }),
   } as never;
@@ -492,16 +511,6 @@ describe("the current reading must be able to carry an AQI (AQI rule)", () => {
 describe("AI city history ignores days too few stations reported", () => {
   // The 18 Oct 2026 case: one Mumbai station had a complete day and read 297
   // against ~60 elsewhere; the AI charted it as a city-wide spike.
-  const counting = (n: number) =>
-    ({
-      from: () => {
-        const chain: Record<string, unknown> = {};
-        for (const m of ["select", "eq", "is"]) chain[m] = () => chain;
-        (chain as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
-          resolve({ count: n, error: null });
-        return chain;
-      },
-    }) as never;
   const day = (date: string, mean: number) =>
     ({ date, mean, min: mean, max: mean, count: 96, source: "openaq" });
   const perStation = [
@@ -510,19 +519,24 @@ describe("AI city history ignores days too few stations reported", () => {
     [day("2026-10-17", 65)],
     [day("2026-10-17", 58)],
   ];
+  // The location carries the city's whole pool (33 stations here), which is
+  // what the 10% is taken of: ceil(3.3) = 4 must report.
+  const pool = Array.from({ length: 33 }, (_, i) => ({
+    id: `m${i}`, name: `S${i}`, city: "Mumbai", latitude: 19, longitude: 72.8,
+  }));
   const loc = (kind: "city" | "point") =>
-    ({ kind, city: "Mumbai", label: "Mumbai", monitors: [] }) as never;
+    ({ kind, city: "Mumbai", label: "Mumbai", monitors: pool }) as never;
 
   it("drops a city day resting on one station (33 monitors -> needs 4)", async () => {
     const { wellCoveredHistory } = await import("@/lib/ai/tools");
-    const got = await wellCoveredHistory(counting(33), loc("city"), perStation);
+    const got = await wellCoveredHistory(loc("city"), perStation);
     expect(new Set(got.rows.map((r) => r.date))).toEqual(new Set(["2026-10-17"]));
     expect(got.daysDropped).toBe(1);
   });
 
   it("keeps every day for a neighbourhood, as Trends does", async () => {
     const { wellCoveredHistory } = await import("@/lib/ai/tools");
-    const got = await wellCoveredHistory(counting(33), loc("point"), perStation);
+    const got = await wellCoveredHistory(loc("point"), perStation);
     expect(got.daysDropped).toBe(0);
     expect(got.rows).toHaveLength(5);
   });

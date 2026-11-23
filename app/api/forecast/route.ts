@@ -1,5 +1,8 @@
 /**
  * GET /api/forecast?lat=&lng=&k=&pollutant=&days=&hourly=  — location average
+ * GET /api/forecast?city=...[&lat=&lng=]&pollutant=&days=    — a city average:
+ *                                                              every active
+ *                                                              station in it
  * GET /api/forecast?monitor_id=...                          — one station
  *
  * The app's headline. Returns the stored daily forecast expanded to IST hours
@@ -30,7 +33,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { ok, fail, notFound, badRequest, parseNumber } from "@/lib/api/respond";
 import { resolvePlace, placeMeta } from "@/lib/api/place";
-import { getForecast, averageForecastDays } from "@/lib/api/data";
+import { getForecastMany, averageForecastDays } from "@/lib/api/data";
 import { bestHour } from "@/lib/api/forecast";
 import { istToday } from "@/lib/api/time";
 import { assessDataQuality } from "@/lib/api/data-quality";
@@ -63,13 +66,10 @@ export async function GET(request: Request) {
 
   // Shared with the `forecast` AI tool via lib/api/data.ts, so the question
   // "what is tomorrow's forecast" has exactly one implementation and the two
-  // surfaces cannot drift into answering it differently.
-  const perStation = await Promise.all(
-    place.monitors.map(async (monitor) => ({
-      monitor,
-      days: await getForecast(supabase, monitor, pollutant, days, { includeToday }),
-    })),
-  );
+  // surfaces cannot drift into answering it differently. Read in batches, not
+  // one request per station: a city average is every station in the city.
+  const byStation = await getForecastMany(supabase, place.monitors, pollutant, days, { includeToday });
+  const perStation = place.monitors.map((monitor) => ({ monitor, days: byStation.get(monitor.id) ?? [] }));
 
   const averaged = averageForecastDays(perStation, days, pollutant);
   if (!averaged) {

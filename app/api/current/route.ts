@@ -18,7 +18,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { ok, fail } from "@/lib/api/respond";
 import { resolvePlace, placeMeta } from "@/lib/api/place";
-import { getCurrent, averageCurrent } from "@/lib/api/data";
+import { getCurrentMany, averageCurrent } from "@/lib/api/data";
 import { toIstLocalString, toIstClock, dataAgeDays } from "@/lib/api/time";
 import { assessDataQuality, STALE_AFTER_HOURS } from "@/lib/api/data-quality";
 import { getAqiCategory, getAqiTextColor } from "@/lib/aqi-utils";
@@ -36,12 +36,12 @@ export async function GET(request: Request) {
   }
   const { place } = resolved;
 
-  const perStation = await Promise.all(
-    place.monitors.map(async (monitor) => ({
-      monitor,
-      reading: await getCurrent(supabase, monitor),
-    })),
-  );
+  // One request for all the stations (getCurrentMany), not two per station.
+  const byStation = await getCurrentMany(supabase, place.monitors);
+  const perStation = place.monitors.map((monitor) => ({
+    monitor,
+    reading: byStation.get(monitor.id) ?? null,
+  }));
 
   const averaged = averageCurrent(perStation);
   if (!averaged) {
