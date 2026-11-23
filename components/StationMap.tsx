@@ -262,7 +262,7 @@ export default function StationMap({
       {!selected && (
         <p className="mt-3 px-1 text-sm font-medium text-gray-800">
           Tap a monitoring station — one of the coloured circles — for its forecast and
-          recent history.
+          history.
         </p>
       )}
       {/* What a monitoring station is, in one line, for anyone meeting the

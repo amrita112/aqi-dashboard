@@ -250,7 +250,12 @@ export default function StationDetail({
           )
         )}
         {range === "climate" && (
-          <ClimateChart query={{ monitor_id: station.monitor_id }} measurement={measurement} />
+          <ClimateChart
+            places={[
+              { key: station.monitor_id, label: station.name, query: { monitor_id: station.monitor_id } },
+            ]}
+            measurement={measurement}
+          />
         )}
         {!error && range !== "past30" && range !== "climate" && (
           days === null ? (

@@ -197,11 +197,14 @@ export default function TrendsScreen() {
   /** Which pill is open for editing, or null. */
   const [editing, setEditing] = useState<number | null>(null);
   /**
-   * Whether the Historical trends card is open. Closed until asked for, so
-   * the screen opens exactly as before and the extra requests are only made
-   * by someone who wants the long view.
+   * Whether the History card shows Historical trends (the yearly pattern,
+   * month by month) instead of the last 7 or 30 days. A separate flag rather
+   * than a third value of hRange, so switching to it does not refetch the
+   * daily history, and switching back returns to the range last chosen.
+   * Off until chosen, so the climate requests are only made by someone who
+   * wants the long view.
    */
-  const [climateOpen, setClimateOpen] = useState(false);
+  const [climateView, setClimateView] = useState(false);
   const [fHover, setFHover] = useState<HoverReading | null>(null);
   const [hHover, setHHover] = useState<HoverReading | null>(null);
   /** The two charts, captured as images when shared. */
@@ -704,25 +707,63 @@ export default function TrendsScreen() {
           <h2 className="shrink-0 font-semibold">History</h2>
           <div className="flex items-center gap-1">
           <select
-            value={hRange}
-            onChange={(e) => setHRange(Number(e.target.value) as HistoryRange)}
+            value={climateView ? "climate" : hRange}
+            onChange={(e) => {
+              if (e.target.value === "climate") return setClimateView(true);
+              setClimateView(false);
+              setHRange(Number(e.target.value) as HistoryRange);
+            }}
             aria-label="How far back"
             className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs"
           >
             <option value={7}>7 days</option>
             <option value={30}>30 days</option>
+            <option value="climate">Historical trends</option>
           </select>
-          <ShareButton
-            build={shareChart(
-              historyChartRef,
-              historySeries,
-              `Measured air quality · last ${hRange} days`,
-              "airgyaan-history.png",
-              `Measured air quality over the last ${hRange} days`,
-            )}
-          />
+          {/* No share button on Historical trends for now: the shared image
+              and message are built for a chart of dates. */}
+          {!climateView && (
+            <ShareButton
+              build={shareChart(
+                historyChartRef,
+                historySeries,
+                `Measured air quality · last ${hRange} days`,
+                "airgyaan-history.png",
+                `Measured air quality over the last ${hRange} days`,
+              )}
+            />
+          )}
           </div>
         </div>
+        {/* ── Historical trends, the third option ─────────────────────────
+            The yearly pattern, month by month, from every year of records:
+            the same chart the Map tab's station card shows. Both places on
+            ONE chart, the second in blue, as the 7- and 30-day views do. */}
+        {climateView && (
+          <>
+            <p className="mt-1 text-xs text-gray-500">
+              What each month is usually like, from every year of records at the monitoring
+              stations near each place.
+            </p>
+            <div className="mt-3">
+              <ClimateChart
+                places={places
+                  .map((pl, idx) => ({
+                    key: pl.key,
+                    label: pl.label,
+                    query: pl.query,
+                    color: SERIES_COLORS[idx] ?? "#5c6b73",
+                  }))
+                  // Skip the "+ Compare" placeholder until a place is chosen.
+                  .filter((pl) => Object.keys(pl.query).length > 0)}
+                measurement={measurement}
+                stationWord="place"
+              />
+            </div>
+          </>
+        )}
+        {!climateView && (
+        <>
         <Readout reading={hHover} />
         {/* WHY THERE ARE HOLES IN THIS LINE. The axis is the window asked
             for, so a day nobody measured is drawn as a gap rather than
@@ -789,54 +830,10 @@ export default function TrendsScreen() {
           )}
         </div>
         {hRange === 7 && <TapHint />}
+        </>
+        )}
       </section>
 
-      {/* ── Historical trends ──────────────────────────────────────────────
-          The yearly pattern, month by month, from every year of records:
-          the same chart the Map tab's station card shows, for the places on
-          this screen. Its own card rather than a third option in History's
-          selector, because it is a different kind of axis (months of the
-          year, not dates) and History's share button and readout are built
-          for dates. No share button here for now. */}
-      <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="shrink-0 font-semibold">Historical trends</h2>
-          <button
-            type="button"
-            onClick={() => setClimateOpen((o) => !o)}
-            aria-expanded={climateOpen}
-            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs"
-          >
-            {climateOpen ? "Hide" : "Show"}
-          </button>
-        </div>
-        <p className="mt-1 text-xs text-gray-500">
-          What each month is usually like, from every year of records at the monitoring stations
-          near each place.
-        </p>
-        {climateOpen &&
-          places
-            .filter((pl) => Object.keys(pl.query).length > 0)
-            .map((pl, idx) => (
-              <div key={pl.key} className="mt-4">
-                {/* Named only when two places are compared; with one, the
-                    pill at the top already says which place this is. */}
-                {places.length > 1 && (
-                  <p
-                    className="mb-1 flex items-center gap-1.5 text-sm font-medium"
-                    style={{ color: SERIES_COLORS[idx] ?? "#5c6b73" }}
-                  >
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-full"
-                      style={{ background: SERIES_COLORS[idx] ?? "#5c6b73" }}
-                    />
-                    {pl.label}
-                  </p>
-                )}
-                <ClimateChart query={pl.query} measurement={measurement} stationWord="place" />
-              </div>
-            ))}
-      </section>
     </div>
   );
 }

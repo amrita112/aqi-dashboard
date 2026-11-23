@@ -1,27 +1,31 @@
 "use client";
 
 /**
- * Historical trends: the yearly pattern of one station or place, month by month.
+ * Historical trends: the yearly pattern of one or two places, month by month.
  *
- * Shared by the Map tab's station card (StationDetail) and the Trends tab
- * (TrendsScreen), so both draw the same thing the same way. This component
- * fetches its own data from /api/climate -- the caller only says which
- * station or place, and in which measure.
+ * Shared by the Map tab's station card (StationDetail, one station) and the
+ * Trends tab's History card (TrendsScreen, one or two places), so both draw
+ * the same thing the same way. This component fetches its own data from
+ * /api/climate -- the caller only says which station(s) or place(s), and in
+ * which measure.
  *
  * A CLIENT COMPONENT, not a server one: it reacts to the finger (the reading
- * under it) and to the "Each year" toggle, and both cards it sits in are
- * client components already.
+ * under it), and both cards it sits in are client components already.
  *
- * WHAT IS DRAWN
- *   black line   the average day: each month's average daily mean, the
+ * WHAT IS DRAWN, for each place
+ *   line         the average day: each month's average daily mean, the
  *                median year (unusual station-years screened out first;
  *                lib/api/climate.ts)
- *   grey band    the average daily low to the average daily high
- *   grey dots    months with too few years behind them to call typical
+ *   band         the average daily low to the average daily high
+ *   hollow dots  months with too few years behind them to call typical
  *                (lib/api/climate.ts, DEFAULT_MIN_YEARS); no band there
- *   faint lines  optional: one per year, the latest in blue, so a person can
- *                see whether this year is unusual. Screened-out station-years
- *                are omitted from these too; the footnote counts them.
+ *
+ * TWO PLACES, ONE CHART. Comparing places follows the Trends tab's Forecast
+ * and History cards (components/TrendsChart.tsx): the first place in black,
+ * the second in blue (SERIES_COLORS), each with its own band in a light wash
+ * of its own colour, and the coloured pills at the top of the Trends screen
+ * acting as the legend. The key's swatches go neutral grey with two places,
+ * because they describe line STYLES (line, band, dot), not places.
  *
  * Twelve months on the x-axis, January first. Single letters, because twelve
  * three-letter names do not fit a phone's width; the readout names the month.
@@ -44,6 +48,7 @@ import { SCREEN_FACTOR, type ClimateResult } from "@/lib/api/climate";
 import { hoveredIndex } from "@/lib/chart-hover";
 import { tightScale } from "@/lib/chart-scale";
 import BandStrip, { axisLabelOfUnit, BAND_LINE, BAND_LINE_Z, bandBoundaries, measurementOfUnit } from "@/components/BandStrip";
+import { SERIES_COLORS } from "@/components/TrendsChart";
 import { MEASUREMENT_COPY, type Measurement } from "@/lib/prefs";
 
 const MONTH_NAMES = [
@@ -55,72 +60,120 @@ const MONTH_NAMES = [
 const TOP_MARGIN = 8;
 const X_AXIS_HEIGHT = 24;
 
-/** Colours: the same black and blue the other charts use for "this place". */
-const MEAN_COLOUR = "#12171b";
+/**
+ * Colours. The FIRST place keeps the grey band and grey hollow dots the chart
+ * has always had (the AQI footnote calls it "the shaded gray region"). A
+ * second place's band and dots are drawn in its own colour, as the Trends
+ * tab's other cards do for a second place.
+ */
 const BAND_COLOUR = "#5c6b73";
+const BAND_OPACITY = 0.16;
+/** Opacity of a second place's band: TrendsChart's band opacity. */
+const OTHER_BAND_OPACITY = 0.14;
 const SPARSE_COLOUR = "#9aa5ab";
-const YEAR_COLOUR = "#9aa5ab";
-const LATEST_YEAR_COLOUR = "#2a78d6";
+/** Key swatches when two places are drawn: TrendsChart's NEUTRAL. */
+const NEUTRAL = "#5c6b73";
 
-type Row = Record<string, number | string | null | [number, number]>;
-
-export default function ClimateChart({
-  query,
-  measurement,
-  stationWord = "monitoring station",
-  height = 192,
-}: {
+/** One place to draw. `color` defaults to SERIES_COLORS by position. */
+export interface ClimatePlace {
+  /** Stable identity, e.g. TrendsPlace.key or the station's monitor_id. */
+  key: string;
+  /** On-screen name, used in the readout and header when two are compared. */
+  label: string;
   /**
    * Which station or place: the same query the other charts send, e.g.
    * { monitor_id } or { lat, lng, k, max_km?, city? }.
    */
   query: Record<string, string>;
+  color?: string;
+}
+
+/** What came back for one place. */
+interface Loaded {
+  data: ClimateResult | null;
+  stationsUsed: number;
+  error: string | null;
+}
+
+type Row = Record<string, number | string | null | [number, number]>;
+
+export default function ClimateChart({
+  places,
+  measurement,
+  stationWord = "monitoring station",
+  height = 192,
+}: {
+  places: ClimatePlace[];
   measurement: Measurement;
   /**
    * How the empty message names what was asked about, e.g. "monitoring
-   * station" or "monitoring stations near this place".
+   * station" or "place".
    */
   stationWord?: string;
   height?: number;
 }) {
-  const [data, setData] = useState<ClimateResult | null>(null);
-  const [stationsUsed, setStationsUsed] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [showYears, setShowYears] = useState(false);
+  // One answer per place, in the same order as `places`; null while loading.
+  const [loaded, setLoaded] = useState<Loaded[] | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const unit = MEASUREMENT_COPY[measurement].unit;
 
-  // Stable dependency: the query object is rebuilt on every render upstream.
-  const qs = useMemo(
-    () => new URLSearchParams({ ...query, metric: measurement }).toString(),
-    [query, measurement],
+  // Stable dependency: the places array is rebuilt on every render upstream,
+  // so the effect keys on the query strings it would actually send.
+  const qsList = useMemo(
+    () => places.map((p) => new URLSearchParams({ ...p.query, metric: measurement }).toString()),
+    [places, measurement],
   );
+  const qsKey = qsList.join("|");
 
   useEffect(() => {
     let cancelled = false;
-    setData(null);
-    setError(null);
+    setLoaded(null);
     setHover(null);
     (async () => {
-      try {
-        const r = await fetch(`/api/climate?${qs}`);
-        const b = await r.json();
-        if (cancelled) return;
-        if (b?.error) return setError(b.error.message);
-        setData(b.data as ClimateResult);
-        setStationsUsed(Number(b.meta?.stations_used ?? 0));
-      } catch {
-        if (!cancelled) setError("Could not reach the server.");
-      }
+      // All places at once; one failing does not stop the other drawing.
+      const answers = await Promise.all(
+        qsKey.split("|").map(async (qs): Promise<Loaded> => {
+          try {
+            const r = await fetch(`/api/climate?${qs}`);
+            const b = await r.json();
+            if (b?.error) return { data: null, stationsUsed: 0, error: b.error.message };
+            return {
+              data: b.data as ClimateResult,
+              stationsUsed: Number(b.meta?.stations_used ?? 0),
+              error: null,
+            };
+          } catch {
+            return { data: null, stationsUsed: 0, error: "Could not reach the server." };
+          }
+        }),
+      );
+      if (!cancelled) setLoaded(answers);
     })();
     return () => {
       cancelled = true;
     };
-  }, [qs]);
+  }, [qsKey]);
 
-  if (error) return <p className="py-6 text-center text-sm text-red-700">{error}</p>;
-  if (data === null) return <p className="py-10 text-center text-sm text-gray-500">Loading…</p>;
-  if (data.n_years === 0) {
+  if (loaded === null || loaded.length !== places.length) {
+    return <p className="py-10 text-center text-sm text-gray-500">Loading…</p>;
+  }
+
+  // Each place with its answer and colour, in order.
+  const all = places.map((p, idx) => ({
+    ...p,
+    ...loaded[idx],
+    idx,
+    color: p.color ?? SERIES_COLORS[idx] ?? NEUTRAL,
+  }));
+  // The places that have something to draw.
+  const live = all.filter((p) => p.data !== null && p.data.n_years > 0);
+  const failed = all.filter((p) => p.error !== null);
+  const comparing = places.length > 1;
+
+  if (live.length === 0) {
+    if (failed.length > 0) {
+      return <p className="py-6 text-center text-sm text-red-700">{failed[0].error}</p>;
+    }
     return (
       <p className="py-10 text-center text-sm text-gray-500">
         No complete months on record for this {stationWord} yet.
@@ -128,64 +181,105 @@ export default function ClimateChart({
     );
   }
 
-  const latest = data.last_year;
-  const yearsShown = showYears ? data.years : [];
-
-  // One row per month. The mean and band only where enough years stand
-  // behind it; otherwise the month's value is a grey dot and no band.
-  const rows: Row[] = data.months.map((m, i) => {
-    const row: Row = {
-      i,
-      label: MONTH_NAMES[i][0],
-      mean: m.enough_years ? m.mean : null,
-      sparse: !m.enough_years ? m.mean : null,
-      band: m.enough_years && m.min !== null && m.max !== null ? [m.min, m.max] : null,
-    };
-    for (const y of yearsShown) row[`y${y.year}`] = y.months[i].mean;
+  // One row per month. For each place p: m{p} the mean, s{p} the hollow dot
+  // for a thin month, b{p} the low-to-high band. The mean and band only where
+  // enough years stand behind it; otherwise a hollow dot and no band.
+  const rows: Row[] = MONTH_NAMES.map((name, i) => {
+    const row: Row = { i, label: name[0] };
+    for (const p of live) {
+      const m = p.data!.months[i];
+      row[`m${p.idx}`] = m.enough_years ? m.mean : null;
+      row[`s${p.idx}`] = !m.enough_years ? m.mean : null;
+      row[`b${p.idx}`] = m.enough_years && m.min !== null && m.max !== null ? [m.min, m.max] : null;
+    }
     return row;
   });
 
-  const values = [
-    ...data.months.flatMap((m) => [m.mean, m.min, m.max]),
-    ...yearsShown.flatMap((y) => y.months.map((m) => m.mean)),
-  ].filter((v): v is number => typeof v === "number");
+  const values = live
+    .flatMap((p) => p.data!.months.flatMap((m) => [m.mean, m.min, m.max]))
+    .filter((v): v is number => typeof v === "number");
   const scale = tightScale(Math.min(...values), Math.max(...values));
 
   const report = (state: { activeTooltipIndex?: number | string | null } | undefined) =>
     setHover(hoveredIndex(state, rows.length));
 
-  const hovered = hover === null ? null : data.months[hover];
-  const hoveredLatest =
-    hover !== null && latest !== null
-      ? data.years.find((y) => y.year === latest)?.months[hover].mean ?? null
-      : null;
   const fmt = (v: number | null) => (v === null ? "–" : String(Math.round(v)));
-  const hasSparse = data.months.some((m) => !m.enough_years && m.mean !== null);
+  const hasSparse = live.some((p) => p.data!.months.some((m) => !m.enough_years && m.mean !== null));
   const isAqi = measurement === "aqi";
+  // Key swatch colours: the place's own with one place, neutral with two.
+  const lineSwatch = comparing ? NEUTRAL : live[0].color;
+
+  /**
+   * How many monitoring stations stand behind a place, in words, for the
+   * explainer. The count is what the API says answered (meta.stations_used),
+   * never a fixed number. A single station asked for by monitor_id (the Map
+   * tab) is "this monitoring station".
+   */
+  const stationsSentence = (p: (typeof live)[number]): string => {
+    if (p.query.monitor_id) return "From this monitoring station.";
+    if (p.stationsUsed === 1) return "From 1 monitoring station.";
+    return `Averaged over ${p.stationsUsed} monitoring stations.`;
+  };
+  const totalDropped = live.reduce((t, p) => t + p.data!.dropped.length, 0);
 
   return (
     <div className="w-full">
-      {/* How much history stands behind the chart, said first. */}
-      <p className="text-xs text-gray-600">
-        {data.n_years} {data.n_years === 1 ? "year" : "years"} ({data.first_year}
-        {data.last_year !== data.first_year ? `–${data.last_year}` : ""})
-        {stationsUsed > 1 ? ` · ${stationsUsed} stations` : ""}
-      </p>
+      {/* How much history stands behind the chart, said first. One line per
+          place when two are compared, each in its line colour. */}
+      {all.map((p) => {
+        const d = p.data;
+        if (!comparing && (!d || d.n_years === 0)) return null;
+        return (
+          <p
+            key={p.key}
+            className="text-xs text-gray-600"
+            style={comparing ? { color: p.color } : undefined}
+          >
+            {comparing ? `${p.label}: ` : ""}
+            {p.error
+              ? "could not load."
+              : !d || d.n_years === 0
+                ? "no complete months on record yet."
+                : (
+                  <>
+                    {d.n_years} {d.n_years === 1 ? "year" : "years"} ({d.first_year}
+                    {d.last_year !== d.first_year ? `–${d.last_year}` : ""})
+                    {p.stationsUsed > 1 ? ` · ${p.stationsUsed} monitoring stations` : ""}
+                  </>
+                )}
+          </p>
+        );
+      })}
 
       {/* The reading under the finger. Height reserved so the chart does not
-          jump as a finger moves. */}
-      <p className="mt-0.5 min-h-[1.25rem] text-xs font-medium text-gray-900">
-        {hovered && hovered.mean !== null && (
+          jump as a finger moves; two lines' worth when two places share it. */}
+      <p
+        className={`mt-0.5 text-xs font-medium text-gray-900 ${comparing ? "min-h-[2rem]" : "min-h-[1.25rem]"}`}
+      >
+        {hover !== null && live.some((p) => p.data!.months[hover].mean !== null) && (
           <>
-            {MONTH_NAMES[hovered.month - 1]}: {fmt(hovered.mean)}
-            <span className="font-normal text-gray-600">
-              {" "}
-              (low {fmt(hovered.min)}, high {fmt(hovered.max)}){unit ? ` ${unit}` : ""} ·{" "}
-              {hovered.n_years} {hovered.n_years === 1 ? "year" : "years"}
-            </span>
-            {showYears && hoveredLatest !== null && (
-              <span style={{ color: LATEST_YEAR_COLOUR }}> · {latest}: {fmt(hoveredLatest)}</span>
-            )}
+            {MONTH_NAMES[hover]}:
+            {live.map((p) => {
+              const m = p.data!.months[hover];
+              if (m.mean === null) return null;
+              return comparing ? (
+                <span key={p.key} className="ml-2 whitespace-nowrap" style={{ color: p.color }}>
+                  {p.label}: {fmt(m.mean)}
+                  <span className="font-normal"> ({fmt(m.min)}–{fmt(m.max)})</span>
+                </span>
+              ) : (
+                <span key={p.key}>
+                  {" "}
+                  {fmt(m.mean)}
+                  <span className="font-normal text-gray-600">
+                    {" "}
+                    (low {fmt(m.min)}, high {fmt(m.max)}){unit ? ` ${unit}` : ""} ·{" "}
+                    {m.n_years} {m.n_years === 1 ? "year" : "years"}
+                  </span>
+                </span>
+              );
+            })}
+            {comparing && unit ? <span className="ml-1 font-normal text-gray-500">{unit}</span> : null}
           </>
         )}
       </p>
@@ -230,43 +324,46 @@ export default function ClimateChart({
                   style={{ fontSize: 10, fill: "#5c6b73", textAnchor: "middle" }}
                 />
               </YAxis>
-              <Area
-                dataKey="band"
-                stroke="none"
-                fill={BAND_COLOUR}
-                fillOpacity={0.16}
-                activeDot={false}
-                connectNulls={false}
-                isAnimationActive={false}
-              />
-              {yearsShown.map((y) => (
-                <Line
-                  key={y.year}
-                  dataKey={`y${y.year}`}
-                  stroke={y.year === latest ? LATEST_YEAR_COLOUR : YEAR_COLOUR}
-                  strokeOpacity={y.year === latest ? 0.9 : 0.45}
-                  strokeWidth={y.year === latest ? 1.6 : 1}
-                  dot={false}
+              {/* Bands first, so every line is drawn on top of every band. */}
+              {live.map((p) => (
+                <Area
+                  key={`band-${p.key}`}
+                  dataKey={`b${p.idx}`}
+                  stroke="none"
+                  fill={p.idx === 0 ? BAND_COLOUR : p.color}
+                  fillOpacity={p.idx === 0 ? BAND_OPACITY : OTHER_BAND_OPACITY}
                   activeDot={false}
                   connectNulls={false}
                   isAnimationActive={false}
                 />
               ))}
-              <Line
-                dataKey="mean"
-                stroke={MEAN_COLOUR}
-                strokeWidth={2}
-                dot={{ r: 2, fill: MEAN_COLOUR }}
-                connectNulls={false}
-                isAnimationActive={false}
-              />
-              <Line
-                dataKey="sparse"
-                stroke="none"
-                dot={{ r: 3, fill: "#fff", stroke: SPARSE_COLOUR, strokeWidth: 1.5 }}
-                activeDot={false}
-                isAnimationActive={false}
-              />
+              {live.map((p) => (
+                <Line
+                  key={`mean-${p.key}`}
+                  dataKey={`m${p.idx}`}
+                  stroke={p.color}
+                  strokeWidth={2}
+                  dot={{ r: 2, fill: p.color }}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                />
+              ))}
+              {live.map((p) => (
+                <Line
+                  key={`sparse-${p.key}`}
+                  dataKey={`s${p.idx}`}
+                  stroke="none"
+                  dot={{
+                    r: 3,
+                    fill: "#fff",
+                    stroke: p.idx === 0 ? SPARSE_COLOUR : p.color,
+                    strokeOpacity: p.idx === 0 ? 1 : 0.6,
+                    strokeWidth: 1.5,
+                  }}
+                  activeDot={false}
+                  isAnimationActive={false}
+                />
+              ))}
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -278,14 +375,18 @@ export default function ClimateChart({
         />
       </div>
 
-      {/* Key, and the switch for the per-year lines. */}
+      {/* Key. Which colour is which place is said by the pills on the Trends
+          screen, as for the other cards there. */}
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-600">
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-0.5 w-3" style={{ background: MEAN_COLOUR }} />
+          <span className="inline-block h-0.5 w-3" style={{ background: lineSwatch }} />
           {isAqi ? "Average daily AQI" : "Average daily level"}
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2 w-3 rounded-sm" style={{ background: BAND_COLOUR, opacity: 0.3 }} />
+          <span
+            className="inline-block h-2 w-3 rounded-sm"
+            style={{ background: comparing ? NEUTRAL : BAND_COLOUR, opacity: 0.3 }}
+          />
           Average daily low to high
         </span>
         {hasSparse && (
@@ -297,37 +398,35 @@ export default function ClimateChart({
             Too few years to call typical
           </span>
         )}
-        {data.years.length > 1 && (
-          <label className="ml-auto inline-flex items-center gap-1">
-            <input
-              type="checkbox"
-              checked={showYears}
-              onChange={(e) => setShowYears(e.target.checked)}
-            />
-            Each year
-            {showYears && latest !== null && (
-              <span style={{ color: LATEST_YEAR_COLOUR }}>({latest} in blue)</span>
-            )}
-          </label>
-        )}
       </div>
 
-      {/* Footnotes: where the numbers come from, and what an AQI low/high is. */}
+      {/* Footnotes: what an AQI low/high is, then how many monitoring stations
+          and where the numbers come from (the owner's wording), then two short
+          caveats. */}
       <p className="mt-2 text-[11px] leading-snug text-gray-500">
-        {isAqi && (
-          <>
-            The line is the official AQI, which is a 24-hour average. The low and high put each
-            day&apos;s cleanest and worst readings on the same scale; they are not official AQI
-            values.{" "}
-          </>
-        )}
-        {stationsUsed > 1 && `Averaged over ${stationsUsed} stations. `}
-        Each month is the middle (median) year.{" "}
-        {data.dropped.length > 0 &&
-          `Left out: ${data.dropped.length} unusual ${data.dropped.length === 1 ? "month" : "months"} at single stations, each at least ${SCREEN_FACTOR} times above or below that station's other years. `}
-        Only days with at least 12 hours of readings count. Data: CPCB (via XKDR) to Sep 2025,
-        OpenAQ after. Highs read slightly higher from Sep 2025, when the data became 15-minute
-        rather than hourly.
+        {isAqi &&
+          (comparing ? (
+            <>
+              The black and blue lines are the official AQI, which is a 24-hour average. The daily
+              low and high (shaded regions) put each day&apos;s cleanest and worst readings on the
+              same scale; they are not official AQI values.{" "}
+            </>
+          ) : (
+            <>
+              The black line is the official AQI, which is a 24-hour average. The daily low and
+              high (shaded gray region) put each day&apos;s cleanest and worst readings on the same
+              scale; they are not official AQI values.{" "}
+            </>
+          ))}
+        {comparing
+          ? live.map((p) => `${p.label}: ${stationsSentence(p).toLowerCase().replace(/\.$/, "")}. `).join("")
+          : `${stationsSentence(live[0])} `}
+        Values are median over years. Data: CPCB (via XKDR and OpenAQ).
+      </p>
+      <p className="mt-1 text-[11px] leading-snug text-gray-400">
+        {totalDropped > 0 &&
+          `Left out: ${totalDropped} unusual ${totalDropped === 1 ? "month" : "months"} at single monitoring stations (each at least ${SCREEN_FACTOR}× above or below that monitoring station's other years). `}
+        Highs read slightly higher from Sep 2025, when readings became 15-minute.
       </p>
     </div>
   );
