@@ -8,6 +8,14 @@
  * to someone else. So only the chart itself is captured, and the image gets
  * its own heading (which places, which measure) and a footer saying where it
  * came from, so a forwarded image still leads back to the app.
+ *
+ * WHAT MAY BE WRITTEN ON THE IMAGE. Every word drawn here travels with the
+ * picture to people the user never chose to tell where they live. So the
+ * legend must carry PUBLIC place names built by the app (lib/public-label.ts),
+ * never the "Call this place" nickname, and a typed question must be labelled
+ * as the person's own words. The same rule as lib/share.ts: if a server ever
+ * draws these images for link previews, it may take only coordinates or IDs
+ * from the URL and look the words up itself — never display text from the URL.
  */
 
 import { toCanvas } from "html-to-image";
@@ -35,7 +43,37 @@ export async function chartImage(node: HTMLElement, opts: ChartImageOptions): Pr
   });
 
   const width = chart.width;
-  const titleH = (opts.legend?.length ? 66 : 46) * ratio + (opts.subtitle ? 18 * ratio : 0);
+
+  // LEGEND ROWS, worked out before the canvas is sized. Public place names
+  // ("Near Kherwadi, Bandra East, Mumbai") are longer than nicknames, and two
+  // of them do not fit side by side on a phone-width chart; drawn in one row
+  // the second ran off the edge. So each item goes on the current row if it
+  // fits, else starts a new one. A measuring canvas is needed first because
+  // text width depends on the font.
+  const legendFont = `${13 * ratio}px ${FONT}`;
+  const measure = document.createElement("canvas").getContext("2d");
+  const rows: { label: string; color: string; x: number }[][] = [];
+  if (opts.legend?.length && measure) {
+    measure.font = legendFont;
+    let row: { label: string; color: string; x: number }[] = [];
+    let x = PAD * ratio;
+    for (const item of opts.legend) {
+      const w = 14 * ratio + measure.measureText(item.label).width;
+      if (row.length && x + w > width - PAD * ratio) {
+        rows.push(row);
+        row = [];
+        x = PAD * ratio;
+      }
+      row.push({ ...item, x });
+      x += w + 18 * ratio;
+    }
+    if (row.length) rows.push(row);
+  }
+  const LEGEND_ROW_H = 20;
+
+  const titleH =
+    (rows.length ? 66 + (rows.length - 1) * LEGEND_ROW_H : 46) * ratio +
+    (opts.subtitle ? 18 * ratio : 0);
   const footH = 34 * ratio;
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -58,20 +96,18 @@ export async function chartImage(node: HTMLElement, opts: ChartImageOptions): Pr
     ctx.fillText(opts.subtitle, PAD * ratio, y);
   }
 
-  if (opts.legend?.length) {
-    y += 22 * ratio;
-    let x = PAD * ratio;
-    ctx.font = `${13 * ratio}px ${FONT}`;
-    for (const item of opts.legend) {
+  ctx.font = legendFont;
+  rows.forEach((row, i) => {
+    y += (i === 0 ? 22 : LEGEND_ROW_H) * ratio;
+    for (const item of row) {
       ctx.fillStyle = item.color;
       ctx.beginPath();
-      ctx.arc(x + 5 * ratio, y - 4 * ratio, 5 * ratio, 0, Math.PI * 2);
+      ctx.arc(item.x + 5 * ratio, y - 4 * ratio, 5 * ratio, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#12171b";
-      ctx.fillText(item.label, x + 14 * ratio, y);
-      x += 14 * ratio + ctx.measureText(item.label).width + 18 * ratio;
+      ctx.fillText(item.label, item.x + 14 * ratio, y);
     }
-  }
+  });
 
   ctx.drawImage(chart, 0, titleH);
 

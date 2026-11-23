@@ -17,6 +17,7 @@
  */
 
 import { LAUNCH_KEYS } from "@/lib/launch";
+import { tidyStationName } from "@/lib/api/geocode";
 
 export type Measurement = "aqi" | "pm25";
 
@@ -37,7 +38,23 @@ export interface Prefs {
    */
   anchor: {
     monitor_id: string;
+    /**
+     * What the PERSON called this place ("Home", "Amma's flat"). Shown on
+     * their own screens only. It is private: it never goes into anything the
+     * app shares (see publicPlaceLabel in lib/public-label.ts).
+     */
     name: string;
+    /**
+     * The area name WE give this place: the nearest monitoring station's
+     * locality, tidied ("Kherwadi, Bandra East"). This, not `name`, is what a
+     * shared image or message calls the place.
+     *
+     * OPTIONAL because installs set up before 22 Nov 2026 do not have it.
+     * Those still load (no version bump, so nobody is sent back through
+     * setup); anything that needs a public name falls back to the city, or to
+     * the stations the server reports, and never to `name`.
+     */
+    area?: string;
     latitude: number;
     longitude: number;
   };
@@ -53,6 +70,59 @@ export const PREFS_KEY = "aqi.prefs.v2";
 
 /** How many nearby stations an answer is averaged over. */
 export const NEAREST_K = 3;
+
+/**
+ * The longest name a person may give a place, in characters.
+ *
+ * 40 fits "Grandmother's flat, Lajpat Nagar IV" with room to spare and still
+ * fits on a pill on a narrow phone. A cap exists at all because the name is
+ * free text: without one, a pasted paragraph would be saved and drawn on
+ * every screen. Enforced twice — `maxLength` on the input box, and
+ * cleanPlaceLabel() when saving — because text can also arrive without
+ * typing (a search result fills the box, or an old saved value).
+ */
+export const MAX_PLACE_LABEL_CHARS = 40;
+
+/**
+ * Make a place name safe to store and draw: one line, no invisible
+ * characters, at most MAX_PLACE_LABEL_CHARS long.
+ *
+ * - Line breaks, tabs and other control characters become spaces. They are
+ *   never intended in a place name and can break layouts (or, in shared
+ *   text, start a new line that looks like it came from the app).
+ * - Runs of spaces collapse to one, and the ends are trimmed.
+ * - Too long: cut at the last space before the limit if there is one in the
+ *   second half (so "Bandra Kurla Complex, Mumbai, Maharashtra" does not end
+ *   in half a word), otherwise at the limit itself.
+ *
+ * Counts characters with Array.from rather than .length so that Devanagari
+ * or emoji (which JavaScript can store as two "units") are never cut in half.
+ */
+export function cleanPlaceLabel(raw: string, max = MAX_PLACE_LABEL_CHARS): string {
+  const flat = raw
+    // \u0000-\u001F and \u007F-\u009F are the control characters; \u2028 and
+    // \u2029 are Unicode's own line and paragraph separators.
+    .replace(/[\u0000-\u001F\u007F-\u009F\u2028\u2029]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const chars = Array.from(flat);
+  if (chars.length <= max) return flat;
+  const cut = chars.slice(0, max).join("");
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace >= max / 2 ? cut.slice(0, lastSpace) : cut).replace(/[\s,·-]+$/, "");
+}
+
+/**
+ * Our name for the area around a place, from the stations nearest it: the
+ * first (nearest) station's name, tidied into a locality. Undefined when no
+ * station is known, so callers fall back to the city rather than guess.
+ */
+export function areaFromStations(stations: { name: string }[]): string | undefined {
+  const nearest = stations[0]?.name;
+  if (!nearest) return undefined;
+  const area = cleanPlaceLabel(tidyStationName(nearest));
+  return area || undefined;
+}
 
 export const MEASUREMENT_COPY: Record<
   Measurement,
@@ -92,7 +162,18 @@ export function loadPrefs(): Prefs | null {
 }
 
 export function savePrefs(prefs: Omit<Prefs, "version" | "saved_at">): Prefs | null {
-  const full: Prefs = { ...prefs, version: 2, saved_at: new Date().toISOString() };
+  // Every save passes through here, so this is the one place the name rules
+  // are guaranteed to apply, whichever screen did the saving. An empty result
+  // (someone saved only spaces) keeps the old behaviour of a non-empty name by
+  // falling back to the area, then the city.
+  const area = prefs.anchor.area ? cleanPlaceLabel(prefs.anchor.area) || undefined : undefined;
+  const name = cleanPlaceLabel(prefs.anchor.name) || area || prefs.city;
+  const full: Prefs = {
+    ...prefs,
+    anchor: { ...prefs.anchor, name, area },
+    version: 2,
+    saved_at: new Date().toISOString(),
+  };
   try {
     window.localStorage.setItem(PREFS_KEY, JSON.stringify(full));
     return full;

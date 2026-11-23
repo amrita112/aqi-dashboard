@@ -22,6 +22,7 @@ import InstallHint from "@/components/InstallHint";
 import { useRouter } from "next/navigation";
 import {
   savePrefs,
+  areaFromStations,
   MEASUREMENT_COPY,
   type Measurement,
 } from "@/lib/prefs";
@@ -109,6 +110,9 @@ export default function SetupFlow() {
         // want one representative site. The place itself is what the app shows.
         monitor_id: place.stations[0]?.monitor_id ?? "",
         name: place.label,
+        // Our own area name for the place (the nearest station's locality),
+        // used instead of `name` whenever something is shared.
+        area: areaFromStations(place.stations),
         latitude: place.latitude,
         longitude: place.longitude,
       },

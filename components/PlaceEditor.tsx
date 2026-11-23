@@ -21,7 +21,8 @@
 
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { NEAREST_K, type Prefs } from "@/lib/prefs";
+import { NEAREST_K, areaFromStations, type Prefs } from "@/lib/prefs";
+import { nearLabel } from "@/lib/public-label";
 
 const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
   ssr: false,
@@ -30,7 +31,18 @@ const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
 
 export interface TrendsPlace {
   key: string;
+  /** What the person sees on THEIR screen: may include their own nickname. */
   label: string;
+  /**
+   * What a SHARED image or message calls this place: always built by us from
+   * station area names and the city, never from anything the person typed
+   * (see lib/public-label.ts for why).
+   *
+   * null means "not known yet" — only for "my place" on an install saved
+   * before area names were stored. The Trends screen then builds it from the
+   * stations the server says it used, or falls back to the city.
+   */
+  publicLabel: string | null;
   query: Record<string, string>;
 }
 
@@ -48,6 +60,8 @@ export function cityPlace(c: EditorCity): TrendsPlace {
   return {
     key: `city:${c.city}`,
     label: `${c.city} (city average)`,
+    // Nothing here was typed by the person, so the public label is the same.
+    publicLabel: `${c.city} (city average)`,
     query: {
       lat: String(c.lat),
       lng: String(c.lng),
@@ -61,13 +75,16 @@ export function cityPlace(c: EditorCity): TrendsPlace {
 /** A point inside a city: the three stations nearest it. */
 export function pointPlace(
   c: EditorCity,
-  picked: { latitude: number; longitude: number; label: string },
+  picked: { latitude: number; longitude: number; label: string; stations: { name: string }[] },
 ): TrendsPlace {
   return {
     // Coordinates in the key, so two points in one city are distinct series
     // rather than overwriting each other.
     key: `pt:${picked.latitude.toFixed(4)},${picked.longitude.toFixed(4)}`,
     label: `${c.city} · ${picked.label}`,
+    // picked.label may be the person's own words, so the shared name comes
+    // from the nearest station's area instead.
+    publicLabel: nearLabel(areaFromStations(picked.stations), c.city),
     query: {
       lat: String(picked.latitude),
       lng: String(picked.longitude),
@@ -80,6 +97,9 @@ export function myPlace(prefs: Prefs): TrendsPlace {
   return {
     key: "mine",
     label: prefs.anchor.name,
+    // anchor.name is the person's nickname and stays on the device; the
+    // shared name is our area name, when this install has one saved.
+    publicLabel: prefs.anchor.area ? nearLabel(prefs.anchor.area, prefs.city) : null,
     query: {
       lat: String(prefs.anchor.latitude),
       lng: String(prefs.anchor.longitude),

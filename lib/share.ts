@@ -9,8 +9,23 @@
  * caption.
  *
  * WHAT IS NEVER SHARED: anything the person did not see on screen and choose
- * to send. The text names the place shown on the card they pressed, and the
- * image is that card's chart. No coordinates, no saved preferences.
+ * to send. The image is the chart from the card they pressed. No coordinates,
+ * no saved preferences.
+ *
+ * PLACE NAMES IN SHARED THINGS ARE OURS, NOT THEIRS. The "Call this place"
+ * nickname ("Home", a street address) stays on the device. A shared image or
+ * message names places only with labels the app builds from monitoring
+ * station areas and city names (lib/public-label.ts). Anything the person DID
+ * type that is shared on purpose — an Ask question — is framed as theirs
+ * (`Asked: "…"`) and kept apart from the AI's words (`AI answer: …`).
+ *
+ * RULE FOR ANY FUTURE SHARE LINK OR SERVER-MADE PREVIEW IMAGE. If sharing
+ * ever moves to a link (e.g. airgyaan.in/s?...) whose page or preview image is
+ * drawn by our server, that URL may carry ONLY coordinates or IDs, and the
+ * server must look up every word it displays itself. It must never print
+ * display text taken from the URL: anyone can edit a link, so a link that
+ * prints its own text lets a stranger make a convincing "AirGyaan" image
+ * saying anything they like.
  *
  * Fallbacks, in order, for browsers without the menu (most laptops):
  *   an image to share   -> downloaded as a PNG

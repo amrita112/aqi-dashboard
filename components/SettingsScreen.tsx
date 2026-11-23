@@ -21,6 +21,7 @@ import {
   savePrefs,
   MEASUREMENT_COPY,
   NEAREST_K,
+  areaFromStations,
   type Measurement,
   type Prefs,
 } from "@/lib/prefs";
@@ -139,7 +140,7 @@ export default function SettingsScreen() {
             </h2>
             <p className="mt-1 font-medium">{prefs.anchor.name}</p>
             <p className="text-sm text-gray-600">
-              {prefs.city} · averaged over the {NEAREST_K} nearest stations
+              {prefs.city} · averaged over the {NEAREST_K} nearest monitoring stations
             </p>
           </div>
           <button
@@ -206,6 +207,9 @@ export default function SettingsScreen() {
                     anchor: {
                       monitor_id: picked.stations[0]?.monitor_id ?? "",
                       name: picked.label,
+                      // Our own area name, used instead of `name` in anything
+                      // shared (see lib/public-label.ts).
+                      area: areaFromStations(picked.stations),
                       latitude: picked.latitude,
                       longitude: picked.longitude,
                     },
@@ -307,7 +311,7 @@ export default function SettingsScreen() {
           </a>
           , and the historical data, which is used to make forecasts, is taken from XKDR
           Forum&apos;s India Air Quality Database. Note that these are not independent sources,
-          as they both get their data from the same CPCB monitors.
+          as they both get their data from the same CPCB monitoring stations.
         </p>
 
         {/* XKDR'S OWN CITATION FORMAT, verbatim, because that is what they ask
@@ -344,9 +348,9 @@ export default function SettingsScreen() {
                 notebooks/substack_figures.ipynb: every pair of Delhi monitors,
                 winter PM2.5, winters 2019-20 onwards. */}
             <p className="mt-1 text-gray-600">
-              We average the readings from the three CPCB monitors nearest to you, but in most
-              cases, those monitors are too far away to give accurate readings for your
-              particular location. For example, in Delhi, monitors that are 2–4 km apart differ
+              We average the readings from the three CPCB stations nearest to you, but in most
+              cases, those stations are too far away to give accurate readings for your
+              particular location. For example, in Delhi, stations that are 2–4 km apart differ
               by 30–60% in winter PM2.5. Further, the data we are able to obtain from OpenAQ is
               often 1–4 days old. So to improve air quality forecasting, we need much more dense,
               frequently updated air quality measurements in every city. If you would like to

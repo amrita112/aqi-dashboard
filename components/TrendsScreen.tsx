@@ -26,15 +26,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  areaFromStations,
   loadPrefs,
   MEASUREMENT_COPY,
+  savePrefs,
   type Measurement,
   type Prefs,
 } from "@/lib/prefs";
 import { APP_NAME } from "@/lib/brand";
 import ShareButton from "@/components/ShareButton";
 import { chartImage } from "@/lib/chart-image";
-import { SEE_YOUR_AREA, listNames } from "@/lib/share";
+import { SEE_YOUR_AREA } from "@/lib/share";
+import { areaUnknownLabel, nearLabel, stationsNote, trendsShareText } from "@/lib/public-label";
 import TrendsChart, {
   SERIES_COLORS,
   type HoverReading,
@@ -63,6 +66,17 @@ interface Day {
   band_high: number | null;
   mode: string;
   hourly: { hour: number; value: number; band_low: number | null; band_high: number | null }[] | null;
+}
+
+/**
+ * The part of a forecast response's `meta` that says which stations answered
+ * (built by placeMeta in lib/api/place.ts). Kept per place so a SHARED chart
+ * can say "3 monitoring stations within 2.1 km" without another request.
+ */
+interface StationsMeta {
+  stations_used?: number;
+  furthest_km?: number;
+  stations?: { name: string }[];
 }
 
 interface HistoryRow {
@@ -176,6 +190,8 @@ export default function TrendsScreen() {
    * the monitoring network's. Both used to be drawn as "Nothing was measured".
    */
   const [historyErrors, setHistoryErrors] = useState<Record<string, string | null>>({});
+  /** Per place: which stations the forecast came from (for the share text). */
+  const [stationMetas, setStationMetas] = useState<Record<string, StationsMeta | null>>({});
   const [error, setError] = useState<string | null>(null);
   /** Which pill is open for editing, or null. */
   const [editing, setEditing] = useState<number | null>(null);
@@ -248,6 +264,7 @@ export default function TrendsScreen() {
         [place.key]: hh && !hh.error && Array.isArray(hh.data) ? hh.data : null,
       }));
       setForecasts((prev) => ({ ...prev, [place.key]: fr?.error ? [] : (fr?.data?.days ?? []) }));
+      setStationMetas((prev) => ({ ...prev, [place.key]: fr?.error ? null : (fr?.meta ?? null) }));
       setHistories((prev) => ({
         ...prev,
         [place.key]: hr?.error ? [] : (Array.isArray(hr?.data) ? hr.data : []),
@@ -269,6 +286,7 @@ export default function TrendsScreen() {
     setHistories({});
     setHourlies({});
     setHistoryErrors({});
+    setStationMetas({});
     // THE READING BELONGS TO THE CHART THAT WAS THERE. Switching pollutant,
     // range or place left the last one standing: an AQI figure of 203 sitting
     // above a PM2.5 axis that tops out at 150, which reads as a wrong number
@@ -436,6 +454,41 @@ export default function TrendsScreen() {
   }, [forecasts, places]);
 
   /**
+   * OLDER INSTALLS: SAVE THE AREA NAME ONCE IT IS KNOWN.
+   *
+   * Installs set up before 22 Nov 2026 saved only the person's own name for
+   * their place. The forecast answer for "my place" lists the stations it
+   * used, nearest first, so the first one's area is the same thing Setup now
+   * saves. Storing it here means the next visit has it from the start. It
+   * changes nothing on screen — only what a shared chart calls the place.
+   */
+  useEffect(() => {
+    if (!prefs || prefs.anchor.area) return;
+    const area = areaFromStations(stationMetas.mine?.stations ?? []);
+    if (!area) return;
+    const saved = savePrefs({
+      city: prefs.city,
+      anchor: { ...prefs.anchor, area },
+      measurement: prefs.measurement,
+      threshold: prefs.threshold,
+    });
+    if (saved) setPrefs(saved);
+  }, [prefs, stationMetas]);
+
+  /**
+   * The name a SHARED chart uses for a place — never the on-screen label,
+   * which can be the person's nickname. Order of preference: the area saved
+   * with the place; the nearest station the server reported; "A
+   * neighbourhood in <city>".
+   */
+  const sharedName = (pl: TrendsPlace): string => {
+    if (pl.publicLabel) return pl.publicLabel;
+    const city = prefs?.city ?? "";
+    const area = areaFromStations(stationMetas[pl.key]?.stations ?? []);
+    return area ? nearLabel(area, city) : areaUnknownLabel(city);
+  };
+
+  /**
    * A chart card as an image: the chart only, with its own heading naming the
    * places (in their line colours) and the measure, since the pills that say
    * so on screen are not part of the card.
@@ -454,18 +507,34 @@ export default function TrendsScreen() {
       // been replaced since (a new range, a new place).
       const node = chartRef.current;
       const shown = series.filter((s) => s.points.some((pt) => pt.value !== null));
+      // PUBLIC NAMES ONLY from here on. The series carry the on-screen labels
+      // (possibly "Home" or a street address the person typed); the image and
+      // message get the names we built instead. Matched by key, which is the
+      // same for a series and the place it was drawn from.
+      const named = shown.map((s) => {
+        const pl = places.find((p) => p.key === s.key);
+        const meta = stationMetas[s.key];
+        return {
+          color: s.color,
+          label: pl ? sharedName(pl) : areaUnknownLabel(prefs?.city ?? ""),
+          // The stations note only for a neighbourhood; a city average is
+          // already labelled as one, and "10 stations within 14 km" there
+          // would be noise.
+          note: pl && !pl.key.startsWith("city:") ? stationsNote(meta?.stations_used, meta?.furthest_km) : null,
+        };
+      });
       const image = node
         ? await chartImage(node, {
             title,
             subtitle: unit ? `PM2.5 (${unit})` : "AQI",
-            legend: shown.map((s) => ({ label: s.label, color: s.color })),
+            legend: named.map((n) => ({ label: n.label, color: n.color })),
           })
         : null;
       // Says what the picture is, so it reads on its own in a chat. Names only
-      // the places already in the picture's legend.
-      const where = listNames(shown.map((s) => s.label));
+      // the places already in the picture's legend, plus how many stations
+      // each neighbourhood is averaged over.
       return {
-        text: `${lead}${where ? ` for ${where}` : ""}, from AirGyaan. ${SEE_YOUR_AREA}`,
+        text: trendsShareText(lead, named, SEE_YOUR_AREA),
         image,
         fileName,
       };
@@ -507,7 +576,7 @@ export default function TrendsScreen() {
           <button
             type="button"
             onClick={() => {
-              setPlaces((prev) => [...prev, { key: "pending", label: "Choose a place", query: {} }]);
+              setPlaces((prev) => [...prev, { key: "pending", label: "Choose a place", publicLabel: null, query: {} }]);
               setEditing(1);
             }}
             className="rounded-full border border-dashed border-gray-400 px-3.5 py-2 text-sm text-gray-700"
@@ -661,7 +730,7 @@ export default function TrendsScreen() {
           Gaps are days with no measurement. Recent days often fill in later —
           readings reach the public feed several days after they are taken.
           {places.some((pl) => pl.key.startsWith("city:")) &&
-            " A city average is left blank when fewer than 1 in 10 of the city's monitors reported."}
+            " A city average is left blank when fewer than 1 in 10 of the city's monitoring stations reported."}
         </p>
         {/* Comparing places and only SOME failed: the chart still draws the
             others, so name the ones missing rather than leave a line absent
@@ -694,7 +763,7 @@ export default function TrendsScreen() {
             <div className="px-2 py-8 text-center text-sm text-gray-600">
               <p>Nothing was measured near this place in that window.</p>
               <p className="mt-2">
-                India has a few dozen government monitors per city, and they go
+                India has a few dozen government monitoring stations per city, and they go
                 quiet for days at a time.{" "}
                 <Link href="/petition" className="font-medium text-blue-700 underline">
                   Back the case for measuring street by street

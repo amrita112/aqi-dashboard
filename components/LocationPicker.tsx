@@ -41,7 +41,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { NEAREST_K } from "@/lib/prefs";
+import { NEAREST_K, MAX_PLACE_LABEL_CHARS, cleanPlaceLabel } from "@/lib/prefs";
 import PlaceSearch, { type SearchHit } from "@/components/PlaceSearch";
 
 export interface NearbyStation {
@@ -198,7 +198,7 @@ export default function LocationPicker({
         const body = await res.json();
         if (cancelled) return;
         if (!res.ok) {
-          setError(body?.error?.message ?? "Could not find nearby stations.");
+          setError(body?.error?.message ?? "Could not find nearby monitoring stations.");
           setStations([]);
           return;
         }
@@ -225,8 +225,10 @@ export default function LocationPicker({
       onChange(null);
       return;
     }
-    const auto = stations[0].name.split(",")[0].trim();
-    const finalLabel = (labelTouched.current ? label : auto).trim() || auto;
+    const auto = cleanPlaceLabel(stations[0].name.split(",")[0]);
+    // Cleaned on the way out (one line, no control characters, capped), so
+    // whatever the parent saves already follows the rules in lib/prefs.ts.
+    const finalLabel = cleanPlaceLabel(labelTouched.current ? label : auto) || auto;
     onChange({
       latitude: point.lat,
       longitude: point.lng,
@@ -255,7 +257,9 @@ export default function LocationPicker({
           setJumpTo({ latitude: hit.latitude, longitude: hit.longitude });
           // Their words for the place, not a monitoring site's name. They can
           // still edit it below.
-          setLabel(hit.label);
+          // Capped here because `maxLength` on the box only limits typing, not
+          // text the app puts there itself.
+          setLabel(cleanPlaceLabel(hit.label));
           labelTouched.current = true;
         }}
       />
@@ -315,13 +319,25 @@ export default function LocationPicker({
         </p>
       </div>
 
-      {busy && <p className="text-sm text-gray-500">Finding the nearest stations…</p>}
+      {busy && <p className="text-sm text-gray-500">Finding the nearest monitoring stations…</p>}
       {error && <p className="text-sm text-red-700">{error}</p>}
 
       {!busy && !error && stations.length > 0 && (
         <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
           <p className="text-sm font-medium text-gray-900">
-            We will use {stations.length === 1 ? "this station" : `these ${stations.length} stations`}:
+            We will use{" "}
+            {stations.length === 1
+              ? "this monitoring station"
+              : `these ${stations.length} monitoring stations`}
+            :
+          </p>
+          {/* What a "monitoring station" is, said once where the word first
+              matters. The number is NEAREST_K, the same setting that decides
+              how many stations are fetched, so the sentence cannot drift
+              from what the app actually does. */}
+          <p className="mt-1 text-xs text-gray-500">
+            Monitoring stations are government air-quality sensors run by CPCB and state
+            pollution control boards; we average the {NEAREST_K} nearest.
           </p>
           <ul className="mt-2 space-y-1 text-sm text-gray-700">
             {stations.map((s) => (
@@ -339,6 +355,10 @@ export default function LocationPicker({
           <input
             id="place-label"
             value={label}
+            // The box stops at MAX_PLACE_LABEL_CHARS while typing. Line
+            // breaks cannot be typed into a one-line box, but they can be
+            // pasted, so they are cleaned out again before saving.
+            maxLength={MAX_PLACE_LABEL_CHARS}
             onChange={(e) => {
               labelTouched.current = true;
               setLabel(e.target.value);

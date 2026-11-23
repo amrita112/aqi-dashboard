@@ -41,6 +41,7 @@ import AnswerChart from "@/components/AnswerChart";
 import ShareButton from "@/components/ShareButton";
 import { chartImage } from "@/lib/chart-image";
 import { SEE_YOUR_AREA } from "@/lib/share";
+import { nearLabel } from "@/lib/public-label";
 import type { AnswerChart as ChartSpec, Provenance } from "@/lib/ai/chart";
 import { trackFailure, trackQuestion, type FailureReason } from "@/lib/analytics";
 import {
@@ -147,12 +148,19 @@ export default function AskScreen() {
       // the bubble above; leaving it in the box invited re-sending it.
       setQuestion("");
       const p = loadPrefs();
+      // The person's own nickname for their place ("Home", "Riya's school")
+      // never leaves the device: the question goes to the AI provider
+      // (OpenRouter), and the AI's answer can repeat it and end up in a shared
+      // result. We send our own name for the place instead -- the nearest
+      // monitoring station's area, or "A neighbourhood in <city>" for older
+      // installs that have not saved an area yet (lib/public-label.ts).
+      const placeName = p ? nearLabel(p.anchor.area, p.city) : null;
       try {
         const res = await fetch("/api/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            question: p ? `${trimmed}\n\n(I am in ${p.city}, near ${p.anchor.name}.)` : trimmed,
+            question: p ? `${trimmed}\n\n(I am in ${p.city}; my place: ${placeName}.)` : trimmed,
             // The coordinates travel as data, so a place with no station of its
             // own still resolves to the three nearest — the same thing the home
             // screen does for the same pin.
@@ -160,7 +168,7 @@ export default function AskScreen() {
               ? {
                   latitude: p.anchor.latitude,
                   longitude: p.anchor.longitude,
-                  label: p.anchor.name,
+                  label: placeName ?? undefined,
                   city: p.city,
                   measurement: p.measurement,
                 }
@@ -308,7 +316,10 @@ export default function AskScreen() {
 
             {/* SHARE THIS RESULT, only with a chart: a picture travels in a
                 group chat in a way two sentences do not. The question goes
-                in as the person typed it — they can see it, and choose. */}
+                in as the person typed it — they can see it, and choose.
+                LABELLED AS WHOSE WORDS ARE WHOSE: `Asked: "…"` for the
+                person's question and `AI answer:` for the model's reply, so a
+                recipient never reads either as AirGyaan's own statement. */}
             {state.entry.chart && (
               <div>
                 <ShareButton
@@ -316,10 +327,15 @@ export default function AskScreen() {
                   build={async () => {
                     const entry = state.entry;
                     const image = chartRef.current
-                      ? await chartImage(chartRef.current, { title: oneLine(entry.question, 70) })
+                      ? await chartImage(chartRef.current, {
+                          title: `Asked: "${oneLine(entry.question, ASK_TITLE_MAX_CHARS)}"`,
+                        })
                       : null;
+                    // The question flattened to one line here too: a typed
+                    // line break could otherwise start a line that looks like
+                    // part of the app's own message.
                     return {
-                      text: `"${entry.question}"\n${entry.answer}\nFrom AirGyaan. ${SEE_YOUR_AREA}`,
+                      text: `Asked: "${oneLine(entry.question, ASK_SHARE_TEXT_MAX_CHARS)}"\nAI answer: ${entry.answer}\nFrom AirGyaan. ${SEE_YOUR_AREA}`,
                       image,
                       fileName: "airgyaan-answer.png",
                     };
@@ -547,6 +563,15 @@ function provenanceLine(entry: AskEntry): string | null {
   }
   return parts.length ? parts.join(" · ") : null;
 }
+
+/**
+ * Length caps for a SHARED question. The image heading has one line on a
+ * phone-width picture (70 characters, plus the `Asked: ""` frame, still
+ * fits); the message text has room for the whole question in all but
+ * extreme cases, so its cap only stops a pasted essay.
+ */
+const ASK_TITLE_MAX_CHARS = 70;
+const ASK_SHARE_TEXT_MAX_CHARS = 300;
 
 /** A question shortened to fit one line of an image's heading. */
 function oneLine(text: string, max: number): string {
