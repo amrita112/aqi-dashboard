@@ -29,6 +29,7 @@ JOBS = [
     "scripts.ingest.ingest_recent_readings",
     "scripts.ingest.daily_backfill_s3",
     "scripts.ingest.rollup_daily",
+    "scripts.ingest.bootstrap_stations",
     "scripts.alerts.threshold_alerts",
 ]
 

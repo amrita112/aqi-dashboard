@@ -29,7 +29,11 @@ INGEST_DIR   = PROJECT_ROOT / "scripts" / "ingest"
 # vars come from repository secrets instead.
 load_dotenv(PROJECT_ROOT / ".env.local")
 
-# Populated by bootstrap_stations.py; consumed by both ingest scripts.
+# Written by bootstrap_stations.py on every run. Since Nov 2026 the ingest jobs
+# read the station list from the Supabase table monitor_sensors instead (see
+# lib/manifest.py) and use this file only as a fallback; the copy in git is no
+# longer refreshed by the weekly workflow. Local analysis scripts
+# (scripts/forecast/*, scripts/ingest/historical/*) still read it directly.
 TARGET_STATIONS_PATH = INGEST_DIR / "target_stations.json"
 
 # ─── Product scope ──────────────────────────────────────────────────────────

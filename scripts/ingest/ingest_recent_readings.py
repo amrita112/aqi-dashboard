@@ -3,7 +3,8 @@ Scheduled ingest of recent measurements from the OpenAQ live API.
 
 Runs every 6 hours via GitHub Actions (00:00, 06:00, 12:00, 18:00 UTC).
 Fetches the last DEFAULT_FETCH_WINDOW_HOURS of measurements for each
-target-city sensor listed in target_stations.json, converts every value to
+target-city sensor in the station list (Supabase table monitor_sensors, see
+scripts/ingest/lib/manifest.py), converts every value to
 canonical units, groups by (station, timestamp), and upserts into Supabase.
 
 Why the window is much wider than the cadence:
@@ -42,7 +43,6 @@ Optional:
 
 from __future__ import annotations
 
-import json
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
@@ -51,9 +51,9 @@ from scripts.ingest.lib.aqi_rule import composite_aqi
 from scripts.ingest.lib.aqi_utils import convert_to_canonical
 from scripts.ingest.lib.config import (
     TARGET_POLLUTANTS,
-    TARGET_STATIONS_PATH,
     get_env,
 )
+from scripts.ingest.lib.manifest import load_target_stations
 from scripts.ingest.lib.openaq_client import OpenAQClient
 from scripts.ingest.lib.supabase_client import (
     canonical_ts,
@@ -112,16 +112,6 @@ MEASUREMENT_PAGE_LIMIT = 1000
 # Refuses to page forever. 192h of 1-minute data is 11,520 rows, so 20 pages of
 # 1000 is far more headroom than any plausible sensor needs.
 MAX_PAGES_PER_SENSOR = 20
-
-
-def load_manifest() -> Dict[str, Any]:
-    if not TARGET_STATIONS_PATH.exists():
-        raise SystemExit(
-            f"{TARGET_STATIONS_PATH} not found. "
-            f"Run `python -m scripts.ingest.bootstrap_stations` first."
-        )
-    with TARGET_STATIONS_PATH.open("r", encoding="utf-8") as f:
-        return json.load(f)
 
 
 def extract_timestamp(m: Dict[str, Any]) -> str | None:
@@ -321,12 +311,16 @@ def main() -> None:
     print(f"Recent-readings ingest: window = last {window_hours}h up to {now_utc.isoformat()}")
     print(f"dry_run = {dry_run}")
 
-    manifest = load_manifest()
+    supabase = None if dry_run else make_client()
+
+    # Which sensors to poll: the monitor_sensors table, or the JSON file if the
+    # table is empty/unreachable (see lib/manifest.py). In a dry run supabase is
+    # None and the loader opens its own read-only connection if it can.
+    manifest = load_target_stations(supabase)
     stations = manifest["stations"]
     total_sensors = sum(len(s["sensors"]) for s in stations)
-    print(f"Manifest: {len(stations)} stations, {total_sensors} target sensors")
-
-    supabase = None if dry_run else make_client()
+    print(f"Manifest: {len(stations)} stations, {total_sensors} target sensors "
+          f"(from {manifest['loaded_from']})")
     admin_user_id = (
         "00000000-0000-0000-0000-000000000000"
         if dry_run

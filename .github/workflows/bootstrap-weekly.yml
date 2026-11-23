@@ -1,22 +1,37 @@
 name: Bootstrap stations (weekly refresh)
 
-# Runs Sundays 04:30 UTC to refresh scripts/ingest/target_stations.json
-# from the latest OpenAQ station roster in the 3 target cities. New
-# stations get monitor rows created in Supabase; the manifest gets
-# committed back to the repo if it changed, so the daily + recent-readings workflows
-# see the update immediately on their next run.
+# Runs Sundays 04:30 UTC to refresh the station/sensor list from the latest
+# OpenAQ station roster in the target cities. New stations get monitor rows
+# created in Supabase, and the sensor list is written to the Supabase table
+# monitor_sensors (migration 32), which the daily + recent-readings ingest
+# jobs read on their next run.
 #
-# Only touches OpenAQ and Supabase — cheap operation (~1 API call to
-# OpenAQ, a handful of upserts). Weekly cadence is generous; monthly
-# would probably be fine too.
+# Until Nov 2026 this job committed scripts/ingest/target_stations.json back
+# to main instead. main now only accepts changes through pull requests, so
+# that push was refused every week and the list froze on 18 Oct 2026. Nothing
+# is committed any more: the JSON is still written inside the runner (the
+# script always writes it) but thrown away when the job ends.
+#
+# Only touches OpenAQ and Supabase: ~180 OpenAQ requests (one per station to
+# check sensor freshness, at 1 per second) and a handful of upserts.
+#
+# Manual run (Actions tab -> this workflow -> Run workflow) can choose the
+# branch, and the dry_run option writes nothing and prints what would change.
 
 on:
   schedule:
     - cron: '30 4 * * 0'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: read OpenAQ and Supabase, write nothing (true/false)'
+        required: false
+        default: 'false'
 
+# Read-only: the job only needs to check out the code. All writes go to
+# Supabase with the service key.
 permissions:
-  contents: write  # needed to commit the refreshed manifest back to main
+  contents: read
 
 jobs:
   bootstrap:
@@ -39,20 +54,6 @@ jobs:
           OPENAQ_API_KEY:            ${{ secrets.OPENAQ_API_KEY }}
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN:                   ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
           PYTHONUNBUFFERED:          '1'
         run: python -m scripts.ingest.bootstrap_stations
-
-      - name: Commit updated manifest if it changed
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add scripts/ingest/target_stations.json
-          if git diff --cached --quiet; then
-            echo "No manifest changes to commit."
-          else
-            git commit -m "Weekly bootstrap: refresh target_stations.json
-
-            Co-Authored-By: AIgen <noreply@anthropic.com>
-            Co-Authored-By: amrita112 <amsi.1994@googlemail.com>"
-            git push
-          fi

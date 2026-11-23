@@ -42,7 +42,6 @@ docs/investigations/2026-11-timestamp-duplicates.md (local, not in git).
 from __future__ import annotations
 
 import io
-import json
 import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Tuple
@@ -57,9 +56,9 @@ from scripts.ingest.lib.config import (
     DEFAULT_S3_PERIOD_MINUTES,
     OPENAQ_S3_BASE,
     TARGET_POLLUTANTS,
-    TARGET_STATIONS_PATH,
     get_env,
 )
+from scripts.ingest.lib.manifest import load_target_stations
 from scripts.ingest.lib.supabase_client import (
     get_admin_user_id,
     make_client,
@@ -67,17 +66,6 @@ from scripts.ingest.lib.supabase_client import (
     upsert_measurements,
     upsert_readings,
 )
-
-
-def load_target_manifest() -> Dict[str, Any]:
-    """Read scripts/ingest/target_stations.json (produced by bootstrap_stations.py)."""
-    if not TARGET_STATIONS_PATH.exists():
-        raise SystemExit(
-            f"{TARGET_STATIONS_PATH} not found. "
-            f"Run scripts/ingest/bootstrap_stations.py first."
-        )
-    with TARGET_STATIONS_PATH.open("r", encoding="utf-8") as f:
-        return json.load(f)
 
 
 def s3_url(location_id: int, day: date) -> str:
@@ -355,11 +343,14 @@ def main() -> None:
     target_day = parse_backfill_date()
     print(f"Backfilling {target_day} (dry_run={dry_run})")
 
-    manifest = load_target_manifest()
-    stations = manifest["stations"]
-    print(f"Manifest has {len(stations)} target stations")
-
     client = None if dry_run else make_client()
+
+    # Which stations to fetch: the monitor_sensors table, or the JSON file if
+    # the table is empty/unreachable (see lib/manifest.py). In a dry run client
+    # is None and the loader opens its own read-only connection if it can.
+    manifest = load_target_stations(client)
+    stations = manifest["stations"]
+    print(f"Manifest has {len(stations)} target stations (from {manifest['loaded_from']})")
     admin_user_id = "00000000-0000-0000-0000-000000000000" if dry_run else get_admin_user_id(client)
 
     total_readings = 0
