@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-18T09:05:57.637145+00:00",
+  "generated_at": "2026-11-23T18:33:48.762915+00:00",
   "source": "openaq",
   "pollutants": [
     "no2",
@@ -3093,6 +3093,32 @@
       "monitor_id": "694b5f6c-190c-4a15-aa6a-2933574fb86a"
     },
     {
+      "openaq_id": 3409385,
+      "name": "RVCE-Mailasandra, Bengaluru - KSPCB",
+      "latitude": 12.921418,
+      "longitude": 77.502466,
+      "city": "Bangalore",
+      "sensors": [
+        {
+          "sensor_id": 12237570,
+          "parameter": "no2"
+        },
+        {
+          "sensor_id": 12237572,
+          "parameter": "pm10"
+        },
+        {
+          "sensor_id": 12237573,
+          "parameter": "pm25"
+        },
+        {
+          "sensor_id": 12237575,
+          "parameter": "so2"
+        }
+      ],
+      "monitor_id": "99790e88-812a-4f57-b52b-89ab2afb1aa4"
+    },
+    {
       "openaq_id": 3409388,
       "name": "Kasturi Nagar, Bengaluru - KSPCB",
       "latitude": 13.003872,
@@ -3922,6 +3948,10 @@
         {
           "sensor_id": 14769474,
           "parameter": "pm25"
+        },
+        {
+          "sensor_id": 17769342,
+          "parameter": "so2"
         }
       ],
       "monitor_id": "a8a81c6d-6464-4b11-aed6-9a9432a62ebf"
@@ -4213,6 +4243,62 @@
         }
       ],
       "monitor_id": "b95458b3-73c2-4f0b-8784-0f8460304b9a"
+    },
+    {
+      "openaq_id": 6551511,
+      "name": "Sector-26, Noida",
+      "latitude": 28.57957,
+      "longitude": 77.33481,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 17767060,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "dea03d7e-d3b0-49ee-a58e-42e769a212c3"
+    },
+    {
+      "openaq_id": 6551848,
+      "name": "A-Block Sector 51 NOIDA",
+      "latitude": 28.575192163383132,
+      "longitude": 77.3588970139366,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 17768582,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "7b7fb4f9-2e12-4a9e-ab1c-67a9f59c5c8a"
+    },
+    {
+      "openaq_id": 6551894,
+      "name": "A-Block Sector 51 NOIDA",
+      "latitude": 28.576116908008302,
+      "longitude": 77.3581101546761,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 17768843,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "b8f36cbe-3680-4e74-9ff9-bdc4b1c8bb4d"
+    },
+    {
+      "openaq_id": 6552066,
+      "name": "A-Block Sector 51 NOIDA",
+      "latitude": 28.576873540220475,
+      "longitude": 77.36018178237182,
+      "city": "Delhi NCR",
+      "sensors": [
+        {
+          "sensor_id": 17769663,
+          "parameter": "pm25"
+        }
+      ],
+      "monitor_id": "f1de1a32-26e1-4b7b-990c-8e45dfe79d0c"
     }
   ]
 }
