@@ -60,11 +60,11 @@ export async function GET(request: Request) {
   try {
     monitors = await nearestMonitors(supabase, lat, lng, limit, radiusKm, params.get("city"));
   } catch (err) {
-    if (err instanceof DataError) return fail("Could not load stations", 502, err.detail);
+    if (err instanceof DataError) return fail("Could not load monitoring stations", 502, err.detail);
     throw err;
   }
   if (!monitors.length) {
-    return fail(`No stations within ${radiusKm} km of that point.`, 404);
+    return fail(`No monitoring stations within ${radiusKm} km of that point.`, 404);
   }
 
   const today = istToday();

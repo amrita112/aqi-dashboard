@@ -65,7 +65,7 @@ export function decideAlert(
       level: "seasonal",
       headline: `A typical day this time of year is above your ${threshold} limit`,
       // Says plainly that this is not a forecast, and why.
-      body: `There is no recent reading from the stations near you, so the best we can offer for tomorrow is the seasonal average — ${reading}. That is above the level you set, but it is not a forecast of tomorrow specifically.`,
+      body: `There is no recent reading from the monitoring stations near you, so the best we can offer for tomorrow is the seasonal average — ${reading}. That is above the level you set, but it is not a forecast of tomorrow specifically.`,
       pushworthy: false,
       value: rounded,
       threshold,

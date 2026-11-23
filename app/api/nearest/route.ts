@@ -42,7 +42,7 @@ export async function GET(request: Request) {
     want_city: city,
   });
 
-  if (error) return fail("Could not find nearby stations", 502, error.message);
+  if (error) return fail("Could not find nearby monitoring stations", 502, error.message);
 
   return ok(data ?? [], { lat, lng, k, max_km: maxKm, city: city ?? null });
 }

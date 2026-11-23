@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   const averaged = averageCurrent(perStation);
   if (!averaged) {
     return fail(
-      "No readings held for any station near that place in the retention window",
+      "No readings held for any monitoring station near that place in the retention window",
       404,
     );
   }

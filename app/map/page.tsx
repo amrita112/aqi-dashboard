@@ -12,8 +12,8 @@
 import MapScreen from "@/components/MapScreen";
 
 export const metadata = {
-  title: "Monitors",
-  description: "Every air quality station near you, and how recently each one reported.",
+  title: "Stations",
+  description: "Every air quality monitoring station near you, and how recently each one reported.",
 };
 
 export default function MapPage() {

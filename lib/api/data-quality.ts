@@ -64,7 +64,7 @@ const SUPPORT_HYPERLOCAL: CallToAction = {
   id: "support_hyperlocal",
   label: "Back hyperlocal measurement",
   body:
-    "Add your name to the case for measuring air street by street, rather than relying on a handful of government stations that report days late.",
+    "Add your name to the case for measuring air street by street, rather than relying on a handful of government monitoring stations that report days late.",
   priority: 2,
   available: true,
 };
@@ -103,7 +103,7 @@ export function assessDataQuality(
       age_days: ageDays,
       headline: "Measured in the last few hours",
       explanation:
-        "A nearby monitor is reporting continuously, so this is close to the air outside right now.",
+        "A nearby monitoring station is reporting continuously, so this is close to the air outside right now.",
       affects_forecast: false,
       actions: [],
     };
@@ -116,7 +116,7 @@ export function assessDataQuality(
       age_days: ageDays,
       headline: `Measured about ${Math.round(age)} hours ago`,
       explanation:
-        "Government monitors publish on a delay, so readings reach us a few hours to a few days after they are taken.",
+        "Government monitoring stations publish on a delay, so readings reach us a few hours to a few days after they are taken.",
       affects_forecast: affects,
       actions: [SUPPORT_HYPERLOCAL],
     };
@@ -130,10 +130,10 @@ export function assessDataQuality(
       level: "stale",
       age_hours: round1(age),
       age_days: ageDays,
-      headline: `The nearest monitors last reported ${wholeDays} ${plural(wholeDays)} ago`,
+      headline: `The nearest monitoring stations last reported ${wholeDays} ${plural(wholeDays)} ago`,
       explanation: affects
-        ? "India's government monitors are republished on a delay of several days, and that is too old to predict tomorrow from — so the number above is the seasonal average for this time of year rather than a forecast."
-        : "India's government monitors are republished on a delay of several days, so this is the most recent measurement available, not a live one.",
+        ? "India's government stations are republished on a delay of several days, and that is too old to predict tomorrow from — so the number above is the seasonal average for this time of year rather than a forecast."
+        : "India's government stations are republished on a delay of several days, so this is the most recent measurement available, not a live one.",
       affects_forecast: affects,
       actions: [CONNECT_MONITOR, SUPPORT_HYPERLOCAL],
     };
@@ -144,8 +144,8 @@ export function assessDataQuality(
     age_hours: Number.isFinite(age) ? round1(age) : -1,
     age_days: Number.isFinite(ageDays) ? ageDays : -1,
     headline: Number.isFinite(age)
-      ? `No monitor near you has reported for ${wholeDays} ${plural(wholeDays)}`
-      : "No recent measurement from any monitor near you",
+      ? `No monitoring station near you has reported for ${wholeDays} ${plural(wholeDays)}`
+      : "No recent measurement from any monitoring station near you",
     explanation:
       "Measuring air quality here depends on a small number of government stations, and they can go quiet for weeks at a time. Until one reports again, the number above is the seasonal average for this time of year — not a forecast.",
     affects_forecast: affects,

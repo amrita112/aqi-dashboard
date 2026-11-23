@@ -102,7 +102,7 @@ export default function AqiVsPm25Page() {
         <Collapsible title="How old the data is, and why that matters most">
           <p>
             This is the limitation that shapes everything else in the app, so it is worth
-            being blunt about. Government monitors report to the public feed on a delay. We
+            being blunt about. Government monitoring stations report to the public feed on a delay. We
             measured it station by station in October 2026: the typical reading is about{" "}
             <strong>4.6 days old</strong> by the time anyone outside the network can see it,
             and the slowest station took 7.7 days.
@@ -131,7 +131,7 @@ export default function AqiVsPm25Page() {
 
         <Collapsible title="How far the data spreads: a few dozen points per city">
           <p>
-            Delhi NCR has 63 government monitors for a metropolitan area of more than thirty
+            Delhi NCR has 63 government monitoring stations for a metropolitan area of more than thirty
             million people. Bengaluru has eleven. Air quality varies street by street — near
             traffic, near construction, near burning — and a few dozen points cannot describe
             that.
@@ -156,7 +156,7 @@ export default function AqiVsPm25Page() {
           </p>
           <ul>
             <li>
-              <strong>A daily level.</strong> For each station we fit a seasonal climatology —
+              <strong>A daily level.</strong> For each monitoring station we fit a seasonal climatology —
               the typical value for that day of the year, smoothed — and then carry forward the
               most recent departure from it, damped by a weight fitted on past years.
               Yesterday being unusually bad is evidence that today will be too, but weaker
@@ -192,11 +192,11 @@ export default function AqiVsPm25Page() {
               says how old, and that age is usually the most important thing on the screen.
             </li>
             <li>
-              <strong>The air at your exact address.</strong> The nearest station may be
+              <strong>The air at your exact address.</strong> The nearest monitoring station may be
               kilometres away, across a main road, or downwind of something you are not.
             </li>
             <li>
-              <strong>Anywhere without a monitor.</strong> A neighbourhood with no station
+              <strong>Anywhere without a station nearby.</strong> A neighbourhood with no station
               cannot be reported on, and the app will say so rather than guess.
             </li>
             <li>
@@ -236,7 +236,7 @@ export default function AqiVsPm25Page() {
             </a>
           </p>
           <p>
-            Useful things to include: the city or station, the date, what the app showed and
+            Useful things to include: the city or monitoring station, the date, what the app showed and
             what you expected. A screenshot settles most questions immediately.
           </p>
         </Collapsible>
@@ -268,7 +268,7 @@ export default function AqiVsPm25Page() {
         In Indian cities, PM2.5 usually is not what AQI is reporting
       </h2>
       <p className="mt-3 text-gray-700">
-        We measured which pollutant drove the index at every station we track, on 8 October
+        We measured which pollutant drove the index at every monitoring station we track, on 8 October
         2026. PM10 — coarse dust from roads, construction and demolition — wins most often,
         and nitrogen dioxide from traffic wins in two cities.
       </p>

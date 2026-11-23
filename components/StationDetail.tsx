@@ -247,7 +247,7 @@ export default function StationDetail({
             <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
           ) : points.length === 0 ? (
             <p className="py-10 text-center text-sm text-gray-500">
-              No forecast stored for this station.
+              No forecast stored for this monitoring station.
             </p>
           ) : (
             // A week is drawn as seven daily points, not seven flat steps.

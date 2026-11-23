@@ -142,7 +142,7 @@ describe("GET /api/map", () => {
     db.rpcError = { message: "boom" };
     const res = await mapGET(new Request(url));
     expect(res.status).toBe(502);
-    expect((await res.json()).error.message).toBe("Could not load stations");
+    expect((await res.json()).error.message).toBe("Could not load monitoring stations");
   });
 });
 

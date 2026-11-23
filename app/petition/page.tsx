@@ -78,7 +78,7 @@ export default async function PetitionPage() {
       </h1>
 
       <p className="mt-4 text-lg text-gray-700">
-        AirGyaan’s forecasts are limited by the availability of public AQI data. When the data is lacking, the forecast has to be just a seasonal trend, or an aggregate of monitors many kilometers from your location, which may have reported days ago.
+        AirGyaan’s forecasts are limited by the availability of public AQI data. When the data is lacking, the forecast has to be just a seasonal trend, or an aggregate of monitoring stations many kilometers from your location, which may have reported days ago.
       </p>
 
       <p className="mt-4 text-gray-700">
@@ -93,9 +93,12 @@ export default async function PetitionPage() {
           <thead>
             <tr className="text-left text-gray-500">
               <th className="py-1 font-medium">City</th>
-              <th className="py-1 font-medium">Government monitors</th>
+              {/* "Government stations", not "monitoring stations": four columns
+                  share a phone-width table, and a three-line header would
+                  push the numbers down. The paragraph below says it in full. */}
+              <th className="py-1 font-medium">Government stations</th>
               <th className="py-1 font-medium">Reported in last 48h</th>
-              <th className="py-1 font-medium">Freshest reading, median station</th>
+              <th className="py-1 font-medium">Freshest reading (typical station)</th>
             </tr>
           </thead>
           <tbody>
@@ -111,7 +114,7 @@ export default async function PetitionPage() {
         </table>
         <p className="mt-3 text-sm text-gray-600">
           Across all seven cities we cover, three privately-run sensors had reported in the
-          last two days. Of the 126 government monitors, none had.
+          last two days. Of the 126 government monitoring stations, none had.
         </p>
         <p className="mt-2 text-sm text-gray-600">
           We checked this at the source rather than trusting our own records: asked station
@@ -123,7 +126,7 @@ export default async function PetitionPage() {
 
       <h2 className="mt-10 text-xl font-semibold">Why this matters</h2>
       <p className="mt-3 text-gray-700">
-        The density of monitors is abysmal given the urgency of the situation. Delhi NCR has 63 government monitors for a metropolitan area of more than 3 crore people. Bengaluru has 11. However promptly those monitors reported, a few dozen points cannot tell you about the road you walk down or the park you run in. Air quality varies street by street — near traffic, near construction, near burning — and a city-wide average hides exactly the differences that would change what someone does that day.
+        The density of monitoring stations is abysmal given the urgency of the situation. Delhi NCR has 63 government stations for a metropolitan area of more than 3 crore people. Bengaluru has 11. However promptly those stations reported, a few dozen points cannot tell you about the road you walk down or the park you run in. Air quality varies street by street — near traffic, near construction, near burning — and a city-wide average hides exactly the differences that would change what someone does that day.
       </p>
       <p className="mt-3 text-gray-700">
         Denser, faster measurement is not technically hard or necessarily expensive. Low-cost sensors already exist

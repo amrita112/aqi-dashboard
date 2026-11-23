@@ -349,7 +349,7 @@ export default function HomeScreen() {
             <button
               type="button"
               onClick={() => setShowStations((v) => !v)}
-              aria-label="Which stations?"
+              aria-label="Which monitoring stations?"
               className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-gray-400 text-[10px] font-semibold text-gray-600"
             >
               i

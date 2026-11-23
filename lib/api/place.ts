@@ -64,9 +64,9 @@ export async function resolvePlace(
       .eq("id", monitorId)
       .maybeSingle();
     if (error) {
-      return { error: { message: "Could not load the station", status: 502 } };
+      return { error: { message: "Could not load the monitoring station", status: 502 } };
     }
-    if (!data) return { error: { message: "No such station", status: 404 } };
+    if (!data) return { error: { message: "No such monitoring station", status: 404 } };
     const m = data as MonitorRow;
     return {
       place: {
@@ -107,14 +107,17 @@ export async function resolvePlace(
   } catch (err) {
     if (err instanceof DataError) {
       console.error("[502] Could not look up nearby stations:", err.detail);
-      return { error: { message: "Could not look up nearby stations", status: 502 } };
+      return { error: { message: "Could not look up nearby monitoring stations", status: 502 } };
     }
     throw err;
   }
   if (!monitors.length) {
     return {
       error: {
-        message: `No stations within ${maxKm} km of that point. Try a wider max_km, or pick a city.`,
+        // Plain words for the person reading it: the old text told them to
+        // "try a wider max_km", which is the name of a URL setting, not
+        // something anyone using the app can change.
+        message: `No monitoring stations within ${maxKm} km of that point. Try a point closer to the city, or choose the whole city.`,
         status: 404,
       },
     };

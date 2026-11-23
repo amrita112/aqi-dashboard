@@ -261,8 +261,17 @@ export default function StationMap({
 
       {!selected && (
         <p className="mt-3 px-1 text-sm font-medium text-gray-800">
-          Tap a station — one of the coloured circles — for its forecast and recent
-          history.
+          Tap a monitoring station — one of the coloured circles — for its forecast and
+          recent history.
+        </p>
+      )}
+      {/* What a monitoring station is, in one line, for anyone meeting the
+          word for the first time on this screen. The count comes from
+          NEAREST_K so it always matches what the app averages. */}
+      {!selected && (
+        <p className="mt-1 px-1 text-xs text-gray-500">
+          Monitoring stations are government air-quality sensors run by CPCB and state
+          pollution control boards; we average the {NEAREST_K} nearest.
         </p>
       )}
     </div>
