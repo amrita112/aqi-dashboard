@@ -189,7 +189,7 @@ Seven GitHub Actions workflows keep the data current. They need
 | `rollup-daily` | daily 05:00 UTC | Collapse raw readings into `readings_daily` |
 | `forecast-nightly` | daily 05:30 UTC | Seven days ahead per station, with bias correction |
 | `forecast-refit` | monthly | Refit climatology, alphas, diurnal shape, modes |
-| `prune-raw` | weekly | Enforce 30-day raw retention |
+| `prune-raw` | daily | Delete raw readings older than 16 days, only for days whose daily summary verifies |
 | `bootstrap-weekly` | weekly | Re-sync the station manifest |
 
 Order matters: the rollup must finish before the forecast runs, which is why
@@ -229,7 +229,7 @@ The table holds an event name and one short token, and nothing else: no question
 text, no place, no IP, no session or device identifier. That is stricter than
 required and deliberate — but it means you can only ever ask for **totals over a
 window**, never "how many different people" or "did they come back". Rows are
-pruned after 90 days by the weekly job.
+pruned after 90 days by the daily prune job.
 
 It is a public write endpoint, so treat the numbers as a floor rather than a
 measurement.

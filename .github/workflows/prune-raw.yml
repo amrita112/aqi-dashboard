@@ -5,11 +5,21 @@ name: Prune raw readings past the retention window
 # for exactly as many measurements as the raw rows contain. A day that does not
 # reconcile is skipped and reported, never deleted.
 #
-# Deliberately weekly, not daily. This is the only job in the repo that destroys
-# data, and a weekly cadence leaves a week to notice a problem before the next
-# run. Every run ends with the database's real size against the 500 MB free
-# limit, and warns above 450 MB. (On 26 Oct 2026 it was 1.25 GB: the size
-# estimates this job was planned on were about five times too low.)
+# Daily since 23 Nov 2026 (weekly before). WHY DAILY: deleting rows does not
+# shrink Postgres's files -- autovacuum only marks the space free for new rows
+# in the same table. So the database's size is set by the MOST raw data the
+# tables ever hold at once. Weekly, that peak was retention + 7 days (~23 days,
+# ~430 MB); daily, it is retention + 1 (~17 days). Each day's delete frees about
+# one day of space, which the next day's ingest reuses, so the size holds flat.
+# One VACUUM FULL after the switch shrinks the files to the new level; regular
+# VACUUM FULLs should not be needed. Each run normally deletes ONE day (~14k
+# readings), a small, cheap delete.
+#
+# The safety does not depend on the cadence: the per-day verification below
+# skips any day whose rollup does not reconcile, every run. Every run ends with
+# the database's real size against the 500 MB free limit, and warns above
+# 450 MB. (On 26 Oct 2026 it was 1.25 GB: the size estimates this job was
+# planned on were about five times too low.)
 #
 # DELETION IS OFF UNTIL YOU TURN IT ON, then it is automatic.
 #
@@ -17,7 +27,7 @@ name: Prune raw readings past the retention window
 #   Actions -> Variables):
 #     unset / anything else  scheduled runs are DRY RUNS -- they report what
 #                            they would delete and change nothing
-#     yes                    scheduled runs delete for real, every week, with
+#     yes                    scheduled runs delete for real, every day, with
 #                            no human in the loop
 #
 # A manual dispatch always wins over the variable, so you can force a dry run
@@ -36,9 +46,9 @@ name: Prune raw readings past the retention window
 
 on:
   schedule:
-    # Sundays 03:30 UTC — after the weekly bootstrap (04:30) has not yet run and
-    # well clear of the 6-hourly ingest.
-    - cron: '30 3 * * 0'
+    # Every day 03:30 UTC (09:00 IST): between the 00:00 and 06:00 ingests,
+    # before the 04:00 daily backfill and the 05:00 rollup.
+    - cron: '30 3 * * *'
   workflow_dispatch:
     inputs:
       confirm_delete:
@@ -78,9 +88,9 @@ jobs:
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           # 16 days, chosen 14 Nov 2026 to fit the 500 MB free limit. Raw data
-          # grows ~16.5 MB/day and this job runs weekly, so the raw tables peak
-          # at retention + 7 days: 23 x 16.5 + ~46 MB fixed = ~425 MB. At 30
-          # days the peak would be ~650 MB, over the limit.
+          # grows ~16 MB/day and this job runs daily, so the raw tables peak at
+          # retention + 1 days: ~17 x 16 MB, ~270 MB, plus the fixed tables.
+          # (Weekly, the peak was 23 days, ~430 MB.)
           RETENTION_DAYS:            ${{ github.event.inputs.retention_days || '16' }}
           # Manual dispatch input wins; otherwise the repository variable
           # decides. Scheduled runs supply no input, so they follow

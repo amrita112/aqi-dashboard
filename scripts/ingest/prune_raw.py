@@ -56,8 +56,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.ingest.lib.config import ist_day_bounds_utc, ist_today, to_ist_day  # noqa: E402
 from scripts.ingest.lib.supabase_client import make_client  # noqa: E402
 
-# 16 days fits the 500 MB free limit with a weekly prune (peak ~425 MB; see
-# prune-raw.yml). Nothing in the app reads raw data older than 7 days, and the
+# 16 days fits the 500 MB free limit with a daily prune (raw peaks at ~17
+# days, ~270 MB; see prune-raw.yml). Nothing in the app reads raw data older than 7 days, and the
 # forecast reads the daily summaries in readings_daily, which are kept.
 DEFAULT_RETENTION_DAYS = 16
 
@@ -216,7 +216,7 @@ def report_database_size(client) -> None:
             print(f"  {table:<15} {mb[table]:>7,.0f} MB")
     if total > WARN_ABOVE_MB:
         # A GitHub Actions annotation: shows on the run's summary page, so a
-        # weekly run that is otherwise green still says it.
+        # run that is otherwise green still says it.
         print(f"::warning::Database is {total:,.0f} MB, above the {WARN_ABOVE_MB} MB "
               f"warning line (free limit {FREE_LIMIT_MB} MB).")
 
