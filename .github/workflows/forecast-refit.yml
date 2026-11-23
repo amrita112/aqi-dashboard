@@ -50,3 +50,22 @@ jobs:
           ARGS=""
           if [ "$DRY_RUN_INPUT" = "true" ]; then ARGS="--dry-run"; fi
           python -m scripts.forecast.refit_params --source db $ARGS
+
+      # The Historical trends table (station_monthly_climate): each station's
+      # month-by-month pattern, rebuilt from the same history the refit reads.
+      # Here rather than in its own workflow because it needs the same
+      # checkout, Python and secrets, and changes on the same monthly rhythm.
+      # `!cancelled()`: runs even if the refit failed -- the two are
+      # independent, and a failed refit should not leave the chart a month
+      # staler. The job still shows red if either step failed.
+      - name: Rebuild historical trends
+        if: ${{ !cancelled() }}
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHONUNBUFFERED:          '1'
+          DRY_RUN_INPUT:             ${{ github.event.inputs.dry_run }}
+        run: |
+          MODE="--apply"
+          if [ "$DRY_RUN_INPUT" = "true" ]; then MODE="--dry-run"; fi
+          python -m scripts.climate.build_station_climate $MODE

@@ -38,6 +38,7 @@ import ShareButton from "@/components/ShareButton";
 import { chartImage } from "@/lib/chart-image";
 import { SEE_YOUR_AREA } from "@/lib/share";
 import { areaUnknownLabel, nearLabel, stationsNote, trendsShareText } from "@/lib/public-label";
+import ClimateChart from "@/components/ClimateChart";
 import TrendsChart, {
   SERIES_COLORS,
   type HoverReading,
@@ -195,6 +196,12 @@ export default function TrendsScreen() {
   const [error, setError] = useState<string | null>(null);
   /** Which pill is open for editing, or null. */
   const [editing, setEditing] = useState<number | null>(null);
+  /**
+   * Whether the Historical trends card is open. Closed until asked for, so
+   * the screen opens exactly as before and the extra requests are only made
+   * by someone who wants the long view.
+   */
+  const [climateOpen, setClimateOpen] = useState(false);
   const [fHover, setFHover] = useState<HoverReading | null>(null);
   const [hHover, setHHover] = useState<HoverReading | null>(null);
   /** The two charts, captured as images when shared. */
@@ -782,6 +789,53 @@ export default function TrendsScreen() {
           )}
         </div>
         {hRange === 7 && <TapHint />}
+      </section>
+
+      {/* ── Historical trends ──────────────────────────────────────────────
+          The yearly pattern, month by month, from every year of records:
+          the same chart the Map tab's station card shows, for the places on
+          this screen. Its own card rather than a third option in History's
+          selector, because it is a different kind of axis (months of the
+          year, not dates) and History's share button and readout are built
+          for dates. No share button here for now. */}
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="shrink-0 font-semibold">Historical trends</h2>
+          <button
+            type="button"
+            onClick={() => setClimateOpen((o) => !o)}
+            aria-expanded={climateOpen}
+            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs"
+          >
+            {climateOpen ? "Hide" : "Show"}
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-gray-500">
+          What each month is usually like, from every year of records at the monitoring stations
+          near each place.
+        </p>
+        {climateOpen &&
+          places
+            .filter((pl) => Object.keys(pl.query).length > 0)
+            .map((pl, idx) => (
+              <div key={pl.key} className="mt-4">
+                {/* Named only when two places are compared; with one, the
+                    pill at the top already says which place this is. */}
+                {places.length > 1 && (
+                  <p
+                    className="mb-1 flex items-center gap-1.5 text-sm font-medium"
+                    style={{ color: SERIES_COLORS[idx] ?? "#5c6b73" }}
+                  >
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full"
+                      style={{ background: SERIES_COLORS[idx] ?? "#5c6b73" }}
+                    />
+                    {pl.label}
+                  </p>
+                )}
+                <ClimateChart query={pl.query} measurement={measurement} stationWord="place" />
+              </div>
+            ))}
       </section>
     </div>
   );

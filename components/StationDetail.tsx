@@ -11,6 +11,8 @@
  *   7-day forecast    the days ahead, hour by hour
  *   Next 24 hours     today's shape, which is what people act on
  *   Past month        what actually happened, which is the only measured one
+ *   Historical trends the yearly pattern, month by month, from every year of
+ *                     history held for this station (ClimateChart)
  *
  * The distance and the driving pollutant are gone. Distance belongs to the
  * setup screen, where it decides something; "driven by PM10" is interesting
@@ -20,14 +22,16 @@
 import { useEffect, useState } from "react";
 import ForecastChart, { type ForecastDayInput } from "@/components/ForecastChart";
 import HistoryChart from "@/components/HistoryChart";
+import ClimateChart from "@/components/ClimateChart";
 import { MEASUREMENT_COPY, type Measurement } from "@/lib/prefs";
 
-export type DetailRange = "forecast7" | "next24" | "past30";
+export type DetailRange = "forecast7" | "next24" | "past30" | "climate";
 
 const RANGE_LABEL: Record<DetailRange, string> = {
   forecast7: "7-day forecast",
   next24: "Next 24 hours",
   past30: "Past month",
+  climate: "Historical trends",
 };
 
 interface Day {
@@ -109,6 +113,9 @@ export default function StationDetail({
   useEffect(() => {
     let cancelled = false;
     setError(null);
+
+    // Historical trends fetches its own data (ClimateChart).
+    if (range === "climate") return;
 
     if (range === "past30") {
       setHistory(null);
@@ -242,7 +249,10 @@ export default function StationDetail({
             <HistoryChart points={history} unit={unit} label={short} />
           )
         )}
-        {!error && range !== "past30" && (
+        {range === "climate" && (
+          <ClimateChart query={{ monitor_id: station.monitor_id }} measurement={measurement} />
+        )}
+        {!error && range !== "past30" && range !== "climate" && (
           days === null ? (
             <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
           ) : points.length === 0 ? (
@@ -256,7 +266,7 @@ export default function StationDetail({
         )}
       </div>
 
-      {range !== "past30" && hoursLine && (
+      {range !== "past30" && range !== "climate" && hoursLine && (
         <p className="mt-2 text-sm text-gray-700">{hoursLine}</p>
       )}
     </div>
