@@ -289,6 +289,49 @@ async function forecastsFor(
   return monitors.map((m) => byStation.get(m.id) ?? []);
 }
 
+/**
+ * The stations in the shape averageForecastDays wants.
+ *
+ * averageForecastDays wants each station's distance, only to list the
+ * contributing stations nearest first; these tools report just a count, so a
+ * missing distance (a whole-city lookup has none) is filled with 0.
+ */
+function withDistances(monitors: MonitorRow[], perStation: ForecastDay[][]) {
+  return monitors.map((m, i) => ({
+    monitor: { ...m, distance_km: (m as Partial<NearbyMonitor>).distance_km ?? 0 },
+    days: perStation[i],
+  }));
+}
+
+/** averageForecastDays is asked for exactly one day by the two hourly tools. */
+const ONE_DAY = 1;
+
+/**
+ * ONE DAY averaged across stations EXACTLY as the app's forecast chart does it.
+ *
+ * best_hour and rest_of_today each answer about a single date (tomorrow's
+ * earliest row, or today). Each station's rows are cut down to that date
+ * first, so averageForecastDays cannot pick a different "first day", and then
+ * the app's own function does the averaging. That function leaves out any
+ * station that only has a seasonal estimate ("seasonal_normal", the long-run
+ * average for the date) whenever another station has a real forecast, and
+ * labels the result "seasonal_normal" only when none does. The hourly curve,
+ * the day value, the mode and the headline therefore match the chart.
+ *
+ * Returns null when no station has a row for that date.
+ */
+function averageOneDay(
+  monitors: MonitorRow[],
+  perStation: ForecastDay[][],
+  pollutant: string,
+  date: string,
+): { day: ForecastDay; stationsUsed: number } | null {
+  const onDate = perStation.map((days) => days.filter((d) => d.target_date === date));
+  const averaged = averageForecastDays(withDistances(monitors, onDate), ONE_DAY, pollutant);
+  if (!averaged || !averaged.value.length) return null;
+  return { day: averaged.value[0], stationsUsed: averaged.stations.length };
+}
+
 /** Each station's daily history, in the location's station order. */
 async function historiesFor(
   supabase: SupabaseClient,
@@ -567,18 +610,7 @@ async function runTool(
       // prediction toward "a typical day". Calling the same function, on the
       // same rows (getForecastMany, which already expands each row with
       // expandDay exactly as the chart's route does), gives the same numbers.
-      //
-      // averageForecastDays wants each station's distance, only to list the
-      // contributing stations nearest first; this tool reports just a count,
-      // so a missing distance (a whole-city lookup has none) is filled with 0.
-      const averaged = averageForecastDays(
-        loc.monitors.map((m, i) => ({
-          monitor: { ...m, distance_km: (m as Partial<NearbyMonitor>).distance_km ?? 0 },
-          days: perStation[i],
-        })),
-        days,
-        pollutant,
-      );
+      const averaged = averageForecastDays(withDistances(loc.monitors, perStation), days, pollutant);
       if (!averaged) {
         return { location: loc.label, error: "no_forecast", message: "No forecast stored for this place yet." };
       }
@@ -625,11 +657,14 @@ async function runTool(
         .map((f) => f[0]?.target_date)
         .filter((d): d is string => Boolean(d))
         .sort()[0];
-      const days = forecasts
-        .map((f) => f.find((d) => d.target_date === firstDate))
-        .filter((d): d is ForecastDay => Boolean(d));
-      if (!days.length) return { location: loc.label, error: "no_forecast" };
-      if (days.every((d) => d.hourly_is_flat)) {
+      // THE APP'S OWN AVERAGING for that day (see averageOneDay). This used to
+      // average every station's curve itself, seasonal-only ones included, and
+      // so could name a different cleanest hour than the chart shows.
+      const averaged = firstDate ? averageOneDay(loc.monitors, forecasts, pollutant, firstDate) : null;
+      if (!averaged) return { location: loc.label, error: "no_forecast" };
+      const { day, stationsUsed } = averaged;
+      // Flat only if every CONTRIBUTING station is flat, as on the chart.
+      if (day.hourly_is_flat) {
         return {
           location: loc.label,
           error: "no_hourly_profile",
@@ -637,18 +672,19 @@ async function runTool(
             "No hourly profile has been fitted for this city and month, so every hour is the same. Do not recommend a time.",
         };
       }
-      // Average the hourly curves across stations, then pick.
-      const hours = Array.from({ length: 24 }, (_, h) =>
-        meanAcross(days.map((d) => d.hourly?.[h]?.value ?? NaN)) ?? NaN,
-      );
+      // The averaged hourly curve (already averaged across the contributing
+      // stations), then pick.
+      const hours = Array.from({ length: 24 }, (_, h) => day.hourly?.[h]?.value ?? NaN);
       const best = hours.indexOf(Math.min(...hours));
       const worst = hours.indexOf(Math.max(...hours));
-      const stamp = (h: number) => toIstClock(`${days[0].target_date}T${String(h).padStart(2, "0")}:00:00+05:30`);
+      const stamp = (h: number) => toIstClock(`${day.target_date}T${String(h).padStart(2, "0")}:00:00+05:30`);
       return {
         location: loc.label,
-        date: days[0].target_date,
+        date: day.target_date,
         pollutant,
-        stations_used: days.length,
+        // Only the stations that fed the numbers; a seasonal-only station that
+        // was left out is not counted.
+        stations_used: stationsUsed,
         // The WHOLE day, so the answer can be shown as a curve. "3 pm is
         // cleanest" is not actionable on its own: the reader needs to see
         // whether the clean window lasts an hour or five, and how much worse
@@ -661,7 +697,7 @@ async function runTool(
         // THE DATE SPELLED OUT, because the model wrote "tomorrow (9 Oct)"
         // while using the 10 Oct numbers. Given only an ISO string next to the
         // word "tomorrow" in its own prompt, it reached for the wrong one.
-        date_label: `${describeDay(days[0].target_date)} (${humanDate(days[0].target_date)})`,
+        date_label: `${describeDay(day.target_date)} (${humanDate(day.target_date)})`,
         cleanest_hour_ist: best,
         cleanest_clock: stamp(best),
         cleanest_value: Math.round(hours[best]),
@@ -687,8 +723,13 @@ async function runTool(
       // has not run, the first row is still tomorrow. Match the date rather
       // than trusting the position, or "today" silently becomes tomorrow --
       // which is the exact failure this tool exists to fix.
-      const days = forecasts.map((f) => f.find((d) => d.target_date === today)).filter(Boolean) as ForecastDay[];
-      if (!days.length) {
+      //
+      // Then THE APP'S OWN AVERAGING for today (see averageOneDay). This used
+      // to average every station, seasonal-only ones included, and took the
+      // first station's mode and headline, so a real forecast could be
+      // labelled a seasonal estimate or the other way round.
+      const averaged = averageOneDay(loc.monitors, forecasts, pollutant, today);
+      if (!averaged) {
         return {
           location: loc.label,
           error: "no_forecast_for_today",
@@ -711,35 +752,40 @@ async function runTool(
         };
       }
 
-      const flat = days.every((d) => d.hourly_is_flat);
+      const { day, stationsUsed } = averaged;
+      const flat = day.hourly_is_flat;
       const remaining = Array.from({ length: hoursLeft }, (_, i) => {
         const h = nowHour + i;
-        const value = meanAcross(days.map((d) => d.hourly?.[h]?.value ?? NaN));
+        const v = day.hourly?.[h]?.value;
+        const value = v === undefined || v === null || !Number.isFinite(v) ? null : v;
         return { hour_ist: h, clock: toIstClock(`${today}T${String(h).padStart(2, "0")}:00:00+05:30`), value };
       }).filter((x) => x.value !== null);
 
       if (!remaining.length) return { location: loc.label, error: "no_hourly_values" };
 
       const sorted = [...remaining].sort((a, b) => (a.value as number) - (b.value as number));
-      const dayValue = meanAcross(days.map((d) => d.value));
+      const dayValue = Number.isFinite(day.value) ? day.value : null;
       const withBand = (x: { hour_ist: number; clock: string; value: number | null }) =>
         pollutant === "aqi" && x.value !== null ? { ...x, band: getAqiLabel(x.value) } : x;
       return {
         location: loc.label,
         date: today,
         pollutant,
-        stations_used: days.length,
+        // Only the stations that fed the numbers, as in best_hour.
+        stations_used: stationsUsed,
         now_hour_ist: nowHour,
-        mode: days[0].mode,
+        // "seasonal_normal" only when NO station had a real forecast for today.
+        mode: day.mode,
         // Pass the headline through as well as the mode. The forecast tool
         // reliably gets the seasonal-normal disclosure right and this one did
         // not, and the difference between them was this string: given only
         // mode:'seasonal_normal' the model treats it as metadata, given the
         // sentence it repeats the point to the user.
-        headline: days[0].headline,
+        headline: day.headline,
         day_value: dayValue,
         day_band: dayValue === null || pollutant !== "aqi" ? null : getAqiLabel(dayValue),
-        data_age_days: days[0].data_age_days,
+        // Averaged over the contributing stations, as on the chart.
+        data_age_days: day.data_age_days,
         hours_remaining: remaining.length,
         hourly: remaining,
         // With a flat profile every hour is identical, so naming a "cleanest"

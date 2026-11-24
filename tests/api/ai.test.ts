@@ -321,6 +321,98 @@ describe("tool executors", () => {
       expect(d.hourly).toEqual(app.value[i].hourly!.map((h) => Math.round(h.value)));
     });
   });
+
+  // ── best_hour and rest_of_today use the same averaging (audit N3) ─────────
+  //
+  // One date, two Delhi stations. a1 only has the seasonal estimate; a2 has a
+  // real forecast. The chart leaves a1 out, so the city curve is a2's alone.
+  // a1 is deliberately FIRST: the old code took the first station's mode and
+  // headline, which would have called a real forecast a seasonal estimate.
+  // The hourly shape has a clear low at 15:00 so the curve is not flat.
+  const ONE_DAY_DATE = "2099-01-02";
+  // 04:30 UTC is 10:00 IST on that date: 14 hours of "today" remain.
+  const MORNING_OF_ONE_DAY = new Date(`${ONE_DAY_DATE}T04:30:00Z`);
+  const oneDayTables = () => {
+    const row = (monitor_id: string, value: number, mode: string) => ({
+      monitor_id,
+      pollutant: "aqi",
+      target_date: ONE_DAY_DATE,
+      horizon_days: 1,
+      value,
+      band_p50: null,
+      band_p80: null,
+      mode,
+      model: mode === "seasonal_normal" ? "climatology" : "blend",
+      based_on_date: mode === "seasonal_normal" ? null : "2099-01-01",
+      data_age_days: mode === "seasonal_normal" ? null : 1,
+      computed_at: null,
+    });
+    return {
+      monitors: DELHI_MONITORS,
+      forecast_daily: [row("a1", 400, "seasonal_normal"), row("a2", 200, "forecast")],
+      diurnal_shape: Array.from({ length: 24 }, (_, hour) => ({
+        city: "Delhi",
+        pollutant: "aqi",
+        month: 1,
+        hour,
+        ratio: 0.6 + Math.abs(hour - 15) / 20,
+      })),
+    };
+  };
+  /** What the app's /api/forecast route computes for that day from the same rows. */
+  const appDay = async (opts: { includeToday?: boolean } = {}) => {
+    const monitors = DELHI_MONITORS as MonitorRow[];
+    const byStation = await getForecastMany(fakeSupabase(oneDayTables()), monitors, "aqi", 1, opts);
+    return averageForecastDays(
+      monitors.map((m) => ({ monitor: { ...m, distance_km: 0 }, days: byStation.get(m.id) ?? [] })),
+      1,
+      "aqi",
+    )!;
+  };
+
+  describe("hourly tools on a mix of real and seasonal-only stations", () => {
+    beforeEach(() => {
+      // Only the clock is faked, so promises still resolve normally.
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(MORNING_OF_ONE_DAY);
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("best_hour picks from the app's averaged curve, leaving out the seasonal-only station", async () => {
+      const out = await executeTool(fakeSupabase(oneDayTables()), "best_hour", { location: "Delhi NCR" });
+      const app = (await appDay()).value[0];
+      const appHours = app.hourly!.map((h) => h.value);
+
+      expect(out.stations_used).toBe(1); // a1 was left out
+      expect(out.date).toBe(app.target_date);
+      const hourly = out.hourly as { hour: number; value: number | null }[];
+      expect(hourly.map((h) => h.value)).toEqual(appHours.map((v) => Math.round(v)));
+      expect(out.cleanest_hour_ist).toBe(appHours.indexOf(Math.min(...appHours)));
+      expect(out.cleanest_value).toBe(Math.round(Math.min(...appHours)));
+      expect(out.dirtiest_value).toBe(Math.round(Math.max(...appHours)));
+      // a2 alone: 200 x the shape's lowest ratio (0.6) at 15:00.
+      expect(out.cleanest_value).toBe(120);
+    });
+
+    it("rest_of_today gives the app's day value, curve and mode, leaving out the seasonal-only station", async () => {
+      const out = await executeTool(fakeSupabase(oneDayTables()), "rest_of_today", { location: "Delhi NCR" });
+      const app = (await appDay({ includeToday: true })).value[0];
+
+      expect(out.error).toBeUndefined();
+      expect(out.stations_used).toBe(1);
+      expect(out.day_value).toBe(app.value);
+      expect(out.day_value).toBe(200); // a2 alone, not the 300 of both
+      expect(out.mode).toBe(app.mode);
+      expect(out.mode).not.toBe("seasonal_normal");
+      expect(out.headline).toBe(app.headline);
+      expect(out.data_age_days).toBe(app.data_age_days);
+      const hourly = out.hourly as { hour_ist: number; value: number }[];
+      expect(hourly[0].hour_ist).toBe(10);
+      for (const h of hourly) expect(h.value).toBe(app.hourly![h.hour_ist].value);
+    });
+  });
 });
 
 describe("meanAcross", () => {
