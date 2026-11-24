@@ -216,25 +216,39 @@ def before_year(hist: Dict[str, pd.DataFrame], year: int) -> Dict[str, pd.DataFr
 
 # ─── Parameters as the refit would have fitted them on an earlier date ──────
 
+def fit_as_of(hist: Dict[str, pd.DataFrame], city: str, pollutant: str,
+              test_year: Optional[int] = None
+              ) -> Tuple[Optional[Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    """The refit's city fit and station rows, fitted on years before test_year.
+
+    test_year=None fits on ALL history -- exactly what the live monthly refit
+    (refit_params.py) stores and the app serves. A year fits only on the years
+    before it, which is what the notebook scores, so a held-out season is never
+    in its own training data. Returns (city_fit, monitor_id -> params row);
+    city_fit is None when the city has too little history.
+    """
+    train = hist if test_year is None else before_year(hist, test_year)
+    fit = rp.fit_city(city, pollutant, train["daily"], train["daily_aqi"],  # ▶ APP CODE: scripts/forecast/refit_params.py · fit_city
+                      hourly=None, station_hist=None)
+    if fit is None:
+        return None, {}
+    rows = rp.fit_stations(city, pollutant, fit,  # ▶ APP CODE: scripts/forecast/refit_params.py · fit_stations
+                           station_frame(train, pollutant),
+                           monitors_by_city().get(city, []))
+    return fit, {r["monitor_id"]: r for r in rows}
+
+
 def params_as_of(hist: Dict[str, pd.DataFrame], city: str, pollutant: str,
-                 test_year: int) -> Dict[str, Dict[str, Any]]:
+                 test_year: Optional[int]) -> Dict[str, Dict[str, Any]]:
     """forecast_params rows for one city, fitted only on years before test_year.
 
     Uses the refit's own fit_city and fit_stations, so each station gets
     exactly the climatology, alphas and history_days the refit would have
     written had it run on 1 January of test_year. (The live app fits on ALL
-    history; to score a past season honestly the fit must not see it.)
-    Returns monitor_id -> params row.
+    history; to score a past season honestly the fit must not see it.
+    test_year=None gives that all-history fit.) Returns monitor_id -> params row.
     """
-    train = before_year(hist, test_year)
-    fit = rp.fit_city(city, pollutant, train["daily"], train["daily_aqi"],  # ▶ APP CODE: scripts/forecast/refit_params.py · fit_city
-                      hourly=None, station_hist=None)
-    if fit is None:
-        return {}
-    rows = rp.fit_stations(city, pollutant, fit,  # ▶ APP CODE: scripts/forecast/refit_params.py · fit_stations
-                           station_frame(train, pollutant),
-                           monitors_by_city().get(city, []))
-    return {r["monitor_id"]: r for r in rows}
+    return fit_as_of(hist, city, pollutant, test_year)[1]
 
 
 def modes_index(mode_table: pd.DataFrame, city: str, pollutant: str) -> Dict:
@@ -297,10 +311,178 @@ def replay_served(stations: pd.DataFrame, city: str, pollutant: str,
                     "station": station, "target": t, "horizon": r["horizon_days"],
                     "served": r["value"], "mode": r["mode"], "model": r["model"],
                     "data_age": r["data_age_days"],
+                    # The band ratio the app would show around this number
+                    # (None for seasonal_normal rows, which carry no band).
+                    "band_p80": r["band_p80"],
                     "actual": float(series[t]) if t in series.index else np.nan,
                     "climatology": float(p["climatology"][doy]) or np.nan,
                 })
     return pd.DataFrame(out)
+
+
+# ─── The bias correction, replayed night by night ────────────────────────────
+
+def bias_warmup_dates(targets: Iterable[pd.Timestamp], history_days: int,
+                      max_horizon: int) -> List[pd.Timestamp]:
+    """Days just BEFORE each stretch of held-out days, needed only as history.
+
+    Nightly learns its bias from the +1-day forecasts of the previous
+    `history_days` days. On 1 October that history is late September, which is
+    not a held-out day, so the replay also forecasts those days (at +1 only) to
+    give the correction the same history it would have had live. Returns the
+    days within history_days + max_horizon before some target that are not
+    themselves targets.
+    """
+    targets = set(pd.Timestamp(t) for t in targets)
+    reach = history_days + max_horizon
+    warm = {t - pd.Timedelta(days=k) for t in targets for k in range(1, reach + 1)}
+    return sorted(warm - targets)
+
+
+def replay_bias_correction(replay: pd.DataFrame, warmup: pd.DataFrame,
+                           city: str, pollutant: str, data_age: int,
+                           history_days: Optional[int] = None
+                           ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Apply nightly's bias correction to a replay, using only what was known.
+
+    `replay` is replay_served's output for the held-out days; `warmup` is the
+    same for bias_warmup_dates (horizon 1 only). For every replayed night N
+    this does what nightly_forecast.main does on night N, with the app's own
+    functions:
+
+      1. the stored +1-day forecasts of the last `history_days` days are the
+         history (load_scored_history's window);
+      2. bias_correction.city_day_errors turns them into one mean error per
+         target day for the city, learning only from forecast/outlook rows;
+      3. bias_correction.decide_all decides apply/skip and the offset;
+      4. bias_correction.apply_corrections corrects that night's rows.
+
+    NO LOOK-AHEAD. On night N only errors for target days up to N - data_age
+    are used: a reading `data_age` days old means nothing newer had been
+    published, so neither had any newer actual value. (decide itself already
+    ignores day N and later.)
+
+    Returns (replay with `served_bc` -- the number the app would have shown --
+    and `bias_applied`, one row per night with the decision taken).
+    """
+    from scripts.forecast import bias_correction as bc
+
+    history_days = history_days or nf.BIAS_HISTORY_DAYS
+    out = replay.copy()
+    out["served_bc"] = out["served"]
+    out["bias_applied"] = False
+    if out.empty:
+        return out, pd.DataFrame()
+
+    # The +1-day rows nightly would have stored (value_raw = None: in the
+    # replay every stored number is the uncorrected model output, which is
+    # what city_day_errors learns from anyway).
+    plus1 = pd.concat([warmup, replay[replay.horizon == 1]], ignore_index=True)
+    plus1 = plus1.drop_duplicates(["station", "target"])
+    forecasts = [{"monitor_id": r.station, "pollutant": pollutant,
+                  "target_date": r.target.date().isoformat(), "value": r.served,
+                  "value_raw": None, "mode": r.mode}
+                 for r in plus1.itertuples()]
+    actuals = {(r.station, r.target.date().isoformat(), pollutant): float(r.actual)
+               for r in plus1.itertuples() if pd.notna(r.actual)}
+    city_of = {s: city for s in plus1.station.unique()}
+    # One mean error per target day. Each day's mean uses only that day's
+    # rows, so computing it once and then cutting the window per night gives
+    # the same numbers as recomputing it every night.
+    all_errors = bc.city_day_errors(forecasts, actuals, city_of).get(  # ▶ APP CODE: scripts/forecast/bias_correction.py · city_day_errors
+        (city, pollutant), {})
+
+    out["night"] = out.target - pd.to_timedelta(out.horizon, unit="D")
+    log = []
+    for night, idx in out.groupby("night").groups.items():
+        n = night.date()
+        first = n - timedelta(days=history_days)
+        known_until = n - timedelta(days=data_age)
+        known = {d: e for d, e in all_errors.items() if first <= d <= known_until}
+        decisions = bc.decide_all({(city, pollutant): known} if known else {},  # ▶ APP CODE: scripts/forecast/bias_correction.py · decide_all
+                                  [(city, pollutant)], n, history_days)
+        rows = [{"city_key": city, "pollutant": pollutant,
+                 "mode": out.at[i, "mode"], "value": out.at[i, "served"]} for i in idx]
+        bc.apply_corrections(rows, decisions)  # ▶ APP CODE: scripts/forecast/bias_correction.py · apply_corrections
+        for i, r in zip(idx, rows):
+            out.at[i, "served_bc"] = r["value"]
+            out.at[i, "bias_applied"] = r["value_raw"] is not None
+        d = decisions[(city, pollutant)]
+        log.append({"night": night, "applied": d["applied"], "offset": d["offset"],
+                    "n_days": d["n_days"], "reason": d["reason"]})
+    return out.drop(columns="night"), pd.DataFrame(log)
+
+
+# ─── The band the app shows, around the number it shows ──────────────────────
+
+def served_band(replay: pd.DataFrame, city: str, pollutant: str,
+                value_col: str = "served_bc") -> pd.DataFrame:
+    """band_low / band_high exactly as the app computes them for each row.
+
+    Runs every replayed row through serving_mirror.expand_day, the Python copy
+    of lib/api/forecast.ts expandDay (value x (1 -/+ band_p80), rounded the
+    same way), pinned to the TypeScript by tests/test_serving_mirror.py.
+    `value_col` picks which number the band is drawn around: "served_bc" is
+    what the app shows; "served" is the model output before bias correction.
+    """
+    from scripts.forecast import serving_mirror as mirror
+
+    lows, highs = [], []
+    for r in replay.itertuples():
+        b = r.band_p80
+        row = {"pollutant": pollutant, "target_date": r.target.date().isoformat(),
+               "horizon_days": int(r.horizon), "value": getattr(r, value_col),
+               # NaN (no band measured) behaves like the app's null.
+               "band_p80": None if b is None or pd.isna(b) else float(b),
+               "mode": r.mode, "model": r.model, "based_on_date": None,
+               "data_age_days": r.data_age}
+        night = (r.target - pd.Timedelta(days=int(r.horizon))).date().isoformat()
+        day = mirror.expand_day(row, city, {}, night, hourly=False)  # ▶ APP CODE (mirror of lib/api/forecast.ts): expandDay
+        lows.append(day["band_low"])
+        highs.append(day["band_high"])
+    return pd.DataFrame({"band_low": lows, "band_high": highs}, index=replay.index)
+
+
+# ─── The fit the app serves vs the fit the notebook scores ───────────────────
+
+def fit_difference(served: Dict[str, Dict[str, Any]], scored: Dict[str, Dict[str, Any]],
+                   season_only: bool = True) -> pd.DataFrame:
+    """Per station: how far the all-history fit is from the pre-test-year fit.
+
+    `served` and `scored` are monitor_id -> params rows (fit_as_of with
+    test_year=None and with the test year). Plain subtraction, no model:
+    for each station both fits cover, it reports
+      own_fit_*      whether each fit had enough of the station's own history
+                     for its own alphas (refit_params.MIN_HISTORY_DAYS); a
+                     station without it inherits the city alpha, and with
+                     under 60 days the city climatology too;
+      alpha_diff_h<k>  served alpha minus scored alpha, per effective horizon k;
+      clim_mae, clim_pct  mean |served - scored| climatology, in the
+                     pollutant's unit and as % of the served curve, over the
+                     pollution season (SEASON_MONTHS) or the whole year.
+    """
+    if season_only:
+        doys = sorted({d.dayofyear for d in pd.date_range("2024-01-01", "2024-12-31")
+                       if d.month in SEASON_MONTHS})
+    else:
+        doys = list(range(1, 367))
+    rows = []
+    for mid in sorted(set(served) & set(scored)):
+        a, b = served[mid], scored[mid]
+        ca = np.array([a["climatology"][d] for d in doys], dtype=float)
+        cb = np.array([b["climatology"][d] for d in doys], dtype=float)
+        ok = (ca > 0) & (cb > 0)          # 0 marks a day-of-year with no value
+        row = {"station": mid,
+               "own_fit_served": a["history_days"] >= rp.MIN_HISTORY_DAYS,
+               "own_fit_scored": b["history_days"] >= rp.MIN_HISTORY_DAYS,
+               "history_days_served": a["history_days"],
+               "history_days_scored": b["history_days"],
+               "clim_mae": float(np.abs(ca[ok] - cb[ok]).mean()) if ok.any() else np.nan,
+               "clim_pct": float(100 * (np.abs(ca[ok] - cb[ok]) / ca[ok]).mean()) if ok.any() else np.nan}
+        for k in range(1, min(len(a["alphas"]), len(b["alphas"]))):
+            row[f"alpha_diff_h{k}"] = float(a["alphas"][k]) - float(b["alphas"][k])
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 def skill_from_replay(replay: pd.DataFrame, stations: pd.DataFrame, city: str,
