@@ -18,12 +18,39 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
-import { badRequest, fail, ok, parseNumber } from "@/lib/api/respond";
+import { badRequest, fail, ok, parseNumber, type CachePolicy } from "@/lib/api/respond";
 import { resolvePlace } from "@/lib/api/place";
 import { pageAll, chunked, mapLimit, stationsPerQuery } from "@/lib/api/data";
 import { istToday, toIstDate, toIstHour } from "@/lib/api/time";
 
+// "force-dynamic" means Next runs this code on every request that reaches the
+// server instead of building the answer once at deploy time. It does NOT stop
+// the shared cache below: for a dynamic route handler Next 14 passes the
+// response's own Cache-Control header through untouched (checked in
+// node_modules/next/dist/server/base-server.js, Nov 2026), so Vercel's cache
+// still serves repeat requests without calling this code at all.
 export const dynamic = "force-dynamic";
+
+/**
+ * How long Vercel's shared cache keeps a successful answer: one hour fresh,
+ * then up to one more hour served while a fresh copy is fetched behind it.
+ *
+ * THE TRADE-OFF. A visitor may see a chart up to about an hour behind the
+ * database (two in the worst case, during the stale window). That costs
+ * almost nothing, because new readings arrive only every 6 hours through the
+ * ingest workflow. In return, the database is read about once an hour per
+ * distinct URL instead of once every 5 minutes. That matters: a Delhi 7-day
+ * city view is about 37,000 rows (4-5 MB) per read, and the free plan allows
+ * 5 GB of database egress a month. City URLs carry only city/lat/lng, so
+ * every visitor looking at the same city shares one cached copy.
+ *
+ * Errors are not cached (see ok() and fail() in lib/api/respond.ts).
+ */
+const HISTORY_HOURLY_CACHE_SECONDS = 3600;
+const HISTORY_HOURLY_CACHE: CachePolicy = {
+  sMaxAgeSeconds: HISTORY_HOURLY_CACHE_SECONDS,
+  staleWhileRevalidateSeconds: HISTORY_HOURLY_CACHE_SECONDS,
+};
 
 const ALLOWED = new Set(["aqi", "pm25", "pm10", "no2", "so2"]);
 
@@ -123,7 +150,12 @@ export async function GET(request: Request) {
   if (failed) return fail("Could not load hourly history", 502, failed.error);
   const readings = results.flatMap((r) => r.data);
   if (!readings.length) {
-    return ok([], { pollutant, days, stations: ids.length, points: 0, today: istToday() });
+    return ok(
+      [],
+      { pollutant, days, stations: ids.length, points: 0, today: istToday() },
+      200,
+      HISTORY_HOURLY_CACHE,
+    );
   }
 
   /** "2026-10-08T14" in IST — the bucket a reading belongs to. */
@@ -164,13 +196,18 @@ export async function GET(request: Request) {
     })
     .sort((a, b) => (a.date === b.date ? a.hour - b.hour : a.date.localeCompare(b.date)));
 
-  return ok(points, {
-    pollutant,
-    days,
-    stations: ids.length,
-    points: points.length,
-    today: istToday(),
-    // City averages only: the fewest reporting stations an hour needed.
-    min_stations: minStations,
-  });
+  return ok(
+    points,
+    {
+      pollutant,
+      days,
+      stations: ids.length,
+      points: points.length,
+      today: istToday(),
+      // City averages only: the fewest reporting stations an hour needed.
+      min_stations: minStations,
+    },
+    200,
+    HISTORY_HOURLY_CACHE,
+  );
 }

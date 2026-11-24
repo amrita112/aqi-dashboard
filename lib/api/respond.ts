@@ -18,7 +18,51 @@ export interface ApiMeta {
   [key: string]: unknown;
 }
 
-export function ok<T>(data: T, meta: Record<string, unknown> = {}, status = 200) {
+/**
+ * How long Vercel's shared cache (the "CDN", servers between our code and the
+ * visitor) may hand out a copy of a successful answer instead of running the
+ * route again.
+ *
+ * - `sMaxAgeSeconds`: the copy counts as fresh for this long. `s-maxage`
+ *   applies to SHARED caches only, so a visitor's own browser does not keep it.
+ * - `staleWhileRevalidateSeconds`: after that, for this much longer, the old
+ *   copy is still served instantly while one fresh copy is fetched in the
+ *   background, so no visitor waits for the database.
+ */
+export interface CachePolicy {
+  sMaxAgeSeconds: number;
+  staleWhileRevalidateSeconds: number;
+}
+
+/**
+ * The default for every route that does not ask for something else.
+ * Forecasts are rewritten nightly and readings land a few times a day, so a
+ * short shared cache absorbs bursts without ever showing stale air.
+ */
+export const DEFAULT_CACHE: CachePolicy = {
+  sMaxAgeSeconds: 300,
+  staleWhileRevalidateSeconds: 600,
+};
+
+/** The Cache-Control header text for a policy, e.g. "public, s-maxage=300, ...". */
+export function cacheControlHeader(policy: CachePolicy): string {
+  return `public, s-maxage=${policy.sMaxAgeSeconds}, stale-while-revalidate=${policy.staleWhileRevalidateSeconds}`;
+}
+
+/**
+ * A successful answer. `cache` is optional: leave it out and the route gets
+ * DEFAULT_CACHE, as every route did before it existed.
+ *
+ * Only successes are cached. fail() below sets no Cache-Control header at all,
+ * and Vercel does not keep a function's response without one, so an error
+ * (a database hiccup, say) is never served to the next visitor from cache.
+ */
+export function ok<T>(
+  data: T,
+  meta: Record<string, unknown> = {},
+  status = 200,
+  cache: CachePolicy = DEFAULT_CACHE,
+) {
   return NextResponse.json(
     {
       data,
@@ -30,9 +74,7 @@ export function ok<T>(data: T, meta: Record<string, unknown> = {}, status = 200)
     },
     {
       status,
-      // Forecasts are rewritten nightly and readings land a few times a day,
-      // so a short shared cache absorbs bursts without ever showing stale air.
-      headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+      headers: { "Cache-Control": cacheControlHeader(cache) },
     },
   );
 }
