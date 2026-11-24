@@ -23,7 +23,13 @@ import {
   DEFAULT_MODEL,
   undouble,
 } from "@/lib/ai/provider";
-import { resolveLocation, meanAcross } from "@/lib/api/data";
+import {
+  resolveLocation,
+  meanAcross,
+  getForecastMany,
+  averageForecastDays,
+  type MonitorRow,
+} from "@/lib/api/data";
 import { searchNominatim } from "@/lib/api/nominatim";
 
 // Never the real geocoder from a test: no network, no load on a free service.
@@ -253,6 +259,67 @@ describe("tool executors", () => {
     const out = await executeTool(supabase, "forecast", { location: "Anand Vihar" });
     const days = out.days as { mode: string }[];
     expect(days[0].mode).toBe("seasonal_normal");
+  });
+
+  it("forecast gives the same numbers as the app's chart, leaving out a seasonal-only station", async () => {
+    // Two Delhi stations for the same two days. a1 has a real forecast; a2
+    // only has the seasonal estimate (the long-run average for the date). The
+    // app's chart (averageForecastDays) leaves a2 out, so the city number is
+    // a1's alone -- 200, not the 300 that averaging both used to give here.
+    // A fitted hourly shape makes the hourly curve non-trivial, so it is
+    // compared too.
+    const row = (monitor_id: string, target_date: string, value: number, mode: string) => ({
+      monitor_id,
+      pollutant: "aqi",
+      target_date,
+      horizon_days: 1,
+      value,
+      band_p50: null,
+      band_p80: null,
+      mode,
+      model: mode === "seasonal_normal" ? "climatology" : "blend",
+      based_on_date: mode === "seasonal_normal" ? null : "2099-01-01",
+      data_age_days: mode === "seasonal_normal" ? null : 1,
+      computed_at: null,
+    });
+    const tables = {
+      monitors: DELHI_MONITORS,
+      forecast_daily: [
+        row("a1", "2099-01-02", 200, "forecast"),
+        row("a1", "2099-01-03", 180, "outlook"),
+        row("a2", "2099-01-02", 400, "seasonal_normal"),
+        row("a2", "2099-01-03", 420, "seasonal_normal"),
+      ],
+      diurnal_shape: Array.from({ length: 24 }, (_, hour) => ({
+        city: "Delhi",
+        pollutant: "aqi",
+        month: 1,
+        hour,
+        ratio: hour < 12 ? 1.2 : 0.8,
+      })),
+    };
+
+    const out = await executeTool(fakeSupabase(tables), "forecast", { location: "Delhi NCR", days: 2 });
+    const tool = out.days as { date: string; value: number; mode: string; hourly: (number | null)[]; band_label: string }[];
+
+    // What the app's /api/forecast route computes from the same rows.
+    const monitors = DELHI_MONITORS as MonitorRow[];
+    const byStation = await getForecastMany(fakeSupabase(tables), monitors, "aqi", 2);
+    const app = averageForecastDays(
+      monitors.map((m) => ({ monitor: { ...m, distance_km: 0 }, days: byStation.get(m.id) ?? [] })),
+      2,
+      "aqi",
+    )!;
+
+    expect(out.stations_used).toBe(1); // a2 was left out
+    expect(tool.map((d) => d.value)).toEqual([200, 180]);
+    expect(tool.map((d) => d.value)).toEqual(app.value.map((d) => d.value));
+    expect(tool.map((d) => d.date)).toEqual(app.value.map((d) => d.target_date));
+    expect(tool.map((d) => d.mode)).toEqual(app.value.map((d) => d.mode));
+    expect(tool.map((d) => d.band_label)).toEqual(app.value.map((d) => d.band.label));
+    tool.forEach((d, i) => {
+      expect(d.hourly).toEqual(app.value[i].hourly!.map((h) => Math.round(h.value)));
+    });
   });
 });
 

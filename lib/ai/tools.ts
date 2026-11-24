@@ -18,17 +18,17 @@ import {
   resolveLocation,
   getCurrentMany,
   getForecastMany,
+  averageForecastDays,
   getHistoryMany,
   meanAcross,
   DataError,
   type HistoryPoint,
   type MonitorRow,
+  type NearbyMonitor,
   type ResolvedLocation,
 } from "@/lib/api/data";
 import { resolveCity, minStationsOf } from "@/lib/api/place";
 import type { ForecastDay } from "@/lib/api/forecast";
-import { bandFor } from "@/lib/api/forecast";
-import { DEFAULT_SCALE } from "@/lib/types";
 import { computeSubIndex, getAqiLabel } from "@/lib/aqi-utils";
 import { istToday, toIstClock, toIstHour } from "@/lib/api/time";
 import { searchNominatim } from "@/lib/api/nominatim";
@@ -557,58 +557,61 @@ async function runTool(
       const pollutant = measureFor(args, ctx);
       const days = Math.min(7, Math.max(1, Number(args.days ?? 1)));
       const perStation = await forecastsFor(supabase, loc.monitors, pollutant, days);
-      const usable = perStation.filter((d) => d.length);
-      if (!usable.length) {
+
+      // THE APP'S OWN AVERAGING, so the answer and the forecast chart cannot
+      // disagree. This tool used to average the stations itself and kept
+      // every one of them, including stations that only had a seasonal
+      // estimate ("seasonal_normal", the long-run average for the date). The
+      // chart (/api/forecast) drops those whenever a neighbour has a real
+      // forecast, because blending the long-run average in pulls tomorrow's
+      // prediction toward "a typical day". Calling the same function, on the
+      // same rows (getForecastMany, which already expands each row with
+      // expandDay exactly as the chart's route does), gives the same numbers.
+      //
+      // averageForecastDays wants each station's distance, only to list the
+      // contributing stations nearest first; this tool reports just a count,
+      // so a missing distance (a whole-city lookup has none) is filled with 0.
+      const averaged = averageForecastDays(
+        loc.monitors.map((m, i) => ({
+          monitor: { ...m, distance_km: (m as Partial<NearbyMonitor>).distance_km ?? 0 },
+          days: perStation[i],
+        })),
+        days,
+        pollutant,
+      );
+      if (!averaged) {
         return { location: loc.label, error: "no_forecast", message: "No forecast stored for this place yet." };
       }
-      const byDay = [];
-      // Matched by DATE, not position: day i of one station is not day i of
-      // another when a station is missing a row (audit §7.4).
-      const dates = Array.from(new Set(usable.flatMap((d) => d.map((x) => x.target_date))))
-        .sort()
-        .slice(0, days);
-      for (const date of dates) {
-        const slice = usable
-          .map((d) => d.find((x) => x.target_date === date))
-          .filter((x): x is ForecastDay => Boolean(x));
-        if (!slice.length) continue;
-        // If ANY station is serving the seasonal normal, say so rather than
-        // hiding it behind an average that looks like a prediction.
-        const modes = new Set(slice.map((d) => d.mode));
-        const dayValue = meanAcross(slice.map((d) => d.value));
-        byDay.push({
-          date: slice[0].target_date,
-          date_label: `${describeDay(slice[0].target_date)} (${humanDate(slice[0].target_date)})`,
-          value: dayValue,
-          band: pollutant === "aqi" && dayValue !== null ? getAqiLabel(dayValue) : null,
-          // Averaged across stations, same as `value`. Carried so the chart can
-          // show the within-day swing, which is the half of the model a daily
-          // line throws away -- these cities move by a factor of two inside a
-          // day. The model is told not to recite it.
-          hourly: Array.from({ length: 24 }, (_, hour) => {
-            const v = meanAcross(
-              slice.map((d) => d.hourly?.[hour]?.value ?? NaN),
-            );
-            return v === null ? null : Math.round(v);
-          }),
-          mode: modes.has("forecast")
-            ? "forecast"
-            : modes.has("outlook")
-              ? "outlook"
-              : "seasonal_normal",
-          // The band of the AVERAGED value, not of whichever station came
-          // first (audit §6.3) -- the same rule averageForecastDays follows.
-          band_label: dayValue !== null ? bandFor(pollutant, dayValue, DEFAULT_SCALE).label : null,
-          // The stalest contributor: an average is only as current as its
-          // oldest input.
-          data_age_days: slice.reduce<number | null>(
-            (worst, d) =>
-              d.data_age_days === null ? worst : Math.max(worst ?? 0, d.data_age_days),
-            null,
-          ),
-        });
-      }
-      return { location: loc.label, pollutant, stations_used: usable.length, days: byDay };
+
+      // The SAME compact shape as before, so the model's prompt does not grow:
+      // one entry per day, the hourly curve as 24 rounded numbers.
+      const byDay = averaged.value.map((d) => ({
+        date: d.target_date,
+        date_label: `${describeDay(d.target_date)} (${humanDate(d.target_date)})`,
+        value: d.value,
+        band: pollutant === "aqi" ? getAqiLabel(d.value) : null,
+        // Averaged across the same stations as `value`. Carried so the chart
+        // can show the within-day swing, which is the half of the model a
+        // daily line throws away -- these cities move by a factor of two
+        // inside a day. The model is told not to recite it.
+        hourly: Array.from({ length: 24 }, (_, hour) => {
+          const v = d.hourly?.[hour]?.value;
+          return v === null || v === undefined || !Number.isFinite(v) ? null : Math.round(v);
+        }),
+        // "seasonal_normal" only when NO station had a real forecast for this
+        // day; then the number is the seasonal average and the model must say
+        // so (see the tool description).
+        mode: d.mode,
+        // The band of the AVERAGED value (audit §6.3), recomputed by
+        // averageForecastDays on the app's scale.
+        band_label: d.band.label,
+        // Averaged over the contributing stations, as the app's chart and its
+        // data-quality note do, so both describe the same input age.
+        data_age_days: d.data_age_days,
+      }));
+      // The stations that actually fed the numbers: a seasonal-only station
+      // that was left out is not counted.
+      return { location: loc.label, pollutant, stations_used: averaged.stations.length, days: byDay };
     }
 
     case "best_hour": {
