@@ -253,14 +253,35 @@ export default function ClimateChart({
   /**
    * How many monitoring stations stand behind a place, in words, for the
    * explainer. The count is what the API says answered (meta.stations_used),
-   * never a fixed number. A single station asked for by monitor_id (the Map
-   * tab) is "this monitoring station".
+   * never a fixed number.
+   *
+   * A single station asked for by monitor_id (the Map tab's station card)
+   * gets NO sentence (null): the card is that one monitoring station, so
+   * saying "From this monitoring station." there only repeats the obvious
+   * (the owner's call). The footnote then starts straight at "Values are
+   * median over years."
    */
-  const stationsSentence = (p: (typeof live)[number]): string => {
-    if (p.query.monitor_id) return "From this monitoring station.";
+  const stationsSentence = (p: (typeof live)[number]): string | null => {
+    if (p.query.monitor_id) return null;
     if (p.stationsUsed === 1) return "From 1 monitoring station.";
     return `Averaged over ${p.stationsUsed} monitoring stations.`;
   };
+  // Each place's sentence for the footnote, already joined. With two places,
+  // each is prefixed by the place's name and lower-cased to run on after it
+  // ("Delhi: averaged over 12 monitoring stations. "); a place with no
+  // sentence (a single station by monitor_id) is skipped entirely, so no
+  // dangling "Name: ." is left behind.
+  const stationsFootnote = comparing
+    ? live
+        .map((p) => {
+          const s = stationsSentence(p);
+          return s ? `${p.label}: ${s.toLowerCase().replace(/\.$/, "")}. ` : "";
+        })
+        .join("")
+    : (() => {
+        const s = stationsSentence(live[0]);
+        return s ? `${s} ` : "";
+      })();
   const totalDropped = live.reduce((t, p) => t + p.data!.dropped.length, 0);
 
   return (
@@ -273,7 +294,9 @@ export default function ClimateChart({
         return (
           <p
             key={p.key}
-            className="text-xs text-gray-600"
+            // Wraps like ordinary text; "break-words" also splits a single
+            // over-long word, so a long name can never push past the card.
+            className="min-w-0 break-words text-xs text-gray-600"
             style={comparing ? { color: p.color } : undefined}
           >
             {comparing ? `${p.label}: ` : ""}
@@ -292,38 +315,93 @@ export default function ClimateChart({
         );
       })}
 
-      {/* The reading under the finger. Height reserved so the chart does not
-          jump as a finger moves; two lines' worth when two places share it. */}
-      <p
-        className={`mt-0.5 text-xs font-medium text-gray-900 ${comparing ? "min-h-[2rem]" : "min-h-[1.25rem]"}`}
-      >
-        {hover !== null && live.some((p) => p.data!.months[hover].mean !== null) && (
-          <>
-            {MONTH_NAMES[hover]}:
-            {live.map((p) => {
-              const m = p.data!.months[hover];
-              if (m.mean === null) return null;
-              return comparing ? (
-                <span key={p.key} className="ml-2 whitespace-nowrap" style={{ color: p.color }}>
-                  {p.label}: {fmt(m.mean)}
-                  <span className="font-normal"> ({fmt(m.min)}–{fmt(m.max)})</span>
-                </span>
-              ) : (
-                <span key={p.key}>
-                  {" "}
-                  {fmt(m.mean)}
-                  <span className="font-normal text-gray-600">
+      {/* The reading under the finger.
+
+          ONE PLACE (the Map tab, or the Trends tab with one place): a single
+          line, "February: 120 (low 72, high 230) · 9 years", which wraps
+          normally if it is too long. One line's height is reserved so the
+          chart does not jump as a finger arrives or leaves.
+
+          TWO PLACES (the Trends tab comparing): the month on its own line,
+          then each place on its own line beneath it, in its line colour
+          (first black, second blue). It used to be one unbreakable line per
+          place ("whitespace-nowrap"), which with long monitoring station
+          names ran past the card's right edge and was cut off. Now each
+          place's line may wrap ("break-words" also splits a single very long
+          word), and "min-w-0" stops a long name from widening the card.
+
+          NO JUMP WHEN TWO PLACES ARE COMPARED. How tall the readout is
+          depends on how many lines each place's name wraps onto, which only
+          the browser knows. So rather than guess a fixed height, the readout
+          is ALWAYS drawn: when no finger is on the chart it is drawn with
+          stand-in numbers and made invisible ("invisible" hides it but keeps
+          its space). The real readout then takes the same space, so the chart
+          stays still. (Real numbers can be a digit or two shorter or longer
+          than the stand-ins, which at worst changes a wrap on rare widths.) */}
+      {comparing ? (
+        (() => {
+          // Hovered month, but only if at least one place has a value for it;
+          // otherwise behave as if nothing is hovered.
+          const active =
+            hover !== null && live.some((p) => p.data!.months[hover].mean !== null) ? hover : null;
+          return (
+            <div
+              className={`mt-0.5 min-w-0 text-xs font-medium text-gray-900 ${active === null ? "invisible" : ""}`}
+              // The stand-in readout is for spacing only; screen readers skip it.
+              aria-hidden={active === null ? true : undefined}
+            >
+              <p className="break-words">
+                {active === null ? "September" : MONTH_NAMES[active]}
+                {unit ? <span className="font-normal text-gray-500"> · {unit}</span> : null}
+              </p>
+              {live.map((p) => {
+                const m = active === null ? null : p.data!.months[active];
+                return (
+                  <p key={p.key} className="min-w-0 break-words" style={{ color: p.color }}>
+                    {p.label}:{" "}
+                    {m === null ? (
+                      // Stand-in, as wide as a typical reading.
+                      <>000<span className="font-normal"> (000–000)</span></>
+                    ) : m.mean === null ? (
+                      // This place has no record for the month; a dash keeps
+                      // its line (and so the height) in place.
+                      "–"
+                    ) : (
+                      <>
+                        {fmt(m.mean)}
+                        <span className="font-normal"> ({fmt(m.min)}–{fmt(m.max)})</span>
+                      </>
+                    )}
+                  </p>
+                );
+              })}
+            </div>
+          );
+        })()
+      ) : (
+        <p className="mt-0.5 min-h-[1.25rem] min-w-0 break-words text-xs font-medium text-gray-900">
+          {hover !== null && live[0].data!.months[hover].mean !== null && (
+            <>
+              {MONTH_NAMES[hover]}:
+              {live.map((p) => {
+                const m = p.data!.months[hover];
+                if (m.mean === null) return null;
+                return (
+                  <span key={p.key}>
                     {" "}
-                    (low {fmt(m.min)}, high {fmt(m.max)}){unit ? ` ${unit}` : ""} ·{" "}
-                    {m.n_years} {m.n_years === 1 ? "year" : "years"}
+                    {fmt(m.mean)}
+                    <span className="font-normal text-gray-600">
+                      {" "}
+                      (low {fmt(m.min)}, high {fmt(m.max)}){unit ? ` ${unit}` : ""} ·{" "}
+                      {m.n_years} {m.n_years === 1 ? "year" : "years"}
+                    </span>
                   </span>
-                </span>
-              );
-            })}
-            {comparing && unit ? <span className="ml-1 font-normal text-gray-500">{unit}</span> : null}
-          </>
-        )}
-      </p>
+                );
+              })}
+            </>
+          )}
+        </p>
+      )}
 
       {/* The plot and its key: what a shared image captures (plotRef). */}
       <div ref={plotRef}>
@@ -462,9 +540,7 @@ export default function ClimateChart({
               scale; they are not official AQI values.{" "}
             </>
           ))}
-        {comparing
-          ? live.map((p) => `${p.label}: ${stationsSentence(p).toLowerCase().replace(/\.$/, "")}. `).join("")
-          : `${stationsSentence(live[0])} `}
+        {stationsFootnote}
         Values are median over years. Data is from CPCB (via XKDR and OpenAQ).
       </p>
       {/* Only when the unusual-year screen left something out. */}
