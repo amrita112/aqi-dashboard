@@ -93,6 +93,41 @@ def computed_complete_mask(df: pd.DataFrame) -> pd.Series:
     mean = pd.to_numeric(df["mean"], errors="coerce")
 
     # The station's typical day, which tells us its cadence.
+    #
+    # KNOWN WEAKNESS (Nov 2026 audit v2, finding N4) -- read before changing.
+    # Guessing the cadence from the 90th percentile of daily counts is a
+    # roundabout way to do it. The rollup (scripts/ingest/rollup_daily.py) has
+    # every reading's timestamp, so it could simply count the distinct hours a
+    # day covers and compare that with MIN_HOURS_FOR_COMPLETE_DAY, with no
+    # cadence guess at all. The same formula is copied in
+    # database-setup/26-complete-day-12-hours.sql.
+    #
+    # How it can go wrong:
+    #   * A patchy 15-minute station whose days mostly carry <= CADENCE_SPLIT
+    #     (30) readings is judged hourly, so it needs only 12 readings for a
+    #     "complete" day -- about 3 hours of real data (12 x 15 min) passes as a
+    #     full day.
+    #   * A station that switches from 15-minute to hourly reporting keeps being
+    #     judged 15-minute while its old 96-reading days are still in the
+    #     window, so its full 24-reading hourly days are rejected.
+    #
+    # Why it is not fixed now. Measured 23 Nov 2026 over readings_daily,
+    # 17 Aug - 22 Nov 2026:
+    #   * 152 PM2.5 stations and every PM10/NO2/SO2 station report every 15
+    #     minutes, with typical counts far above 30;
+    #   * 10 PM2.5-only stations (7 in Delhi NCR) report hourly, at exactly 24
+    #     readings a day;
+    #   * no station is borderline and none switched cadence, so neither
+    #     failure mode occurs in the current data.
+    # Fixing it changes the forecasting logic, which forces a re-run of
+    # notebooks/forecast_verification.ipynb, for no present benefit.
+    #
+    # When to revisit: if a station changes cadence, or OpenAQ starts dropping
+    # partial batches for single stations. To recheck, per (station,
+    # pollutant) over recent readings_daily: flag any whose 0.9-quantile daily
+    # count is between 20 and 50 (borderline), and any judged hourly that has
+    # a day with more than 30 readings (a sign it is really 15-minute or has
+    # switched). If either list is non-empty, move to counting distinct hours.
     typical = count.groupby([df[k] for k in _cadence_keys(df)]).transform(
         lambda s: s.quantile(CADENCE_QUANTILE))
     per_day = typical.gt(CADENCE_SPLIT).map(

@@ -274,7 +274,8 @@ def compute_rollup(joined: pd.DataFrame, target_date: date) -> List[Dict[str, An
 
 # Days of readings_daily read BEFORE the window, only so each station's cadence
 # (hourly or 15-minute) is judged on a fair sample -- the same 14 days nightly
-# looks back over.
+# looks back over. The cadence guess has known weaknesses (audit N4); see the
+# comment in daily_quality.computed_complete_mask before changing it.
 CADENCE_REFERENCE_DAYS = 14
 
 
