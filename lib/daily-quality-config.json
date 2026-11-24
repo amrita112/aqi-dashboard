@@ -15,6 +15,7 @@
   "_valid": "Daily means outside this range (µg/m³) are instrument faults.",
 
   "aqi_rule": "both_pm",
+  "_aqi_rule_coverage": "WHAT both_pm COSTS (audit N5; kept on purpose, Nov 2026). A monitoring station that does not measure BOTH PM2.5 and PM10 never gets a daily AQI, an aqi_value, a current AQI, an AQI forecast anchor or an hourly AQI. It shows as a hollow AQI dot on the map, and for people reading PM2.5 the Home fallback and the AI's current_aqi skip it too, because /api/current filters by this rule. In the 15 Nov station list (generated 18 Oct) that was 15 of 171 stations: 13 with no PM10, 2 with no PM2.5. By city: Bengaluru 5/15, Delhi NCR 7/75, Hyderabad 1/13, Chennai 1/8, Mumbai 1/33. 12 of the 15 measure fewer than 3 of our 4 pollutants, so CPCB's rule would exclude them too; the cost over CPCB is 3 stations. Kept because a day without PM10 can understate the AQI badly (see aqi_rules.both_pm._why). These counts drift as the list changes (23 Nov: 19 of 176). Recount with python3 scripts/diagnostics/aqi_rule_coverage.py, which reads the local station list only.",
   "aqi_rules": {
     "both_pm": {
       "required_all": ["pm25", "pm10"],

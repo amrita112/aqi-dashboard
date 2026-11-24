@@ -13,6 +13,10 @@ Default rule "both_pm": PM2.5 AND PM10 must both be present; NO2/SO2 join the
 max when they are. Without a rule, a timestamp where only SO2 = 20 had arrived
 got AQI 25 "Good" (audit §4.2) -- and because OpenAQ publishes pollutants in
 separate bursts, that is common for the newest hours.
+
+The price: a monitoring station without PM2.5 or PM10 never gets an AQI (15 of
+171 in the 15 Nov station list). See "_aqi_rule_coverage" in the config, and
+recount with scripts/diagnostics/aqi_rule_coverage.py.
 """
 
 from __future__ import annotations
