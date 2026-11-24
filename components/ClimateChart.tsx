@@ -351,8 +351,9 @@ export default function ClimateChart({
               aria-hidden={active === null ? true : undefined}
             >
               <p className="break-words">
+                {/* Month name only: the unit is already on the y-axis label
+                    ("PM2.5 (µg/m³)"), so repeating it here was clutter. */}
                 {active === null ? "September" : MONTH_NAMES[active]}
-                {unit ? <span className="font-normal text-gray-500"> · {unit}</span> : null}
               </p>
               {live.map((p) => {
                 const m = active === null ? null : p.data!.months[active];
